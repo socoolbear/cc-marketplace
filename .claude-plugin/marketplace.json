@@ -1,0 +1,24 @@
+{
+  "name": "cc-marketplace",
+  "owner": {
+    "name": "socoolbear"
+  },
+  "metadata": {
+    "description": "socoolbear 의 개인용 Claude Code 플러그인 마켓플레이스",
+    "version": "1.0.0",
+    "pluginRoot": "./plugins"
+  },
+  "plugins": [
+    {
+      "name": "quality-review",
+      "source": "quality-review",
+      "description": "버그, 보안, 성능, 가독성에 대한 코드 품질 리뷰 skill",
+      "version": "1.0.0",
+      "author": {
+        "name": "socoolbear"
+      },
+      "category": "code-quality",
+      "tags": ["review", "quality", "security", "performance"]
+    }
+  ]
+}
