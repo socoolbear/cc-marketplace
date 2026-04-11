@@ -237,6 +237,12 @@ GitHub
 
 ---
 
+## Source
+
+- 원작자: [@devninja03](https://www.threads.net/@devninja03)
+- 출처: [Threads 게시글](https://www.threads.com/@devninja03/post/DWQtpYXAers)
+- 원작자가 Threads 에 공개한 경력기술서 작성 가이드를 기반으로 Claude Code 스킬로 재구성함
+
 ## Related Files
 
 - 참고할 샘플 경력기술서는 사용자가 제공
