@@ -1,5 +1,0 @@
-{
-  "name": "quality-review",
-  "description": "버그, 보안, 성능, 가독성에 대한 코드 품질 리뷰 skill",
-  "version": "1.0.0"
-}
