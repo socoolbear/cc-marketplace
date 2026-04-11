@@ -18,6 +18,17 @@
       },
       "category": "project-infrastructure",
       "tags": ["harness", "architecture", "quality", "pipeline", "enforcement"]
+    },
+    {
+      "name": "documents",
+      "source": "./plugins/documents",
+      "description": "문서 작성 플러그인 (경력기술서, 이력서 등)",
+      "version": "1.0.0",
+      "author": {
+        "name": "socoolbear"
+      },
+      "category": "writing",
+      "tags": ["documents", "resume", "career", "writing"]
     }
   ]
 }
