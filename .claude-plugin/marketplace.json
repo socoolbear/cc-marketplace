@@ -9,17 +9,6 @@
   },
   "plugins": [
     {
-      "name": "quality-review",
-      "source": "./plugins/quality-review",
-      "description": "버그, 보안, 성능, 가독성에 대한 코드 품질 리뷰 skill",
-      "version": "1.0.0",
-      "author": {
-        "name": "socoolbear"
-      },
-      "category": "code-quality",
-      "tags": ["review", "quality", "security", "performance"]
-    },
-    {
       "name": "harness-engineering",
       "source": "./plugins/harness-engineering",
       "description": "프로젝트에 하네스 엔지니어링 인프라를 구축하는 플러그인. 지식 아키텍처, 기계적 강제, 3-에이전트 파이프라인, 품질 추적, 실패 방지 설정",
