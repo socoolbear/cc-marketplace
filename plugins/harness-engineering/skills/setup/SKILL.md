@@ -462,6 +462,7 @@ Self-Reviewer 의 리뷰 결과를 보지 않고, 코드만 보고 평가한다.
 
 ## PASS 시 출력
 1. `_workspace/phase-{N}-eval.md` 작성 (PASS + 품질 점수)
+   (수정 루프 M회차에서 PASS 시: `_workspace/phase-{N}-eval-retry-{M}.md`)
 2. `docs/quality/scores.json` 갱신
 3. `docs/quality/quality-log.md` 에 항목 추가 (형식: `references/quality-tracking.md` 참조)
 4. `_workspace/phase-{N}-completion.md` 작성 (`_workspace/templates/completion-record.md` 양식)

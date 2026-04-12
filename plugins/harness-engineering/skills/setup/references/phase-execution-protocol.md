@@ -98,7 +98,7 @@ Phase 를 실행하는 4단계 파이프라인의 상세 프로토콜.
 - `_workspace/phase-N-contract.md` — 스프린트 계약서
 - `docs/phases/phase-N-*.md` — Phase 스펙
 - `docs/architecture.md` — 아키텍처 규칙
-- (수정 루프 시) Evaluator 의 수정 지시서
+- (수정 루프 시) `_workspace/phase-N-fix-directive-M.md` — 수정 지시서
 
 **출력:**
 - 구현된 코드 (src/ 하위)
@@ -158,10 +158,18 @@ Phase 를 실행하는 4단계 파이프라인의 상세 프로토콜.
 - `docs/quality/scores.json` — 이전 품질 점수 (회귀 비교용)
 - 구현된 소스 코드 (src/ 하위)
 
-**출력:**
-- `_workspace/phase-N-eval.md` — 평가 결과 (PASS/FAIL + 이슈 목록)
+**출력 (PASS):**
+- `_workspace/phase-N-eval.md` — 평가 결과 (PASS + 품질 점수)
+  (수정 루프 M회차에서 PASS 시: `phase-N-eval-retry-M.md`)
 - `docs/quality/scores.json` 갱신
 - `docs/quality/quality-log.md` 에 항목 추가
+- `_workspace/phase-N-completion.md` — 완료 기록
+- `_workspace/current-phase.md` 갱신 (다음 Phase 로)
+
+**출력 (FAIL):**
+- `_workspace/phase-N-eval.md` — 평가 결과 (FAIL + 이슈 목록)
+  (수정 루프 M회차: `phase-N-eval-retry-M.md`)
+- `_workspace/phase-N-fix-directive-M.md` — 수정 지시서
 
 **원칙:**
 - **Self-Review 결과 비공개**: Evaluator 는 Self-Reviewer 의 리뷰 결과를 볼 수 없다.
@@ -320,7 +328,7 @@ Phase 실행의 모든 중간 산출물은 `_workspace/` 에 보관한다.
 
 | 파일 | 작성자 | 시점 |
 |------|--------|------|
-| `current-phase.md` | Planner | Phase 시작 시 갱신 |
+| `current-phase.md` | Evaluator | PASS 시 다음 Phase 로 갱신 |
 | `phase-N-contract.md` | Planner | Phase 시작 시 생성 |
 | `phase-N-self-review.md` | Self-Reviewer | 자기 리뷰 완료 시 생성 |
 | `phase-N-self-review-retry-M.md` | Self-Reviewer | 수정 루프 M회차 리뷰 |
