@@ -51,6 +51,11 @@ AGENTS.md (지도, ~100줄)
 ```
 docs/
   architecture.md     # 아키텍처 규칙의 권위적 원천 (단일 파일)
+  adr/                # 아키텍처 결정 이력 (ADR)
+    README.md
+    TEMPLATE.md
+    0001-*.md
+    ...
   phases/             # Phase 별 스펙 + 성공 기준
     phase-0-foundation.md
     phase-1-core.md
@@ -73,11 +78,19 @@ docs/
 
 | 디렉터리 | 역할 | 갱신 주기 |
 |-----------|------|-----------|
-| `architecture.md` | 아키텍처 불변 조건 정의. 다른 모든 문서보다 우선. | 구조 변경 시 |
+| `architecture.md` | 아키텍처 불변 조건 정의 (현재 스냅샷). 다른 모든 문서보다 우선. | 구조 변경 시 |
+| `adr/` | 아키텍처 결정 이력. "왜 이렇게 결정했나" 의 감사 추적. architecture.md 의 스냅샷을 보완한다. | 전략적 결정 발생 시 (Phase 종료 시 점검) |
 | `phases/` | 각 Phase 의 범위, 산출물, 성공 기준. Phase 시작 전 확정. | Phase 시작/종료 시 |
 | `references/` | 반복 참조되는 지식. 실패에서 배운 교훈, 타입 계약 등. | 교훈 발생 시 |
 | `quality/` | 기계 판독 가능한 점수 + 사람이 읽는 로그. | Phase 평가 완료 시 |
 | `legacy-*/` | 마이그레이션 이전 문서. 수정 금지. | 절대 갱신하지 않음 |
+
+### architecture.md 와 adr/ 의 역할 분리
+
+- **`architecture.md`**: 현재 아키텍처는 "어떠한가" — 규칙의 스냅샷. 구조가 바뀌면 이 파일을 갱신한다.
+- **`adr/`**: "왜" 그 규칙이 그렇게 되었는가 — 결정의 이력. 결정은 변경되어도 ADR 은 수정하지 않고, 새 ADR 로 Supersede 한다.
+- 두 문서는 서로 보완적. 에이전트가 `architecture.md` 만 보면 규칙은 알지만 의도를 모르고, `adr/` 만 보면 이력은 알지만 현재 규칙을 한눈에 파악하지 못한다.
+- 상세 패턴: `references/adr-pattern.md`
 
 ---
 

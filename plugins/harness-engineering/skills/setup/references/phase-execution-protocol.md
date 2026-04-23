@@ -153,8 +153,9 @@ Phase 를 실행하는 4단계 파이프라인의 상세 프로토콜.
 **역할:** 구현 결과를 독립적으로 검증하고 품질을 채점한다.
 
 **입력:**
-- `_workspace/phase-N-contract.md` — 스프린트 계약서
-- `docs/architecture.md` — 아키텍처 규칙
+- `_workspace/phase-N-contract.md` — 스프린트 계약서 (관련 ADR / 예상 ADR 후보 포함)
+- `docs/architecture.md` — 아키텍처 규칙 (현재 스냅샷)
+- `docs/adr/` — 아키텍처 결정 이력
 - `docs/quality/scores.json` — 이전 품질 점수 (회귀 비교용)
 - 구현된 소스 코드 (src/ 하위)
 
@@ -163,7 +164,9 @@ Phase 를 실행하는 4단계 파이프라인의 상세 프로토콜.
   (수정 루프 M회차에서 PASS 시: `phase-N-eval-retry-M.md`)
 - `docs/quality/scores.json` 갱신
 - `docs/quality/quality-log.md` 에 항목 추가
-- `_workspace/phase-N-completion.md` — 완료 기록
+- `docs/adr/NNNN-*.md` — 발행된 ADR (아키텍처 결정이 발생한 경우)
+- `docs/adr/README.md` 갱신 (인덱스 테이블)
+- `_workspace/phase-N-completion.md` — 완료 기록 (아키텍처 결정 섹션 포함)
 - `_workspace/current-phase.md` 갱신 (다음 Phase 로)
 
 **출력 (FAIL):**
@@ -183,6 +186,7 @@ Phase 를 실행하는 4단계 파이프라인의 상세 프로토콜.
   5. 아키텍처 검증 (레이어 경계 검사)
   6. 계약서 대비 리뷰 (성공 기준 체크리스트 점검)
   7. 컨텍스트 불안 감지 (전반부 vs 후반부 품질 비교, TODO/FIXME 검출) — 상세: 섹션 9
+  8. **아키텍처 결정 점검**: 계약서의 "예상 ADR 후보" 와 실제 구현을 비교하여, 전략적 결정이 발생했다면 ADR 발행 (상세: `references/adr-pattern.md`)
 
 ---
 
