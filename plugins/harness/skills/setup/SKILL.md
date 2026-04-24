@@ -22,6 +22,26 @@ OpenAI 와 Anthropic 의 하네스 엔지니어링 방법론을 프로젝트에 
 
 ## 워크플로우
 
+### Phase 0: 재실행 가드
+
+setup 은 **1회성 구축 스킬**이다. 이미 셋업된 프로젝트에서 재실행하면 `_workspace/current-phase.md` (진행 상태), `docs/quality/scores.json` (점수 이력), `docs/adr/README.md` (ADR 인덱스) 등이 초기화될 위험이 있다.
+
+**감지 방법** — 다음 중 하나라도 존재하면 setup 이 이미 실행된 것으로 간주한다:
+- `docs/quality/.harness-version` (버전 마커)
+- `AGENTS.md` + `docs/architecture.md` + `_workspace/current-phase.md` 3개 모두 존재
+
+**동작**:
+
+1. 감지되면 즉시 **중단**하고 사용자에게 안내한다:
+
+   > 이 프로젝트는 이미 하네스가 셋업되어 있습니다.
+   > 스킬 변경사항을 반영하려면 `/harness:update` 를 사용하세요.
+   > setup 재실행은 진행 상태, 품질 점수, ADR 인덱스, 사용자 커스터마이징을 리셋할 수 있습니다.
+
+2. 사용자가 **명시적으로 "강제 재설치" 의사**를 확인하는 경우에만 진행한다. 이때도 먼저 다음을 수행한다:
+   - `_workspace/`, `docs/quality/`, `docs/adr/` 를 `_archive/YYYY-MM-DD-before-reset/` 로 이동
+   - 기존 `AGENTS.md` 를 `_archive/YYYY-MM-DD-before-reset/AGENTS.md.bak` 로 복사
+
 ### Phase 1: 프로젝트 분석
 
 프로젝트의 현재 상태를 파악한다. Explore 에이전트로 병렬 조사:
@@ -689,6 +709,26 @@ Phase 1 분석 결과를 반영하여 다음 파일을 생성한다.
 - 각 프롬프트의 플레이스홀더 (`{빌드 명령어}` 등) 가 실제 명령어로 치환되었는지
 - 첫 Phase 의 스프린트 계약서를 작성할 수 있는 상태인지
 
+### Phase 6: 버전 마커 기록
+
+setup 완료 시점에 `docs/quality/.harness-version` 을 생성한다.
+이후 `/harness:update` 스킬이 이 파일을 읽어 버전 차이를 계산한다.
+
+`docs/quality/.harness-version`:
+
+```json
+{
+  "harnessVersion": "{plugin.json 의 version 필드값}",
+  "setupDate": "{오늘 날짜, YYYY-MM-DD}",
+  "setupBy": "harness:setup",
+  "features": ["adr", "4-stage-pipeline", "quality-tracking", "mechanical-enforcement"]
+}
+```
+
+- `harnessVersion`: 플러그인 현재 버전 (`plugin.json` 의 `version` 과 일치)
+- `setupDate`: setup 실행 날짜
+- `features`: 이 버전에서 활성화된 주요 기능. 프로젝트 유형에 따라 항목을 뺀다 (레이어 구조가 없으면 `mechanical-enforcement` 제외 등)
+
 ## 산출물 체크리스트
 
 Phase 2~4 완료 후 프로젝트에 존재해야 하는 파일:
@@ -703,6 +743,7 @@ Phase 2~4 완료 후 프로젝트에 존재해야 하는 파일:
 - [ ] `docs/references/failure-lessons.md` — 실패 교훈 초기 파일
 - [ ] `docs/quality/scores.json` — 품질 점수 초기 상태
 - [ ] `docs/quality/quality-log.md` — 품질 추적 로그
+- [ ] `docs/quality/.harness-version` — 버전 마커 (update 스킬이 읽음)
 - [ ] `scripts/check-layer-import.js` — 레이어 경계 검사 스크립트 (레이어 구조가 있는 경우)
 - [ ] `.claude/settings.local.json` — PostToolUse Hook (레이어 구조가 있는 경우)
 - [ ] `_workspace/current-phase.md` — 현재 Phase 상태

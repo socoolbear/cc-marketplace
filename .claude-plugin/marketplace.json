@@ -11,13 +11,13 @@
     {
       "name": "harness",
       "source": "./plugins/harness",
-      "description": "프로젝트에 하네스 엔지니어링 인프라를 구축(setup)하고 시간에 따른 드리프트를 진단/정리(audit)하는 플러그인. 지식 아키텍처, 기계적 강제, 4단계 파이프라인, ADR 이력, 품질 추적, 가비지 컬렉션",
-      "version": "1.1.0",
+      "description": "하네스 엔지니어링 인프라 라이프사이클 전체를 담당하는 플러그인. 최초 구축(setup) + 내부 드리프트 진단/정리(audit) + 스킬 버전 동기화(update). 지식 아키텍처, 기계적 강제, 4단계 파이프라인, ADR 이력, 품질 추적, 가비지 컬렉션",
+      "version": "1.2.0",
       "author": {
         "name": "socoolbear"
       },
       "category": "project-infrastructure",
-      "tags": ["harness", "architecture", "quality", "pipeline", "enforcement", "audit", "maintenance", "adr"]
+      "tags": ["harness", "architecture", "quality", "pipeline", "enforcement", "audit", "maintenance", "adr", "update", "migration"]
     },
     {
       "name": "documents",
