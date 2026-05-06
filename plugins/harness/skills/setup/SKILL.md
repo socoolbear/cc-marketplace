@@ -8,11 +8,13 @@ description: "프로젝트에 하네스 엔지니어링 인프라를 구축하�
 OpenAI 와 Anthropic 의 하네스 엔지니어링 방법론을 프로젝트에 적용하는 스킬.
 에이전트가 대규모/장기 프로젝트를 안정적으로 실행할 수 있는 인프라를 구축한다.
 
+> **사전 지식**: 이 스킬은 `audit`, `update` 와 [`../../CONTRACTS.md`](../../CONTRACTS.md) 의 공유 규약 (디렉터리 레이아웃, 파일 명명 규칙, `.harness-version` 스키마, 보호 파일 매트릭스, 정보 격벽) 을 따른다. 본 SKILL.md 는 **셋업 행동** 만 정의한다.
+
 ## 핵심 원칙 (출처)
 
 | 원칙 | 출처 | 설명 |
 |------|------|------|
-| 지도, 백과사전 아님 | OpenAI | AGENTS.md 는 ~100줄의 포인터 모음. 상세는 docs/ 하위에 |
+| 지도, 백과사전 아님 | OpenAI | AGENTS.md 는 50줄 내외의 포인터 모음. 상세는 docs/ 하위에 |
 | 생성과 평가의 분리 | Anthropic | 자기 평가 편향 제거. 구현→자기 리뷰→QA 평가를 별도 컨텍스트로 분리 |
 | 스프린트 계약 | Anthropic | 코딩 전에 측정 가능한 성공 기준 합의 |
 | 기계적 강제 | OpenAI | 아키텍처 불변 조건은 문서가 아닌 코드/린트로 강제 |
@@ -76,18 +78,22 @@ setup 은 **1회성 구축 스킬**이다. 이미 셋업된 프로젝트에서 �
 
 상세 패턴 → `references/knowledge-architecture.md`
 
-**2-1. AGENTS.md 재작성 (지도 형태, ~100줄):**
+**2-1. AGENTS.md 재작성 (지도 형태, 포인터 모음 50줄 내외):**
 
-모든 섹션이 심화 문서로 포인터를 제공한다:
-- 프로젝트 개요 (5줄)
+이 단계에서 작성하는 포인터 모음 자체는 50줄 내외. Phase 4-4 에서 추가되는 "Phase 실행 — 4단계 파이프라인" 섹션 (≈25줄) 까지 포함하면 최종 AGENTS.md 는 80줄 이내가 자연스럽다 (분량 가이드 → `references/knowledge-architecture.md` 1절).
+
+모든 섹션이 심화 문서로 포인터를 제공한다. 각 섹션은 1-3줄의 한 줄 포인터로 압축한다 — 설명·예시·체크리스트는 모두 링크된 문서로 옮긴다:
+- 프로젝트 개요 (1-2줄)
 - 현재 상태 → `_workspace/current-phase.md`
-- 명령어 (빌드, 테스트, 린트, 개발 서버)
+- 명령어 (빌드, 테스트, 린트, 개발 서버) — 한 줄씩
 - 아키텍처 요약 → `docs/architecture.md`
 - 아키텍처 결정 이력 → `docs/adr/README.md`
 - Phase 실행 테이블 → `docs/phases/phase-N-*.md`
 - 교훈 요약 → `docs/references/*.md`
 - 아키텍처 강제 도구 → `scripts/`
 - 문서 지도 (전체 문서 디렉터리 인덱스)
+
+포인터 모음이 60줄을 초과하면: 본문 설명을 줄이거나 해당 섹션을 docs/ 하위 문서로 분리하고 AGENTS.md 에는 한 줄 링크만 남긴다.
 
 **2-2. docs/ 구조 생성:**
 
@@ -568,14 +574,15 @@ Self-Reviewer 의 리뷰 결과를 보지 않고, 코드만 보고 평가한다.
 - `docs/quality/scores.json` — 이전 품질 점수 (회귀 비교용)
 - 구현된 소스 코드 (src/ 하위)
 
-## 작업 — 다음 순서로 검증한다:
+## 작업 — 다음 순서로 검증한다 (상세: `skill 의 references/phase-execution-protocol.md` 섹션 2):
 1. `{타입체크 명령어}` 실행
 2. `{린트 명령어}` 실행
 3. `{테스트 명령어}` 실행
 4. `{레이어 검사 명령어}` 실행
 5. 스프린트 계약서의 성공 기준 체크리스트를 하나씩 점검
 6. 이전 Phase 대비 회귀가 있는지 확인
-7. **아키텍처 결정 점검**: 계약서의 "예상 ADR 후보" 와 실제 구현을 비교하여, 전략적 결정이 발생했는지 판단한다 (상세 기준: `skill 의 references/adr-pattern.md`)
+7. **컨텍스트 불안 감지**: 전반부 vs 후반부 구현 품질 비교, TODO/FIXME 검출 (상세: `skill 의 references/phase-execution-protocol.md` 섹션 9)
+8. **아키텍처 결정 점검**: 계약서의 "예상 ADR 후보" 와 실제 구현을 비교하여, 전략적 결정이 발생했는지 판단한다 (상세 기준: `skill 의 references/adr-pattern.md`)
 
 ## 판정
 - **PASS**: 모든 성공 기준 충족 + 회귀 없음
@@ -691,7 +698,7 @@ Phase 1 분석 결과를 반영하여 다음 파일을 생성한다.
 생성된 인프라가 정상 동작하는지 확인한다.
 
 **5-1. 구조 검증:**
-- AGENTS.md 가 ~100줄이고 모든 포인터가 유효한지 (ADR 인덱스 링크 포함)
+- AGENTS.md 의 포인터 모음 부분이 50줄 내외이고 (파이프라인 가이드 섹션 포함 시 80줄 이내) 모든 포인터가 유효한지 (ADR 인덱스 링크 포함)
 - docs/phases/ 의 모든 파일이 성공 기준을 포함하는지
 - docs/adr/ 에 `README.md`, `TEMPLATE.md` 가 존재하는지
 - docs/adr/TEMPLATE.md 가 상태/맥락/결정/대안/결과 섹션을 포함하는지
@@ -712,9 +719,11 @@ Phase 1 분석 결과를 반영하여 다음 파일을 생성한다.
 ### Phase 6: 버전 마커 기록
 
 setup 완료 시점에 `docs/quality/.harness-version` 을 생성한다.
-이후 `/harness:update` 스킬이 이 파일을 읽어 버전 차이를 계산한다.
+이후 `/harness:update` 스킬이 이 파일을 읽어 버전 차이를 계산하고, `/harness:audit` 도 사전 확인 시 참조한다.
 
-`docs/quality/.harness-version`:
+스키마 정의 (필드 의미, 누가 갱신하는지) → `../../CONTRACTS.md` 4절
+
+setup 직후 작성하는 형태:
 
 ```json
 {
@@ -725,15 +734,14 @@ setup 완료 시점에 `docs/quality/.harness-version` 을 생성한다.
 }
 ```
 
-- `harnessVersion`: 플러그인 현재 버전 (`plugin.json` 의 `version` 과 일치)
-- `setupDate`: setup 실행 날짜
-- `features`: 이 버전에서 활성화된 주요 기능. 프로젝트 유형에 따라 항목을 뺀다 (레이어 구조가 없으면 `mechanical-enforcement` 제외 등)
+- `lastUpdate`, `updatedBy` 는 update 가 처음 실행될 때 추가된다 (setup 단계에서는 쓰지 않는다)
+- `features` 는 프로젝트 유형에 따라 항목을 뺀다 (레이어 구조가 없으면 `mechanical-enforcement` 제외 등)
 
 ## 산출물 체크리스트
 
 Phase 2~4 완료 후 프로젝트에 존재해야 하는 파일:
 
-- [ ] `AGENTS.md` — 지도 형태 (~100줄, 파이프라인 실행 가이드 포함)
+- [ ] `AGENTS.md` — 지도 형태 (포인터 모음 50줄 내외 + 파이프라인 가이드 섹션, 합쳐 80줄 이내)
 - [ ] `docs/architecture.md` — 아키텍처 규칙 (현재 스냅샷, 권위적 원천)
 - [ ] `docs/adr/README.md` — ADR 인덱스 (테이블 형식)
 - [ ] `docs/adr/TEMPLATE.md` — ADR 작성 템플릿
@@ -771,6 +779,7 @@ Phase 2~4 완료 후 프로젝트에 존재해야 하는 파일:
 
 ## 참고
 
+- **공유 규약 (audit/update 와 동일한 단일 진실)**: `../../CONTRACTS.md`
 - 지식 아키텍처 패턴: `references/knowledge-architecture.md`
 - ADR 패턴 (언제/어떻게 작성하나): `references/adr-pattern.md`
 - 기계적 강제 패턴: `references/mechanical-enforcement.md`

@@ -242,86 +242,25 @@ Evaluator 가 FAIL 판정을 내리면:
 
 ### completion.md 필수 섹션
 
-`_workspace/templates/completion-record.md` 양식을 따른다:
+`_workspace/templates/completion-record.md` 양식을 따른다.
 
-```markdown
-# Phase N 완료 기록
+**정답 출처**: `SKILL.md` Phase 4-2 의 `completion-record.md` 코드 블록 (구현 내용 요약 / 품질 점수 / 아키텍처 결정 / 발행된 ADR / 번복된 ADR / 알려진 제한 / 다음 Phase 주의사항).
 
-## 구현 내용 요약
-(이 Phase 에서 생성/수정된 주요 파일과 기능)
-
-## 품질 점수
-- 테스트: X pass / Y fail
-- 타입 에러: 0
-- 린트 에러: 0
-- 레이어 위반: 0
-- 커버리지: core 87%, adapters 72%
-
-## 알려진 제한
-(이 Phase 에서 해결하지 못한 이슈)
-
-## 다음 Phase 주의사항
-(다음 Phase 가 시작하기 전에 알아야 할 것)
-- 구조적 결정 사항
-- 남아있는 TODO
-- 의존성 변경 사항
-```
+본 문서는 양식 본문을 중복 정의하지 않는다. 양식이 변경되면 SKILL.md Phase 4-2 를 단일 진실로 갱신한다.
 
 ---
 
 ## 5. 스프린트 계약서 상세 템플릿
 
 Planner 가 작성하는 스프린트 계약서의 전체 형식.
-`_workspace/templates/sprint-contract.md` 양식을 기반으로 하되, 다음 항목을 모두 포함한다:
 
-```markdown
-# Phase N 스프린트 계약서
+**정답 출처**: `SKILL.md` Phase 4-2 의 `sprint-contract.md` 코드 블록 (목표 / 성공 기준 / 아키텍처 불변 조건 / 관련 ADR / 예상 ADR 후보 / 산출물 / 필요 Fixture / 알려진 위험 / 부정 기준 / 종료 기준).
 
-## 목표
-(Phase 스펙에서 가져온 목표 — 1-2줄)
+본 문서는 양식 본문을 중복 정의하지 않는다. 양식이 변경되면 SKILL.md Phase 4-2 를 단일 진실로 갱신한다.
 
-## 성공 기준
-(자동 검증 가능한 체크리스트)
-- [ ] 타입 에러 0
-- [ ] 모든 테스트 통과 (예상 테스트 수: N)
-- [ ] 레이어 위반 0
-- [ ] 커버리지 core >= 80%
-- [ ] [도메인 특화 기준]
+### 도메인 특화 예시
 
-## 아키텍처 불변 조건
-(이 Phase 에서 특히 주의해야 할 아키텍처 규칙)
-- core/ 는 React 를 import 하지 않는다
-- types/ 는 런타임 의존성이 없다
-- ...
-
-## 산출물
-(생성/수정할 구체적인 파일 목록)
-- `src/core/calculator.ts` — 새로 생성
-- `src/core/calculator.test.ts` — 테스트
-- `src/types/stats.ts` — 타입 추가
-- ...
-
-## 필요 Fixture/데이터
-(테스트에 필요한 데이터)
-- 스탯 계산용 샘플 데이터: [출처]
-- API 응답 목업: [형태]
-
-## 알려진 위험
-(이전 실패에서 배운 것 + 예상 위험)
-- Phase 1 에서 순환 의존 발생 이력: docs/references/failure-lessons.md#순환-의존
-- 외부 API 스키마 불안정: 방어적 파싱 필요
-
-## 부정 기준 (하지 않을 것)
-- core/ 에 UI 로직을 넣지 않을 것
-- 기존 공개 API 시그니처를 변경하지 않을 것
-- ...
-
-## 종료 기준
-(Evaluator 가 확인할 최종 항목)
-- 모든 성공 기준 충족
-- 레이어 경계 검사 통과
-- 회귀 없음 (이전 Phase 테스트 전부 통과)
-```
+성공 기준의 도메인 특화 항목 (커버리지 임계값, 테스트 수 등) 은 프로젝트 분석 결과에 따라 Planner 가 적어 넣는다. 예: `커버리지 core >= 80%`, `Phase 1 의 N개 테스트 전부 통과`.
 
 ---
 

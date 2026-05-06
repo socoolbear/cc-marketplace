@@ -3,6 +3,8 @@
 update 스킬이 비교할 표준 파일 목록과 각 파일의 "정답" 출처.
 정답은 `../../setup/SKILL.md` 의 해당 섹션에서 추출한다.
 
+> **권한 모델**: 어떤 파일을 누가 (setup/audit/update) 어디까지 만질 수 있는지는 `../../../CONTRACTS.md` 7절 보호 파일 매트릭스에서 단일 정의된다. 본 문서의 "절대 보존" 표는 update 관점에서의 요약일 뿐이며, 충돌 시 CONTRACTS.md 가 우선한다.
+
 ---
 
 ## 매니페스트 구조
@@ -36,7 +38,7 @@ update 스킬이 비교할 표준 파일 목록과 각 파일의 "정답" 출처
 | `_workspace/phase-*-*-retry-*.md` | 수정 루프 산출물 (이력 — audit 대상) |
 | `_workspace/analysis-report.md` | setup Phase 1 분석 결과 |
 | `_workspace/audit-*.md` | audit 보고서 |
-| `_workspace/update-plan-*.md` | update 플랜 (본인 이전 실행) |
+| `_workspace/update-plan-*.md` | update 플랜 (본인 이전 실행 — audit 도 건드리지 않음, `../../../CONTRACTS.md` 7절) |
 | `docs/quality/scores.json` | 품질 점수 이력 (초기화 시 재앙) |
 | `docs/quality/quality-log.md` | 평가 로그 (누적 이력) |
 | `docs/quality/audit-log.md` | audit 실행 로그 |
@@ -45,7 +47,7 @@ update 스킬이 비교할 표준 파일 목록과 각 파일의 "정답" 출처
 | `docs/references/failure-lessons.md` 의 본문 내용 | 누적 교훈 (섹션 추가는 가능, 본문 수정 금지) |
 | `docs/legacy-*/` | 동결 정책 |
 | `docs/phases/phase-*-*.md` | Phase 스펙 (프로젝트 고유) |
-| `_archive/` | 과거 archive |
+| `_archive/` 의 기존 항목 | 과거 archive (자기 네임스페이스 `update-superseded/` 아래 신규 추가는 가능) |
 | `.claude/settings.local.json` | Hook/권한 설정 (사용자 직접 편집) |
 | `docs/architecture.md` | 아키텍처 권위적 원천 (update 가 수정하지 않음) |
 
@@ -94,10 +96,12 @@ update 스킬이 비교할 표준 파일 목록과 각 파일의 "정답" 출처
 | `docs/adr/TEMPLATE.md` | Phase 2-6 의 TEMPLATE 코드 블록 | 없으면 생성, 있으면 stock-template 로 처리 |
 | `docs/adr/README.md` | Phase 2-6 의 README 코드 블록 | 없으면 빈 인덱스 생성. **있으면 인덱스 테이블 보존** + 상단 헤더/작성 규칙 섹션만 교체 대상 |
 
-**주의 — `docs/adr/README.md` 특수 처리**:
+**주의 — `docs/adr/README.md` 특수 처리** (분담 규칙 → `../../../CONTRACTS.md` 7절):
 - 이 파일은 빈 인덱스로 시작하지만 Evaluator 가 ADR 을 발행할 때마다 테이블에 행이 추가된다
 - update 가 전체 교체하면 **발행된 ADR 인덱스가 리셋됨** — 재앙
-- 대응: 상단 `# Architecture Decision Records` ~ `## 작성 규칙` 섹션만 교체 대상, 중간의 **테이블 전체는 보존**
+- **update 소관**: 상단 `# Architecture Decision Records` ~ `## 작성 규칙` 섹션만 교체 대상
+- **audit 소관**: 인덱스 테이블 본문 (실제 ADR 파일 기준 재생성). update 는 테이블에 손대지 않음
+- 같은 날 audit + update 를 모두 돌려도 영역이 분리되어 충돌하지 않음
 
 ---
 
@@ -128,14 +132,9 @@ AGENTS.md 전체가 아닌 **특정 섹션**만 스킬이 관리한다.
 
 ## 7. 플레이스홀더 치환 감지
 
-setup 이 치환하는 플레이스홀더:
-- `{빌드 명령어}` → 예: `npm run build`, `pnpm build`, `yarn build`
-- `{테스트 명령어}` → 예: `npm test`, `vitest`, `pytest`
-- `{타입체크 명령어}` → 예: `tsc --noEmit`, `mypy`
-- `{린트 명령어}` → 예: `eslint .`, `ruff check`
-- `{레이어 검사 명령어}` → 예: `node scripts/check-layer-import.js`
+플레이스홀더 5종 단일 정의 → `../../../CONTRACTS.md` 3-6 절
 
-**비교 알고리즘**:
+**비교 알고리즘** (update 고유):
 1. 프로젝트 파일에서 플레이스홀더 위치에 들어있는 명령어를 추출
 2. 표준 내용의 플레이스홀더 위치에 해당 명령어를 삽입
 3. 삽입 후 정규화 비교 (공백 정규화)
@@ -160,5 +159,21 @@ update 가 참조할 "이 버전에서 무엇이 바뀌었는지" 요약.
 - `_workspace/prompts/planner.md` — 입력 파일에 `docs/adr/README.md` 추가, 작업 4-5 (ADR 링크/후보 판단) 추가
 - `_workspace/prompts/evaluator.md` — 입력 파일에 `docs/adr/` 추가, 작업 7 (ADR 점검) 추가, PASS 출력 4 (ADR 발행) 추가
 - `AGENTS.md` — 문서 지도에 "아키텍처 결정 이력 → docs/adr/README.md" 포인터 추가
+
+### v1.2.0 → v1.3.0 (CONTRACTS.md 단일 진실 + 보호 매트릭스 + _archive 네임스페이스)
+
+**문서 구조 변경** (스킬 사용자에게는 영향 없음, 스킬 유지보수에만 영향):
+- `plugins/harness/CONTRACTS.md` 신설 — setup/audit/update 가 공유하는 단일 진실 (디렉터리 레이아웃, 파일 명명, `.harness-version` 스키마, ADR 불변, 보호 파일 매트릭스, 정보 격벽)
+- 각 SKILL.md 와 references 가 CONTRACTS.md 를 참조하도록 정리
+
+**프로젝트 동작 변경 (호환성 영향)**:
+- `_archive/` 네임스페이스 도입 — audit 가 이후 archive 시 `_archive/{date}/audit/` 하위에, update 가 `_archive/{date}/update-superseded/` 하위에 쓴다
+- 기존 archive (`_archive/{date}/_workspace/...` 식 루트 직접 배치) 는 audit/update 가 건드리지 않고 보존
+- `.harness-version` 의 `setupBy` 필드를 update 가 절대 보존 (이전 버전에서 silently dropped 되던 버그 수정)
+- update 가 변경사항 없이 종료하는 경우 `lastUpdate` 갱신을 건너뜀
+- audit 의 Phase 0-2 가 `.harness-version` 을 informational 로 읽음 (레거시 프로젝트 안내)
+
+**update 스킬 자체의 호환성**:
+- v1.2.x update 가 갱신한 `.harness-version` 에는 `setupBy` 가 없을 수 있음 (silent drop 버그). v1.3 update 는 이 경우 부재 필드를 `"unknown (lost in v1.2.x migration)"` 으로 채워 넣고 사용자에게 안내한다 (이후 보존 대상). 상세 → `../SKILL.md` Phase 5-1 의 "필드 누락 처리".
 
 향후 버전에서도 이 섹션을 확장하여 차이 지도를 유지한다.

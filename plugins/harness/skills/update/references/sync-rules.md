@@ -123,9 +123,11 @@ AGENTS.md 에 '{섹션 제목}' 섹션을 추가할까요?
 
 ## 4. 플레이스홀더 처리
 
+플레이스홀더 5종 단일 정의 → `../../../CONTRACTS.md` 3-6 절
+
 ### 감지
 
-`{빌드 명령어}` 같은 플레이스홀더는 setup 이 치환했어야 한다. 프로젝트 파일에 여전히 `{빌드 명령어}` 가 문자 그대로 남아있다면:
+setup 이 모든 플레이스홀더를 치환했어야 한다. 프로젝트 파일에 여전히 `{빌드 명령어}` 가 문자 그대로 남아있다면:
 - setup 이 해당 명령을 찾지 못했을 가능성
 - update 플랜에 "치환 누락" 로 별도 보고
 
@@ -142,13 +144,14 @@ AGENTS.md 에 '{섹션 제목}' 섹션을 추가할까요?
 
 ## 5. Archive 구조
 
-교체 발생 시:
+교체 발생 시 (`../../../CONTRACTS.md` 3-5 절):
 
 ```
 프로젝트 루트/
   _archive/
     YYYY-MM-DD/
-      update-superseded/
+      audit/                      # ← 같은 날 audit 가 archive 한 파일들 (update 는 안 건드림)
+      update-superseded/          # ← update 의 자기 네임스페이스
         _workspace/
           templates/
             sprint-contract.md    ← 교체 전 기존 버전
@@ -162,8 +165,8 @@ AGENTS.md 에 '{섹션 제목}' 섹션을 추가할까요?
 
 **원칙**:
 - 날짜는 update 실행 날짜
-- 원래 경로 복제
-- audit 의 `_archive/YYYY-MM-DD/` 와 같은 디렉터리 재사용 가능 (하위에 `update-superseded/` 로 구분)
+- 원래 경로를 `update-superseded/` 하위에 복제
+- audit 와 같은 날 실행되어도 네임스페이스로 분리되어 충돌 없음
 
 ---
 
@@ -184,6 +187,9 @@ AGENTS.md 에 '{섹션 제목}' 섹션을 추가할까요?
   - 교체 (CUSTOMIZED → replace): N건
   - keep (CUSTOMIZED → keep): N건
   - 이미 최신 (UP-TO-DATE): N건
+- 마이그레이션 (해당 시):
+  - `setupBy` 필드 부재로 `"unknown (lost in v1.2.x migration)"` 보충
+  - 또는 다른 호환성 보충 사항
 - 주요 변경 사항:
   - ADR 인프라 통합 (docs/adr/)
   - sprint-contract 에 "관련 ADR" 섹션 추가
@@ -202,21 +208,26 @@ harness:update 실행 이력. 최신 항목이 상단.
 
 ## 7. 레거시 모드
 
-`.harness-version` 이 없는 프로젝트 (setup v1.0.0 이전에 구축):
+`.harness-version` 이 없는 프로젝트 (setup v1.1.0 이전, 즉 마커 도입 전에 구축):
 
 - 이전 버전을 `unknown` 으로 간주
 - 표준 파일 비교는 동일 (PRISTINE/CUSTOMIZED/MISSING)
-- update 완료 시 `.harness-version` 을 **신규 생성**:
+- update 완료 시 `.harness-version` 을 **신규 생성** (스키마 정의 → `../../../CONTRACTS.md` 4절):
   ```json
   {
     "harnessVersion": "{새 버전}",
     "setupDate": "unknown",
+    "setupBy": "unknown (pre-marker)",
     "lastUpdate": "YYYY-MM-DD",
     "updatedBy": "harness:update",
     "features": [...]
   }
   ```
 - 로그의 `모드` 필드에 `레거시` 로 표기
+
+### 마커 기반 모드의 보존 규칙
+
+`.harness-version` 이 이미 존재하는 경우, update 는 **`setupDate`, `setupBy` 를 절대 수정하지 않는다**. 기존 값을 읽어 그대로 보존하고 `harnessVersion`, `lastUpdate`, `updatedBy`, `features` 만 갱신한다 (`CONTRACTS.md` 4절 필드 매트릭스).
 
 ---
 

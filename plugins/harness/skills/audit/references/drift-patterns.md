@@ -122,7 +122,7 @@ AGENTS.md:
 `minor`
 
 ### 정리 방법
-`auto-safe` — `_archive/YYYY-MM-DD/_workspace/phase-N/` 로 이동
+`auto-safe` — `_archive/YYYY-MM-DD/audit/{원래경로}` 로 이동. 원본이 `_workspace/phase-0-fix-directive-1.md` 면 `_archive/YYYY-MM-DD/audit/_workspace/phase-0-fix-directive-1.md` 로 (`../../../CONTRACTS.md` 3-5 절 — 원래 경로 복제 원칙)
 
 ### 예시
 ```

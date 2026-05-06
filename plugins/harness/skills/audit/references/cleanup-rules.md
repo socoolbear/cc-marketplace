@@ -6,26 +6,30 @@ audit 스킬의 Phase 3-4 에서 따라야 할 정리 규칙.
 
 ## 1. Archive 디렉터리 구조
 
-모든 archive 는 다음 구조로 저장한다:
+모든 archive 는 `audit/` 네임스페이스 하위에 저장한다 (`../../../CONTRACTS.md` 3-5 절):
 
 ```
 프로젝트 루트/
   _archive/
     YYYY-MM-DD/
-      docs/
-        references/
-          낡은-문서.md
-      _workspace/
-        phase-0-fix-directive-1.md
-      (원래 경로 구조를 그대로 복제)
+      audit/                       # ← audit 의 자기 네임스페이스
+        docs/
+          references/
+            낡은-문서.md
+        _workspace/
+          phase-0-fix-directive-1.md
+      update-superseded/           # ← 같은 날 update 가 archive 한 파일들 (audit 은 안 건드림)
     2026-03-15/
     2026-04-24/
 ```
 
 **원칙:**
 - 날짜는 audit 실행 날짜 (`YYYY-MM-DD`)
-- 원래 경로를 그대로 복제하여 되돌리기 쉽게 한다
+- 원래 경로를 `audit/` 하위에 그대로 복제하여 되돌리기 쉽게 한다
+- audit 와 update 가 같은 날 실행되어도 네임스페이스로 충돌이 없다
 - `_archive/` 의 `.gitignore` 포함 여부는 프로젝트 정책 (audit 은 결정하지 않음. 기본은 커밋 권장 — 감사 추적 유지)
+
+**기존 archive 와의 호환** — 네임스페이스 도입 (v1.3.0) 이전에 archive 한 파일들은 `_archive/{date}/_workspace/...`, `_archive/{date}/docs/...` 식으로 루트에 직접 들어가 있다. audit 은 **이 기존 archive 를 건드리지 않는다** (보존). 신규 archive 만 `audit/` 하위에 쓴다. 사용자에겐 한 날짜 디렉터리에 두 형식이 공존할 수 있음을 보고서에 안내한다.
 
 ---
 
@@ -111,7 +115,7 @@ Phase 3 에서 manual 항목이 있음을 사용자에게 **텍스트로 통지*
 
 | 인덱스 | 갱신 방법 | 주의사항 |
 |--------|-----------|----------|
-| `docs/adr/README.md` | `docs/adr/*.md` 실제 파일 기준으로 테이블 재생성 | TEMPLATE.md 는 제외 |
+| `docs/adr/README.md` 인덱스 테이블 | `docs/adr/*.md` 실제 파일 기준으로 테이블 재생성 | TEMPLATE.md 는 제외. **헤더/작성 규칙 섹션은 update 소관 — audit 은 건드리지 않음** (`../../../CONTRACTS.md` 7절 분담) |
 | `docs/quality/scores.json` | `lastUpdated` 를 오늘 날짜로, 누락 Phase 는 `pending` 으로 추가 | 기존 Phase 점수 건드리지 않음 |
 | `AGENTS.md` 의 깨진 포인터 | **삭제하지 않고 주석 처리** (`<!-- BROKEN: docs/... (2026-04-24 audit) -->`) | 사람이 최종 제거 판단 |
 
@@ -148,16 +152,21 @@ harness:audit 실행 이력. 최신 항목이 상단.
 
 ## 6. 예외 규칙 (정리에서 제외)
 
-다음은 어떤 상황에서도 audit 이 건드리지 않는다:
+다음은 어떤 상황에서도 audit 이 건드리지 않는다 (출처: `../../../CONTRACTS.md` 7절 보호 파일 매트릭스):
 
 | 대상 | 이유 |
 |------|------|
 | `docs/legacy-*/` | 동결 정책에 따라 수정 금지 |
+| `_archive/` 전체 (스캔 자체 제외) | audit 은 `_archive/` 를 진단 대상으로 보지 않음. 이미 archive 된 파일은 노이즈/고아/중복 검사에서 제외 |
 | 활성 Phase 의 `_workspace/phase-N-*.md` | 진행 중 작업 보호 |
 | `docs/architecture.md`, `AGENTS.md` 의 본문 | 권위적 원천, 전체 수정은 사람 판단 |
 | `docs/references/failure-lessons.md` | setup 이 생성한 초기 파일, 비어있어도 유지 |
+| `docs/quality/.harness-version` | 버전 마커. audit 은 읽기만 (update 소관) |
+| `docs/quality/update-log.md` | update 의 누적 이력 (`CONTRACTS.md` 7절) |
+| `docs/quality/quality-log.md` | Evaluator 의 누적 평가 로그 |
 | `.claude/settings.local.json` | Hook 설정, audit 이 수정하지 않음 |
 | `docs/adr/*.md` 본문 | ADR 불변 원칙 — 상태만 Superseded 로 변경하는 건 audit 이 아닌 다음 Phase 의 Evaluator 책임 |
+| `docs/adr/README.md` 헤더/작성 규칙 섹션 | update 소관 (4절 인덱스 자동 갱신 표 참조) |
 
 ---
 

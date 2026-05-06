@@ -8,7 +8,11 @@ description: "이미 setup 된 하네스 프로젝트를 최신 스킬 버전에
 하네스가 이미 셋업된 프로젝트를 최신 스킬 버전에 맞춰 안전하게 동기화한다.
 setup 과 달리 **기존 커스터마이징과 진행 이력을 보존**하면서 차이만 반영한다.
 
+> **사전 지식**: 이 스킬은 `setup`, `audit` 와 [`../../CONTRACTS.md`](../../CONTRACTS.md) 의 공유 규약 (디렉터리 레이아웃, `.harness-version` 스키마와 보존 규칙, 보호 파일 매트릭스, ADR 불변 조건) 을 따른다. 본 SKILL.md 는 **버전 동기화 행동** 만 정의한다.
+
 ## setup / audit / update 의 역할 분리
+
+`CONTRACTS.md` 1절 참조. 요약:
 
 | 스킬 | 방향 | 기준 |
 |------|------|------|
@@ -44,7 +48,7 @@ Phase 0 에서 사용자에게 이 순서를 확인한다.
 **0-2. 버전 마커 확인:**
 - `docs/quality/.harness-version` 존재 → **마커 기반 모드**
   - `harnessVersion` 필드 읽어 이전 버전 파악
-- 존재하지 않음 → **레거시 모드** (setup v1.0 이전에 구축된 프로젝트)
+- 존재하지 않음 → **레거시 모드** (setup v1.1 이전, 즉 `.harness-version` 마커 도입 전에 구축된 프로젝트)
   - 이전 버전을 `unknown` 으로 간주하고 파일 단위 diff 로 진행
 
 **0-3. `/plugin update` 선결 확인:**
@@ -194,21 +198,55 @@ AGENTS.md 에 '{섹션 제목}' 섹션을 추가할까요?
 
 ### Phase 5: 기록
 
+**5-0. 갱신 여부 판단**:
+
+Phase 4 에서 실제 적용된 변경사항이 **하나도 없으면** (모든 항목이 UP-TO-DATE 또는 사용자가 모두 keep/skip 선택), Phase 5 의 갱신과 로그 기록을 모두 **건너뛴다**. 사용자에게 "변경사항 없음 — `.harness-version` 과 update-log 를 갱신하지 않습니다" 라고 안내하고 종료한다.
+
+이유: `lastUpdate` 는 "마지막으로 실제 적용한 update" 의 날짜다. no-op 실행으로 갱신하면 의미가 흐려진다.
+
 **5-1. `.harness-version` 갱신**:
+
+스키마 정의 (필드 의미, 누가 쓰는지) → `../../CONTRACTS.md` 4절
+
+**보존 규칙**: `setupDate`, `setupBy` 는 **절대 수정하지 않는다**. 기존 값을 읽어 그대로 보존한다 (한 번이라도 update 가 돌면 최초 셋업 흔적이 사라지면 안 됨).
+
+마커 기반 모드 (기존 `.harness-version` 이 있는 경우):
+
+1. 기존 파일을 읽어 `setupDate`, `setupBy` 값을 보존한다
+2. `harnessVersion`, `lastUpdate`, `updatedBy`, `features` 만 갱신한다
 
 ```json
 {
   "harnessVersion": "{새 버전}",
-  "setupDate": "{기존 값 유지}",
+  "setupDate": "{기존 값 — 절대 수정 X}",
+  "setupBy": "{기존 값 — 절대 수정 X}",
   "lastUpdate": "YYYY-MM-DD",
   "updatedBy": "harness:update",
   "features": ["adr", "4-stage-pipeline", ...]
 }
 ```
 
-레거시 모드에서 신규 생성하는 경우:
-- `setupDate`: `"unknown"` 으로 기록
-- `lastUpdate`: 오늘 날짜
+**필드 누락 처리** (v1.2.x update 가 `setupBy` 를 silently drop 한 파일과의 호환):
+
+기존 `.harness-version` 에서 `setupBy` 또는 `setupDate` 가 부재인 경우:
+- 부재인 필드는 `"unknown (lost in v1.2.x migration)"` (setupBy) 또는 `"unknown"` (setupDate) 로 채워 넣는다
+- 사용자에게 안내: "이전 update 실행에서 손실된 셋업 정보를 `unknown` 으로 보충했습니다. 정확한 값을 알면 `.harness-version` 을 직접 수정하세요."
+- 채워진 `unknown` 값도 이후 update 의 보존 대상이 된다 (영구 고정)
+
+레거시 모드 (마커가 없는 프로젝트에 update 가 처음 진입):
+
+```json
+{
+  "harnessVersion": "{새 버전}",
+  "setupDate": "unknown",
+  "setupBy": "unknown (pre-marker)",
+  "lastUpdate": "YYYY-MM-DD",
+  "updatedBy": "harness:update",
+  "features": [...]
+}
+```
+
+**주의**: 위 `unknown` 값은 한 번 기록되면 보존 규칙에 따라 영구 고정된다 (이후 update 도 setupDate/setupBy 를 건드리지 않음). 사용자가 실제 셋업 날짜를 안다면 update 직후 `.harness-version` 을 직접 수정해도 된다 — 본 스킬의 자동 동작은 아님을 안내한다.
 
 **5-2. `docs/quality/update-log.md` 항목 추가**:
 
@@ -233,6 +271,7 @@ AGENTS.md 에 '{섹션 제목}' 섹션을 추가할까요?
 
 ## 참고
 
+- **공유 규약 (setup/audit 와 동일한 단일 진실)**: `../../CONTRACTS.md`
 - 표준 파일 매니페스트 (어떤 파일이 표준인지, 어디서 정답을 가져올지): `references/version-manifest.md`
 - 동기화 규칙 (AskUserQuestion 패턴, 충돌 해결, archive, log 형식): `references/sync-rules.md`
 - setup 스킬 (최초 구축): `../setup/SKILL.md`

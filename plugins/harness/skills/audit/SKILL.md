@@ -8,6 +8,8 @@ description: "하네스 셋업된 프로젝트의 문서/인프라 드리프트�
 하네스 셋업 이후 시간이 지남에 따라 누적되는 오염을 진단하고 정리한다.
 OpenAI 하네스 엔지니어링의 **"가비지 컬렉션"** 원칙을 실행 경로로 구현한 스킬.
 
+> **사전 지식**: 이 스킬은 `setup`, `update` 와 [`../../CONTRACTS.md`](../../CONTRACTS.md) 의 공유 규약 (디렉터리 레이아웃, 파일 명명 규칙, 보호 파일 매트릭스, ADR 불변 조건) 을 따른다. 본 SKILL.md 는 **드리프트 진단/정리 행동** 만 정의한다.
+
 **setup 과의 관계:**
 - `setup` = 1회성 하네스 인프라 구축
 - `audit` = 반복 실행하는 유지보수 (월 1회 또는 3~5개 Phase 완료 시점 권장)
@@ -18,13 +20,15 @@ OpenAI 하네스 엔지니어링의 **"가비지 컬렉션"** 원칙을 실행 �
 
 | 작업 | 대상 | 승인 조건 |
 |------|------|-----------|
-| `archive` | `_archive/YYYY-MM-DD/` 로 이동 (원래 경로 구조 보존) | auto-safe 는 일괄 승인, needs-confirmation 은 개별 승인 |
+| `archive` | `_archive/YYYY-MM-DD/audit/{원래경로}/` 로 이동 (audit 네임스페이스, `CONTRACTS.md` 3-5 절) | auto-safe 는 일괄 승인, needs-confirmation 은 개별 승인 |
 | `delete` | 실제 파일 삭제 | 사용자가 명시적으로 delete 선택한 경우만 |
 | `manual` | 수정/병합 판단 필요 | 보고서에만 기록, 실행 없음 |
 
 ## 워크플로우
 
 ### Phase 0: 사전 확인
+
+**0-1. 하네스 셋업 여부 (필수):**
 
 프로젝트에 하네스가 셋업되어 있는지 확인한다:
 - `AGENTS.md` 존재
@@ -33,6 +37,18 @@ OpenAI 하네스 엔지니어링의 **"가비지 컬렉션"** 원칙을 실행 �
 - `docs/quality/scores.json` 존재
 
 하나라도 없으면 "먼저 `/harness:setup` 을 실행하세요" 안내 후 종료.
+
+**0-2. 버전 마커 정보 표시 (informational):**
+
+`docs/quality/.harness-version` 을 읽어 사용자에게 컨텍스트를 안내한다 (audit 진행 자체는 가능).
+
+- **마커 존재**: `harnessVersion`, `setupDate`, `lastUpdate` 를 읽어 보고서 헤더에 기록
+  - `lastUpdate` 가 부재 (setup 직후 update 미실행) → "(update 미실행)" 으로 표기
+  - `setupBy` / `setupDate` 가 `unknown` (레거시 모드 update 후) → 그대로 표시 + "(레거시 마이그레이션)" 부기
+- **마커 부재 (레거시)**: 사용자에게 안내한다:
+  > "이 프로젝트는 setup v1.1 이전 (마커 도입 전) 에 구축된 레거시 하네스로 보입니다 (`.harness-version` 없음). audit 은 정상 진행 가능하지만, `/harness:update` 를 먼저 실행하면 마커 생성 + 최신 스킬 동기화가 함께 처리됩니다."
+
+audit 자체는 `.harness-version` 을 수정하지 않는다 (`CONTRACTS.md` 7절 매트릭스).
 
 ### Phase 1: 진단 (Auditor)
 
@@ -61,6 +77,12 @@ OpenAI 하네스 엔지니어링의 **"가비지 컬렉션"** 원칙을 실행 �
 
 ```markdown
 # Audit Report — YYYY-MM-DD
+
+## 환경 (Phase 0-2 결과)
+- harness 버전: v1.3.0 (또는 "마커 부재 — 레거시")
+- setup 일자: 2026-04-12 (또는 "unknown — 레거시 마이그레이션")
+- setup 주체: harness:setup (또는 "unknown (pre-marker)")
+- 마지막 update: 2026-05-01 (또는 "(update 미실행)")
 
 ## 요약
 - critical: N건
@@ -104,7 +126,7 @@ AskUserQuestion 사용 패턴 → `references/cleanup-rules.md` (섹션 3)
 
 사용자가 승인한 항목만 실행한다.
 
-- `archive`: `_archive/YYYY-MM-DD/원래경로/` 로 이동 (원래 경로 구조 보존)
+- `archive`: `_archive/YYYY-MM-DD/audit/{원래경로}/` 로 이동 (`CONTRACTS.md` 3-5 절). update 가 같은 날 archive 한 파일은 `update-superseded/` 하위에 따로 들어가므로 충돌하지 않는다.
 - `delete`: 실제 파일 삭제 (단, archive 메타데이터에 "삭제됨" 기록 남김)
 - `keep`: 아무것도 하지 않음
 
@@ -131,7 +153,7 @@ audit-log.md 가 존재하지 않으면 생성한다.
 ## 산출물
 
 - [ ] `_workspace/audit-YYYY-MM-DD.md` — 보고서 (매 실행 시 생성)
-- [ ] `_archive/YYYY-MM-DD/` — 이동된 파일들 (archive 발생 시)
+- [ ] `_archive/YYYY-MM-DD/audit/` — 이동된 파일들 (archive 발생 시)
 - [ ] `docs/quality/audit-log.md` — 시계열 로그 (항목 추가)
 - [ ] 인덱스 갱신: `docs/adr/README.md`, `docs/quality/scores.json`, (필요 시) `AGENTS.md` 주석
 
@@ -145,6 +167,8 @@ audit-log.md 가 존재하지 않으면 생성한다.
 
 ## 참고
 
+- **공유 규약 (setup/update 와 동일한 단일 진실)**: `../../CONTRACTS.md`
 - 드리프트 패턴 (8개 영역 상세): `references/drift-patterns.md`
 - 정리 규칙 (archive/delete 판단, AskUserQuestion 패턴): `references/cleanup-rules.md`
 - setup 스킬 (하네스 최초 구축): `../setup/SKILL.md`
+- update 스킬 (스킬 버전 동기화): `../update/SKILL.md`
