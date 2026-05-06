@@ -253,7 +253,46 @@ harness:update 실행 이력. 최신 항목이 상단.
 
 ---
 
-## 9. 안티패턴
+## 9. agent-tooling 산출물 정책 (v1.4.0+)
+
+agent-tooling feature 활성화 프로젝트의 신규 산출물에 대한 update 동기화 규칙. 권위적 정의 → `setup/references/agent-tooling.md`. 버전 차이 지도 → `version-manifest.md` 8절 v1.3.0 → v1.4.0.
+
+### 9-1. `docs/conventions/cli-tooling.md`
+
+- **PRISTINE 판정**: setup 이 작성한 표준 본문 (references/agent-tooling.md 2~5절 기반) 과 정규화 비교하여 일치
+- **CUSTOMIZED 판정**: 사용자가 도구를 추가/제거하거나 주석을 달았음 → 본문 수정 X, 차이만 보고
+- **MISSING**: v1.3.x 프로젝트에 agent-tooling 활성화 시. setup Phase 4-7 와 동일하게 작성
+- **references/agent-tooling.md 자체 갱신** 시: PRISTINE 프로젝트는 자동 동기화 (auto-safe 패턴 A), CUSTOMIZED 는 차이 보고만 (패턴 B)
+
+### 9-2. `_workspace/prompts/*.md` 끝의 "셸 도구 규약" 섹션
+
+5개 프롬프트 (pre-analysis, planner, generator, self-reviewer, evaluator) 의 끝부분 8줄 섹션 (`## 셸 도구 규약 (agent-tooling feature 활성화 시만 포함)`).
+
+- **PRISTINE 판정**: 표준 본문 (setup SKILL.md Phase 4-3) 과 정규화 비교 일치
+- **CUSTOMIZED 판정**: 사용자가 추가 규칙 작성 → 보고만, 본문 수정 X
+- **MISSING (v1.3.x → v1.4)**: 프롬프트 끝에 표준 본문 append (기존 본문 0 변경, 끝에만 추가). 8절 (AGENTS.md 섹션 삽입 세부) 의 헤더 경계 인식 알고리즘 활용
+- **프롬프트 자체가 CUSTOMIZED 인 경우**: 본문은 보존, 셸 도구 규약 섹션만 끝에 append (두 정책이 충돌하지 않음)
+- **프롬프트 파일 자체가 부재**: 사용자가 의도적으로 삭제했을 가능성 → 보고만 (자동 재생성 X). `_workspace/templates/*.md` 의 부재 정책과 동일
+
+### 9-3. `.claude/settings.local.json` 의 `permissions.allow` 도구 권한
+
+- **update 는 절대 수정 X** (CONTRACTS.md 7절: audit 9영역 소관)
+- 기존 권한 (예: `Bash(rg:*)` 등) 이 있으면 그대로 보존
+- v1.3 → v1.4 마이그레이션 시 사용자가 활성화에 동의하더라도 update 는 권한을 작성하지 않는다. `/harness:audit` 9영역이 머신 환경에 맞춰 사용자에게 propose
+
+### 9-4. AGENTS.md 의 "셸 도구 규약" 한 줄 포인터
+
+- **MISSING (v1.3.x)**: AGENTS.md 의 "참조 문서" 또는 "문서 지도" 영역에 한 줄 추가 — 8절 AGENTS.md 섹션 삽입 패턴 (질문 C) 적용
+- **PRISTINE/CUSTOMIZED**: 이미 추가되어 있으면 보존
+
+### 9-5. 충돌 케이스
+
+- 사용자가 자체적으로 비슷한 파일 (예: `docs/cli-conventions.md`, `docs/tools.md`) 을 만들어둔 경우 → 충돌 보고 + 사용자에게 병합 위임 (자동 덮어쓰기 X)
+- 5개 프롬프트 중 일부에 이미 비슷한 섹션이 있으면 → 그 프롬프트만 CUSTOMIZED 로 판정, 나머지에만 표준 섹션 append
+
+---
+
+## 10. 안티패턴
 
 | 안티패턴 | 대신 |
 |----------|------|
@@ -266,3 +305,5 @@ harness:update 실행 이력. 최신 항목이 상단.
 | 플레이스홀더를 커스터마이징으로 오판 | 치환 위치는 비교에서 제외 |
 | audit 작업을 update 안에서 수행 | audit 은 별도 스킬 — update 는 스킬 버전 동기화에만 집중 |
 | `docs/architecture.md` 수정 | 권위적 원천. update 가 건드리지 않음 (사람이 직접 관리) |
+| `settings.local.json` 의 `permissions.allow` 권한 등록 (v1.4.0+) | audit 9영역 소관 — update 는 보존만 |
+| 사용자 자체 cli-tooling 파일 자동 덮어쓰기 (v1.4.0+) | 충돌 보고 + 병합 위임 (9-5 절) |

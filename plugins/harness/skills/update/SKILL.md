@@ -91,6 +91,26 @@ Phase 0 에서 사용자에게 이 순서를 확인한다.
 
 `{빌드 명령어}`, `{테스트 명령어}` 등은 setup 이 의도적으로 치환한 것이다. **치환된 부분은 사용자 커스터마이징이 아니다.** 판정 시 플레이스홀더 위치의 차이는 무시하고 그 외 본문만 비교한다.
 
+**1-5. agent-tooling feature 활성화 검사 (v1.4.0+):**
+
+`docs/quality/.harness-version` 의 features 배열에 `"agent-tooling"` 포함 여부 확인:
+- 포함됨 → `references/sync-rules.md` 9절 (agent-tooling 산출물 정책) 적용하여 차이 계산
+- 미포함 (v1.3.x 프로젝트 또는 도구 0개로 비활성) → AskUserQuestion 으로 활성화 의사 확인:
+
+```
+v1.4.0 부터 agent-tooling 기능이 도입되었습니다 (CLI 도구 규약, 권한, fallback 정책).
+활성화하시겠습니까?
+
+옵션:
+  1. Y — 후속 단계에서 cli-tooling.md, AGENTS.md 포인터, 5개 프롬프트 셸 도구 규약 섹션 추가 propose
+  2. n — 이번 update 만 보류 (다음 update 에 다시 묻기, features 배열 변경 X, harnessVersion 미갱신)
+  3. show-detail — agent-tooling 의 도구 매핑 / 빌트인 우선순위 / fallback 정책 / 환경 분리 (포터블 vs 머신별) 요약을 보여준 뒤 재질문
+```
+
+도구 0개 환경에서 Y 선택 시: setup Phase 1-5 와 동일하게 "현대 CLI 도구가 감지되지 않습니다. 비활성화 권고" 안내. 사용자가 그래도 활성화 원하면 cli-tooling.md 와 AGENTS.md 포인터만 추가 (settings.local.json permissions 는 audit 가 추후 동기화).
+
+상세 → `references/sync-rules.md` 9절, `setup/references/agent-tooling.md` 1, 4절
+
 ### Phase 2: 업데이트 플랜 보고서 (Reporter)
 
 `_workspace/update-plan-YYYY-MM-DD.md` 작성:
@@ -128,6 +148,11 @@ Phase 0 에서 사용자에게 이 순서를 확인한다.
 ### AGENTS.md 섹션 삽입
 - "Phase 실행 — 4단계 파이프라인" 섹션 — 누락 (신설 대상)
 - 문서 지도에 "아키텍처 결정 이력 → docs/adr/README.md" 포인터 — 누락
+- "셸 도구 규약 → docs/conventions/cli-tooling.md" 포인터 — 누락 (v1.4.0+, agent-tooling feature 활성화 시)
+
+### agent-tooling 마이그레이션 (v1.4.0+, 1-5 에서 Y 선택 시만 표시)
+- `docs/conventions/cli-tooling.md` — 신규 (MISSING)
+- `_workspace/prompts/{pre-analysis,planner,generator,self-reviewer,evaluator}.md` — 끝에 "셸 도구 규약" 섹션 추가 (MISSING/CUSTOMIZED 가능)
 ```
 
 ### Phase 3: 승인 (대화형)
@@ -194,7 +219,24 @@ AGENTS.md 에 '{섹션 제목}' 섹션을 추가할까요?
 - 기존 섹션이 있으면 내용 비교 후 CUSTOMIZED/PRISTINE 판정
 - `docs/adr/README.md` 도 **인덱스 테이블은 보존**, 상단 헤더/작성 규칙 섹션만 교체
 
-**4-5. 절대 보존 카테고리는 어떤 상황에서도 건드리지 않는다** (매니페스트의 protection 섹션 참조).
+**4-5. agent-tooling 마이그레이션 적용 (v1.4.0+, 1-5 에서 Y 선택 + 도구 0개 거부 안 한 경우)**:
+
+1. setup Phase 4-7 동등 동작: `docs/conventions/cli-tooling.md` 작성 (references/agent-tooling.md 2~5절 기반, 환경 무관)
+2. setup Phase 2-1 의 AGENTS.md 포인터 한 줄 추가: 8절 AGENTS.md 섹션 삽입 패턴 (질문 C) 적용 — "셸 도구 규약 → docs/conventions/cli-tooling.md"
+3. setup Phase 4-3 동등 동작: 5개 프롬프트 끝에 셸 도구 규약 섹션 append (기존 본문 0 변경, sync-rules.md 9-2 절 참조). 프롬프트 파일이 일부 부재면 존재하는 것에만 append + 부재 파일은 보고만.
+4. `.harness-version` features 배열에 `"agent-tooling"` 추가 + `harnessVersion` 을 `plugin.json` 의 최신 version 으로 갱신 (CONTRACTS.md 4절)
+
+**절대 하지 않는 것**:
+- `.claude/settings.local.json` 의 `permissions.allow` 권한 등록 (audit 9영역 소관 — sync-rules.md 9-3 절)
+- 사용자가 자체 작성한 cli-tooling 관련 파일 덮어쓰기 (충돌 시 사용자 위임 — sync-rules.md 9-5 절)
+- 프롬프트의 기존 본문 수정 (셸 도구 규약 섹션만 끝에 append)
+
+**마이그레이션 검증** (Phase 5 기록 단계 전):
+- `scores.json` 점수 0 손실 (jq 비교)
+- 발행된 ADR 본문 0 변경
+- `_workspace/current-phase.md` 진행 상태 보존
+
+**4-6. 절대 보존 카테고리는 어떤 상황에서도 건드리지 않는다** (매니페스트의 protection 섹션 참조).
 
 ### Phase 5: 기록
 

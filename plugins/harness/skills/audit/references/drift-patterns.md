@@ -1,4 +1,4 @@
-# 드리프트 패턴 — 8개 영역 상세
+# 드리프트 패턴 — 9개 영역 상세
 
 setup 스킬로 구축된 하네스 인프라에서 시간이 지남에 따라 발생할 수 있는 오염 패턴.
 각 패턴마다 **탐지 방법**과 **정리 방법**을 명시한다.
@@ -223,3 +223,45 @@ _workspace/:
 ### 정리 방법
 `needs-confirmation` — 수동 실행 전용일 수도 있음:
 - 사용자에게 "수동 실행용인가" 확인 → keep / archive 선택
+
+---
+
+## 9. agent-tooling 환경 동기화
+
+`agent-tooling` feature 활성화 프로젝트에서 머신 환경 변화 (도구 추가/제거) 를 감지하여 `.claude/settings.local.json` 의 `permissions.allow` 도구 권한 영역을 동기화한다. 권위적 정의 → `setup/references/agent-tooling.md` 6절.
+
+### 정의
+
+다음 셋의 불일치:
+- `docs/conventions/cli-tooling.md` 의 권장 도구 목록 (포터블, 환경 무관)
+- 현재 머신의 `command -v <tool>` 결과 (실제 설치 여부)
+- `.claude/settings.local.json` 의 `permissions.allow` 의 `Bash(<tool>:*)` 항목 (권한 등록 상태)
+
+### 탐지 방법
+
+1. `docs/quality/.harness-version` 의 features 배열에 `agent-tooling` 포함 여부 확인 — 미포함이면 본 영역 skip (Phase 0-3 게이트)
+2. `docs/conventions/cli-tooling.md` 에서 권장 도구 목록 추출
+3. 권장 도구 각각에 대해 `command -v <tool>` 로 현재 머신 설치 여부 확인
+4. `.claude/settings.local.json` 의 `permissions.allow` 에서 `Bash(<tool>:*)` 항목 추출
+5. (3) ↔ (4) 비교:
+   - **새로 설치된 도구**: 머신에는 있지만 권한에 없음 → 권한 추가 propose
+   - **제거된 도구**: 권한에는 있지만 머신에 없음 → 권한 제거 propose
+   - **변화 없음**: propose 0 (false positive 방지)
+
+### 심각도
+
+`minor` — 즉각 차단 없음. 권한 prompt 빈도/명령 fallback 효율에만 영향.
+
+### 정리 방법
+
+`needs-confirmation`:
+- AskUserQuestion 으로 항목별 확인 후 `settings.local.json` 갱신
+- `docs/conventions/cli-tooling.md` 본문은 **절대 수정하지 않는다** (CONTRACTS.md 7절: audit 의 cli-tooling.md 권한은 "보존")
+- `permissions.allow` 의 비-`Bash(<tool>:*)` 항목, `hooks` 영역은 수정하지 않는다
+- `audit-log.md` 의 결과 행에 9영역 propose/적용 기록
+
+### 참고
+
+- 사용자가 의도적으로 어떤 도구의 권한을 제거한 경우 vs 머신 환경 변화 구분이 어려움 → 항상 propose 만, 자동 적용 X
+- 첫 audit 가 v1.3 → v1.4 마이그레이션 이전이면 `cli-tooling.md` 자체가 없을 수 있음 → 영역 skip + "agent-tooling feature 미활성" 안내
+- 신규 도구의 기본 권한은 read-only (`rm`, `mv` 같은 파괴적 도구는 자동 등록 X)

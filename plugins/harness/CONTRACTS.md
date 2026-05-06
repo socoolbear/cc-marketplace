@@ -42,6 +42,8 @@
       quality-log.md                 # 평가 로그
       audit-log.md                   # audit 실행 이력 (audit 이 생성)
       update-log.md                  # update 실행 이력 (update 가 생성)
+    conventions/                     # agent-tooling feature 활성화 시
+      cli-tooling.md                 # 셸 도구 규약 (포터블, repo 커밋)
     legacy-*/                        # 동결된 기존 문서
   _workspace/
     current-phase.md                 # 현재 Phase 상태
@@ -134,6 +136,17 @@ setup 이 `_workspace/prompts/*.md` 작성 시 프로젝트별 명령어로 치�
 - update 는 비교 시 치환 위치의 차이를 사용자 커스터마이징으로 보지 않는다 (정규화 비교 시 제외).
 - audit 은 프롬프트 본문을 수정하지 않는다.
 
+### 3-7. agent-tooling 산출물
+
+`agent-tooling` feature 활성화 시 setup 이 생성하는 산출물:
+
+| 파일 | 영역 | 누가 쓰나 |
+|------|------|-----------|
+| `docs/conventions/cli-tooling.md` | 포터블 (repo 커밋) | setup (전체 권장 도구 목록 + 설치 명령, 환경 무관) |
+| `.claude/settings.local.json` 의 `permissions.allow` 도구 권한 (`Bash(<tool>:*)`) | 머신별 (gitignore) | setup (설치된 도구만), audit (환경 동기화) |
+
+**분리 이유**: 다른 머신에서 clone 시 cli-tooling.md 가 설치 가이드 역할을 하고, audit 가 머신 환경에 맞게 settings.local.json 을 재생성한다. 권위적 원천 → `setup/references/agent-tooling.md` 5절.
+
 ---
 
 ## 4. `.harness-version` JSON 스키마
@@ -149,7 +162,7 @@ setup 이 `_workspace/prompts/*.md` 작성 시 프로젝트별 명령어로 치�
   "setupBy": "harness:setup",
   "lastUpdate": "YYYY-MM-DD",
   "updatedBy": "harness:update",
-  "features": ["adr", "4-stage-pipeline", "quality-tracking", "mechanical-enforcement"]
+  "features": ["adr", "4-stage-pipeline", "quality-tracking", "mechanical-enforcement", "agent-tooling"]
 }
 ```
 
@@ -169,6 +182,7 @@ setup 이 `_workspace/prompts/*.md` 작성 시 프로젝트별 명령어로 치�
 - update 가 **변경을 하나도 적용하지 않은 실행** (모든 항목 UP-TO-DATE 또는 사용자 keep/skip) 에서는 `lastUpdate`, `updatedBy`, `harnessVersion` 모두 **갱신하지 않는다**. `lastUpdate` 는 "마지막으로 실제 적용한 update" 만을 의미한다.
 - 레거시 모드에서 기록된 `unknown` 값은 영구 고정 (이후 update 도 보존). 사용자가 정확한 값을 알고 직접 수정하는 건 본 규약 밖의 수동 작업.
 - **필드 누락 호환**: v1.2.x update 가 `setupBy` 를 silently drop 한 파일을 v1.3 update 가 만나면, 부재 필드를 `"unknown (lost in v1.2.x migration)"` 으로 채워 넣고 사용자에게 안내한다. 이후엔 보존 대상.
+- **`agent-tooling` feature**: CLI 도구 규약 (도구 매핑, 권한, fallback 정책). 도구 0개 환경 (rg/fd/jq 모두 미설치) 에서는 setup 이 features 배열에 포함하지 않을 수 있다 (사용자 확인 후 결정). 권위적 정의 → `setup/references/agent-tooling.md`.
 
 ### setup 직후 (update 미실행)
 
@@ -177,7 +191,7 @@ setup 이 `_workspace/prompts/*.md` 작성 시 프로젝트별 명령어로 치�
   "harnessVersion": "1.2.0",
   "setupDate": "2026-04-12",
   "setupBy": "harness:setup",
-  "features": ["adr", "4-stage-pipeline", "quality-tracking", "mechanical-enforcement"]
+  "features": ["adr", "4-stage-pipeline", "quality-tracking", "mechanical-enforcement", "agent-tooling"]
 }
 ```
 
@@ -270,7 +284,9 @@ update 는 본문도 상태도 수정하지 않는다.
 | `_workspace/audit-*.md` | (audit 가 생성) | 자기 이력 | 보존 |
 | `_workspace/update-plan-*.md` | (update 가 생성) | 보존 | 자기 이력 |
 | `scripts/*.js` | 작성 (레이어 검사) | 미사용 시 보고만 | 기본 CUSTOMIZED, PRISTINE 이면 교체 |
-| `.claude/settings.local.json` | 작성 (Hook) | 수정 X | 수정 X |
+| `.claude/settings.local.json` 의 `hooks` 영역 | 작성 (Hook) | 수정 X | 수정 X |
+| `.claude/settings.local.json` 의 `permissions.allow` 도구 권한 (`Bash(<tool>:*)`) | 추가 (agent-tooling feature 활성화 시, 설치된 도구만) | 환경 동기화 (drift-patterns 9영역, 추가/제거 propose) | 보존 |
+| `docs/conventions/cli-tooling.md` | 작성 (agent-tooling feature 활성화 시) | 보존 (본문 X) | PRISTINE 시 교체 · CUSTOMIZED 시 차이 보고 |
 | `_archive/` | 강제 재실행 시 `_archive/{date}-before-reset/` (예외 케이스) | `_archive/{date}/audit/` 아래만 추가 | `_archive/{date}/update-superseded/` 아래만 추가 |
 
 **범례**:
@@ -279,6 +295,7 @@ update 는 본문도 상태도 수정하지 않는다.
 - `교체 가능`: 사용자 승인 시 표준 버전으로 갱신
 - `archive`: `_archive/` 로 이동 (원본 위치 비움)
 - `PRISTINE / CUSTOMIZED`: update 의 판정 (정규화 비교). 상세 → `update/references/sync-rules.md` 섹션 2
+- `환경 동기화`: 머신 환경 변화 (`command -v` 결과) 를 감지하여 권한 추가/제거 propose (자동 적용 X)
 
 ### `docs/adr/README.md` 분담 (충돌 방지)
 
@@ -337,12 +354,14 @@ update 는 본문도 상태도 수정하지 않는다.
 |-------------|-----------|------|
 | 데이터 스키마 / 파일 명명 / 디렉터리 레이아웃 / 보호 권한 | **CONTRACTS.md** (이 문서) | `.harness-version` 필드, ADR 번호 형식, `_archive/` 네임스페이스 |
 | 표준 템플릿 본문 / 표준 프롬프트 본문 | **setup/SKILL.md** Phase 4-2, 4-3 | `sprint-contract.md` 양식, `evaluator.md` 프롬프트 |
-| 각 스킬의 행동 (Phase 흐름, AskUserQuestion, 알고리즘) | **각 SKILL.md** + `references/` | audit 의 8 영역 진단 순서, update 의 PRISTINE 판정 |
+| 각 스킬의 행동 (Phase 흐름, AskUserQuestion, 알고리즘) | **각 SKILL.md** + `references/` | audit 의 9 영역 진단 순서, update 의 PRISTINE 판정 |
 | 도메인 상세 (실패 교훈, 컨텍스트 불안 대응 등) | **setup/references/** | `phase-execution-protocol.md` 섹션 9 |
+| agent-tooling 규약 (도구 매핑, 빌트인 우선순위, fallback 정책) | **setup/references/agent-tooling.md** | rg/fd/bat 매핑, gh --json 강제, 미설치 fallback |
 
 ### 변경 시 영향 범위
 
 - **CONTRACTS.md 변경** → 세 스킬에 동시 영향. 호환성 영향 (이미 셋업된 프로젝트의 동작 변화 여부) 을 검토하고 **`plugins/harness/.claude-plugin/plugin.json`** 과 **`.claude-plugin/marketplace.json`** 의 harness `version` 을 동시에 minor 이상 bump (두 파일이 일치해야 마켓플레이스에서 정확히 동기화됨). update 스킬의 `version-manifest.md` 8절 (버전 간 차이 지도) 에도 변경 사항을 추가한다.
+- **agent-tooling 영역 변경** (도구 목록, 매핑, fallback 정책) → setup, audit, update 세 스킬 동시 영향. 권위적 원천은 `setup/references/agent-tooling.md`. version-manifest 8절에 차이 추가 + plugin.json/marketplace.json minor 이상 bump.
 - **setup/SKILL.md Phase 4-2/4-3 변경** → 표준 템플릿/프롬프트 변경. update 의 차이 지도 (`version-manifest.md` 8절) 갱신 필요.
 - **각 SKILL.md 행동 변경** → 해당 스킬 1개에만 영향. 다른 스킬과의 인수인계 (보호 매트릭스, 산출물 명) 가 변경되면 CONTRACTS.md 도 함께 갱신.
 

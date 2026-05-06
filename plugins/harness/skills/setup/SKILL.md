@@ -70,6 +70,37 @@ setup 은 **1회성 구축 스킬**이다. 이미 셋업된 프로젝트에서 �
 - 린트 에러 수
 - 타입 에러 수
 
+**1-5. agent-tooling 도구 감지** (`agent-tooling` feature):
+
+다음 도구의 설치 여부를 `command -v <tool>` 로 확인한다:
+- 코어 대체: rg, fd, bat, eza, zoxide
+- 검색-히스토리: fzf, atuin
+- 데이터 처리: jq, yq, httpie
+- 코드 검색-품질: ast-grep, difftastic, shellcheck, shfmt, ruff
+- Git-TUI: gh, git-delta, lazygit, yazi
+- 프롬프트: starship
+
+`_workspace/analysis-report.md` 의 "감지된 셸 도구" 섹션에 설치/미설치 목록을 기록한다.
+
+**도구 0개 분기**: 핵심 도구 (rg, fd, jq) 가 모두 미설치인 경우 AskUserQuestion 으로 확인:
+
+> 현대 CLI 도구 (ripgrep, fd, jq 등) 가 감지되지 않았습니다. agent-tooling 기능은 이러한 도구를 활용하도록 에이전트 환경을 설정하므로, 도구 없이는 효과가 제한적입니다. 비활성화할까요?
+> - Y: agent-tooling 기능 제외 (이후 `brew install ripgrep fd jq` 설치 후 `/harness:audit` 실행으로 활성화 가능)
+> - n: 그래도 활성화 (cli-tooling.md/AGENTS.md 포인터/프롬프트 섹션 작성, settings.local.json permissions 는 비어있는 상태로 시작 — 도구 설치 시 audit 9영역이 자동 동기화)
+
+Y 선택 시 (비활성화):
+- `.harness-version` 의 features 배열에서 `agent-tooling` 제외
+- Phase 4-7 (cli-tooling.md 작성), Phase 4-8 (settings.local.json permissions) 모두 skip
+- Phase 4-3 의 5개 프롬프트 끝 "셸 도구 규약" 섹션도 모두 skip
+- AGENTS.md 의 "셸 도구 규약" 포인터 한 줄도 skip
+
+n 선택 시 (그래도 활성화):
+- 일반 활성화 흐름과 동일하게 Phase 4-7, 4-8, 4-3, 2-1 모두 실행
+- Phase 4-8 의 permissions.allow 는 감지된 도구 0개라 비어있는 상태로 작성 (이후 brew install + audit 으로 채워짐)
+- features 배열에 `agent-tooling` 포함
+
+상세 → `references/agent-tooling.md` 1, 4, 6절. 이후 환경 변화는 `/harness:audit` 9영역이 동기화한다.
+
 산출물: `_workspace/analysis-report.md`
 
 ### Phase 2: 지식 아키텍처 구축
@@ -91,6 +122,7 @@ setup 은 **1회성 구축 스킬**이다. 이미 셋업된 프로젝트에서 �
 - Phase 실행 테이블 → `docs/phases/phase-N-*.md`
 - 교훈 요약 → `docs/references/*.md`
 - 아키텍처 강제 도구 → `scripts/`
+- 셸 도구 규약 → `docs/conventions/cli-tooling.md` (agent-tooling feature 활성화 시)
 - 문서 지도 (전체 문서 디렉터리 인덱스)
 
 포인터 모음이 60줄을 초과하면: 본문 설명을 줄이거나 해당 섹션을 docs/ 하위 문서로 분리하고 AGENTS.md 에는 한 줄 링크만 남긴다.
@@ -451,6 +483,14 @@ Phase {N} 실행 전 사전 분석.
 `_workspace/phase-{N}-reference-analysis.md` 를 작성한다:
 - 각 위험 항목: 출처, 현재 상태 (PASS/FAIL), 분석 내용, 필요 조치
 - 종합 판정: PASS → 다음 단계 진행 / FAIL → 사람에게 보고
+
+## 셸 도구 규약 (agent-tooling feature 활성화 시만 포함)
+
+- 빌트인 도구 우선: `Read`, `Edit`, `Grep`, `Glob` (셸 호출 전에 먼저 시도)
+- 셸 호출 시: `grep`/`find` 대신 `rg`/`fd`, `cat` 대신 `Read`, `gh` 는 항상 `--json` + `--jq`
+- 도구 미설치 시 ("command not found"): POSIX 기본으로 fallback (`rg` → `grep -r`, `fd` → `find`)
+- 작업 종료 시 미설치 도구 감지하면 1줄 보고
+- 상세 → `docs/conventions/cli-tooling.md`
 ```
 
 `_workspace/prompts/planner.md`:
@@ -488,6 +528,14 @@ Phase {N} 의 스프린트 계약서를 작성한다.
 - "코드 품질이 좋아야 함" 같은 주관적 기준 금지
 - Phase 스펙의 레이어 범위를 벗어나는 작업 포함 금지
 - 기존 ADR 의 결정을 번복할 계획이라면 계약서에 명시 (Evaluator 가 번복 ADR 발행 준비)
+
+## 셸 도구 규약 (agent-tooling feature 활성화 시만 포함)
+
+- 빌트인 도구 우선: `Read`, `Edit`, `Grep`, `Glob` (셸 호출 전에 먼저 시도)
+- 셸 호출 시: `grep`/`find` 대신 `rg`/`fd`, `cat` 대신 `Read`, `gh` 는 항상 `--json` + `--jq`
+- 도구 미설치 시 ("command not found"): POSIX 기본으로 fallback (`rg` → `grep -r`, `fd` → `find`)
+- 작업 종료 시 미설치 도구 감지하면 1줄 보고
+- 상세 → `docs/conventions/cli-tooling.md`
 ```
 
 `_workspace/prompts/generator.md`:
@@ -521,6 +569,14 @@ Phase {N} 의 스프린트 계약서에 따라 코드를 구현한다.
 - 스프린트 계약서의 부정 기준을 위반하지 않는다
 - docs/architecture.md 의 레이어 규칙을 준수한다
 - Evaluator 의 평가 기준 상세를 보지 않는다 (편향 방지)
+
+## 셸 도구 규약 (agent-tooling feature 활성화 시만 포함)
+
+- 빌트인 도구 우선: `Read`, `Edit`, `Grep`, `Glob` (셸 호출 전에 먼저 시도)
+- 셸 호출 시: `grep`/`find` 대신 `rg`/`fd`, `cat` 대신 `Read`, `gh` 는 항상 `--json` + `--jq`
+- 도구 미설치 시 ("command not found"): POSIX 기본으로 fallback (`rg` → `grep -r`, `fd` → `find`)
+- 작업 종료 시 미설치 도구 감지하면 1줄 보고
+- 상세 → `docs/conventions/cli-tooling.md`
 ```
 
 `_workspace/prompts/self-reviewer.md`:
@@ -555,6 +611,14 @@ Generator 의 추론 과정을 보지 않고, 코드와 계약서만 보고 판�
 - Generator 와 별도 컨텍스트에서 실행 — Generator 의 추론을 보지 않는다
 - 발견한 이슈는 가능한 한 직접 수정한 뒤 QA 에 넘긴다
 - 리뷰 결과는 Evaluator 에게 전달하지 않는다 (독립 평가 보장)
+
+## 셸 도구 규약 (agent-tooling feature 활성화 시만 포함)
+
+- 빌트인 도구 우선: `Read`, `Edit`, `Grep`, `Glob` (셸 호출 전에 먼저 시도)
+- 셸 호출 시: `grep`/`find` 대신 `rg`/`fd`, `cat` 대신 `Read`, `gh` 는 항상 `--json` + `--jq`
+- 도구 미설치 시 ("command not found"): POSIX 기본으로 fallback (`rg` → `grep -r`, `fd` → `find`)
+- 작업 종료 시 미설치 도구 감지하면 1줄 보고
+- 상세 → `docs/conventions/cli-tooling.md`
 ```
 
 `_workspace/prompts/evaluator.md`:
@@ -614,6 +678,14 @@ Self-Reviewer 의 리뷰 결과를 보지 않고, 코드만 보고 평가한다.
 - Self-Reviewer 의 리뷰 결과를 보지 않는다 (독립 평가)
 - Generator 의 추론 과정을 보지 않는다
 - 모든 검증은 도구 실행으로 확인 (주관적 판단 최소화)
+
+## 셸 도구 규약 (agent-tooling feature 활성화 시만 포함)
+
+- 빌트인 도구 우선: `Read`, `Edit`, `Grep`, `Glob` (셸 호출 전에 먼저 시도)
+- 셸 호출 시: `grep`/`find` 대신 `rg`/`fd`, `cat` 대신 `Read`, `gh` 는 항상 `--json` + `--jq`
+- 도구 미설치 시 ("command not found"): POSIX 기본으로 fallback (`rg` → `grep -r`, `fd` → `find`)
+- 작업 종료 시 미설치 도구 감지하면 1줄 보고
+- 상세 → `docs/conventions/cli-tooling.md`
 ```
 
 **4-4. AGENTS.md 에 파이프라인 실행 가이드 추가:**
@@ -693,6 +765,55 @@ Phase 1 분석 결과를 반영하여 다음 파일을 생성한다.
 (상세: references/failure-prevention.md 참조)
 ```
 
+**4-7. 셸 도구 규약 문서 작성** (agent-tooling feature 활성화 시):
+
+`docs/conventions/cli-tooling.md` 를 작성한다. 본 파일은 환경 무관 (포터블, repo 커밋) 으로 다른 머신에서 clone 시 설치 가이드 역할도 한다.
+
+권위적 정의 → `references/agent-tooling.md` 의 2~5절. 다음을 포함한다 (도구 설치 여부와 무관, 전체 권장 목록):
+
+- 6개 그룹별 도구 매핑 표 (도구 | 용도 | 대체 대상 | 설치 명령)
+  - 코어 대체 (rg, fd, bat, eza, zoxide)
+  - 검색-히스토리 (fzf, atuin)
+  - 데이터 처리 (jq, yq, httpie)
+  - 코드 검색-품질 (ast-grep, difftastic, shellcheck, shfmt, ruff)
+  - Git-TUI (gh, git-delta, lazygit, yazi)
+  - 프롬프트 (starship)
+- Claude Code 빌트인 우선순위 표 (`Read` > `bat`, `Edit` > `sed`, `Grep`/`Glob` > `rg`/`fd`)
+- 외부 CLI 비대화형 강제 규칙 (`gh --json` + `--jq`, `--yes`, `--quiet`, `--format json`)
+- fallback 정책 (POSIX 기본 우회 + 종료 시 1줄 보고, 작업 차단 X)
+- 일괄 설치 명령 (`brew install ripgrep fd bat eza ...`)
+
+audit 는 본 파일 본문을 보존하고, update 는 PRISTINE 시 교체한다 (CONTRACTS.md 7절).
+
+**4-8. agent-tooling 권한 등록** (agent-tooling feature 활성화 시):
+
+`.claude/settings.local.json` 의 `permissions.allow` 영역에 Phase 1-5 에서 감지된 도구만 추가한다. 미설치 도구는 권한 등록하지 않는다.
+
+```json
+{
+  "permissions": {
+    "allow": [
+      "Bash(rg:*)",
+      "Bash(fd:*)",
+      "Bash(jq:*)",
+      "Bash(yq:*)",
+      "Bash(ast-grep:*)",
+      "Bash(gh:*)",
+      "Bash(eza:*)",
+      "Bash(bat:*)"
+    ]
+  },
+  "hooks": { /* 기존 Phase 3-2 의 레이어 검사 Hook 영역 — 절대 수정 X */ }
+}
+```
+
+원칙:
+- read-only 도구만 등록 (rm, mv 같은 파괴적 도구 금지)
+- 기존 `hooks` 영역은 절대 수정하지 않는다 (CONTRACTS.md 7절: hooks 영역과 permissions.allow 영역의 권한 분리)
+- 설치된 도구가 후에 늘어나면 `/harness:audit` 9영역이 환경 동기화 propose
+
+상세 → `references/agent-tooling.md` 5절 (환경 분리), 6절 (확장 정책)
+
 ### Phase 5: 검증
 
 생성된 인프라가 정상 동작하는지 확인한다.
@@ -716,6 +837,13 @@ Phase 1 분석 결과를 반영하여 다음 파일을 생성한다.
 - 각 프롬프트의 플레이스홀더 (`{빌드 명령어}` 등) 가 실제 명령어로 치환되었는지
 - 첫 Phase 의 스프린트 계약서를 작성할 수 있는 상태인지
 
+**5-4. agent-tooling 검증** (`agent-tooling` feature 활성화 시):
+- `docs/conventions/cli-tooling.md` 가 존재하고 6개 그룹 (코어 대체, 검색-히스토리, 데이터 처리, 코드 검색-품질, Git-TUI, 프롬프트) 매핑 표를 포함하는지
+- `.claude/settings.local.json` 의 `permissions.allow` 에 Phase 1-5 에서 감지된 설치 도구만 등록되어 있는지 (미설치 도구는 권한 없어야 함)
+- 5개 프롬프트 파일 끝에 "셸 도구 규약 (agent-tooling feature 활성화 시만 포함)" 섹션이 추가되어 있는지
+- `AGENTS.md` 에 "셸 도구 규약 → docs/conventions/cli-tooling.md" 한 줄 포인터가 있는지
+- `_workspace/analysis-report.md` 의 "감지된 셸 도구" 섹션에 설치/미설치 목록이 기록되어 있는지
+
 ### Phase 6: 버전 마커 기록
 
 setup 완료 시점에 `docs/quality/.harness-version` 을 생성한다.
@@ -730,12 +858,13 @@ setup 직후 작성하는 형태:
   "harnessVersion": "{plugin.json 의 version 필드값}",
   "setupDate": "{오늘 날짜, YYYY-MM-DD}",
   "setupBy": "harness:setup",
-  "features": ["adr", "4-stage-pipeline", "quality-tracking", "mechanical-enforcement"]
+  "features": ["adr", "4-stage-pipeline", "quality-tracking", "mechanical-enforcement", "agent-tooling"]
 }
 ```
 
 - `lastUpdate`, `updatedBy` 는 update 가 처음 실행될 때 추가된다 (setup 단계에서는 쓰지 않는다)
 - `features` 는 프로젝트 유형에 따라 항목을 뺀다 (레이어 구조가 없으면 `mechanical-enforcement` 제외 등)
+- `agent-tooling` 은 Phase 1-5 에서 핵심 도구 (rg/fd/jq) 모두 미설치 + 사용자가 비활성화 선택 시 `features` 배열에서 제외한다 (CONTRACTS.md 4절 참조)
 
 ## 산출물 체크리스트
 
@@ -757,6 +886,13 @@ Phase 2~4 완료 후 프로젝트에 존재해야 하는 파일:
 - [ ] `_workspace/current-phase.md` — 현재 Phase 상태
 - [ ] `_workspace/prompts/*.md` — 파이프라인 프롬프트 (5개: pre-analysis, planner, generator, self-reviewer, evaluator)
 - [ ] `_workspace/templates/*.md` — 문서 템플릿 (4개: sprint-contract, self-review, completion-record, fix-directive)
+
+**agent-tooling feature 활성화 시 추가 산출물:**
+- [ ] `docs/conventions/cli-tooling.md` — 셸 도구 규약 (포터블, 6개 그룹 매핑 + 빌트인 우선순위 + fallback 정책)
+- [ ] `_workspace/prompts/*.md` 끝에 "셸 도구 규약" 섹션 (5개 모두)
+- [ ] `.claude/settings.local.json` 의 `permissions.allow` 에 설치된 도구 권한 (`Bash(rg:*)` 등)
+- [ ] `AGENTS.md` 의 "셸 도구 규약 → docs/conventions/cli-tooling.md" 한 줄 포인터
+- [ ] `docs/quality/.harness-version` 의 features 배열에 `"agent-tooling"`
 
 ## 적용하지 않는 것
 

@@ -1,6 +1,6 @@
 ---
 name: audit
-description: "하네스 셋업된 프로젝트의 문서/인프라 드리프트를 진단하고 안전하게 정리하는 스킬. 시간이 지남에 따라 누적되는 깨진 포인터, 고아 문서, 완료 Phase 의 작업 파일, ADR 번호 결번/중복, 코드-문서 괴리, 쓰이지 않는 레퍼런스 등 8개 영역의 오염 패턴을 탐지하여 보고서를 생성한다. 명백한 항목은 AskUserQuestion 으로 사용자 확인 후 _archive/ 로 자동 이동, 판단 필요 항목은 보고서에만 기록한다. '하네스 감사', '하네스 정리', '문서 드리프트 진단', '가비지 컬렉션', 'audit harness project', '프로젝트 오염 진단', 'harness 유지보수' 요청 시 사용. setup 스킬로 구축된 하네스가 있는 프로젝트에서만 동작."
+description: "하네스 셋업된 프로젝트의 문서/인프라 드리프트를 진단하고 안전하게 정리하는 스킬. 시간이 지남에 따라 누적되는 깨진 포인터, 고아 문서, 완료 Phase 의 작업 파일, ADR 번호 결번/중복, 코드-문서 괴리, 쓰이지 않는 레퍼런스 등 9개 영역의 오염 패턴을 탐지하여 보고서를 생성한다. 명백한 항목은 AskUserQuestion 으로 사용자 확인 후 _archive/ 로 자동 이동, 판단 필요 항목은 보고서에만 기록한다. '하네스 감사', '하네스 정리', '문서 드리프트 진단', '가비지 컬렉션', 'audit harness project', '프로젝트 오염 진단', 'harness 유지보수' 요청 시 사용. setup 스킬로 구축된 하네스가 있는 프로젝트에서만 동작."
 ---
 
 # Harness Audit — 드리프트 진단 및 안전한 정리
@@ -50,13 +50,21 @@ OpenAI 하네스 엔지니어링의 **"가비지 컬렉션"** 원칙을 실행 �
 
 audit 자체는 `.harness-version` 을 수정하지 않는다 (`CONTRACTS.md` 7절 매트릭스).
 
+**0-3. agent-tooling feature 확인:**
+
+`docs/quality/.harness-version` 의 features 배열에서 `agent-tooling` 포함 여부 확인:
+- 포함됨 → Phase 1 진단에 9영역 (agent-tooling 환경 동기화) 포함
+- 미포함 (도구 0개 환경 또는 v1.3 이하 프로젝트) → Phase 1 은 8영역만 검사 + 보고서에 "agent-tooling feature 미활성 — 9영역 skip" 기록
+
+상세 → `references/drift-patterns.md` 9절
+
 ### Phase 1: 진단 (Auditor)
 
 **역할**: 읽기 전용 진단. 어떤 파일도 수정하지 않는다.
 
 상세 드리프트 패턴 → `references/drift-patterns.md`
 
-8개 영역을 순서대로 진단한다 (병렬 탐색 가능):
+9개 영역을 순서대로 진단한다 (병렬 탐색 가능, 9번 영역은 agent-tooling feature 활성화 시만):
 
 1. **AGENTS.md 포인터 드리프트** — 깨진 링크, 존재하지 않는 경로 참조
 2. **architecture.md 와 코드 괴리** — 레이어 규칙 vs 실제 import 그래프
@@ -66,6 +74,7 @@ audit 자체는 `.harness-version` 을 수정하지 않는다 (`CONTRACTS.md` 7�
 6. **중복 레퍼런스** — 동일 주제를 분산해서 다루는 파일들
 7. **quality/ 정합성** — `scores.json` ↔ `quality-log.md` ↔ `docs/phases/` ↔ `current-phase.md` 동기화
 8. **쓰이지 않는 스크립트/Hook** — `scripts/` 내 참조 없는 파일
+9. **agent-tooling 환경 동기화** — `cli-tooling.md` 권장 목록 ↔ 실제 설치 ↔ `settings.local.json` 권한 (agent-tooling feature 활성 시만)
 
 각 발견에 **심각도** + **정리 방법** 라벨 부여:
 - 심각도: `critical` | `major` | `minor`
@@ -145,6 +154,7 @@ AskUserQuestion 사용 패턴 → `references/cleanup-rules.md` (섹션 3)
 - 보고서: `_workspace/audit-2026-04-24.md`
 - 발견: critical 1, major 2, minor 5
 - 조치: auto-archive 3건, archive (승인) 2건, delete 0건, manual 대기 3건
+- agent-tooling 환경 동기화 (9영역, 활성 시): 추가 propose 1건 (fzf), 제거 propose 0건 — 또는 "feature 미활성"
 - 다음 audit 권장: 2026-05-24
 ```
 
@@ -168,7 +178,7 @@ audit-log.md 가 존재하지 않으면 생성한다.
 ## 참고
 
 - **공유 규약 (setup/update 와 동일한 단일 진실)**: `../../CONTRACTS.md`
-- 드리프트 패턴 (8개 영역 상세): `references/drift-patterns.md`
+- 드리프트 패턴 (9개 영역 상세): `references/drift-patterns.md`
 - 정리 규칙 (archive/delete 판단, AskUserQuestion 패턴): `references/cleanup-rules.md`
 - setup 스킬 (하네스 최초 구축): `../setup/SKILL.md`
 - update 스킬 (스킬 버전 동기화): `../update/SKILL.md`

@@ -176,4 +176,30 @@ update 가 참조할 "이 버전에서 무엇이 바뀌었는지" 요약.
 **update 스킬 자체의 호환성**:
 - v1.2.x update 가 갱신한 `.harness-version` 에는 `setupBy` 가 없을 수 있음 (silent drop 버그). v1.3 update 는 이 경우 부재 필드를 `"unknown (lost in v1.2.x migration)"` 으로 채워 넣고 사용자에게 안내한다 (이후 보존 대상). 상세 → `../SKILL.md` Phase 5-1 의 "필드 누락 처리".
 
+### v1.3.0 → v1.4.0 (agent-tooling feature 도입)
+
+**테마**: CLI 도구 규약을 하네스 엔지니어링의 5번째 차원으로 도입. 권위적 정의 → `setup/references/agent-tooling.md`.
+
+**신설 (MISSING 예상, agent-tooling feature 활성화 시)**:
+- `docs/conventions/cli-tooling.md` — 권장 도구 목록 + 사용 규칙 + fallback 정책 (포터블, repo 커밋)
+- `docs/quality/.harness-version` features 배열에 `"agent-tooling"` 추가
+- `AGENTS.md` 의 "셸 도구 규약 → docs/conventions/cli-tooling.md" 한 줄 포인터 (참조 문서 영역)
+
+**구조 변경 (CUSTOMIZED 가능, 정규화 비교 대상)**:
+- `_workspace/prompts/{pre-analysis,planner,generator,self-reviewer,evaluator}.md` — 끝에 "셸 도구 규약 (agent-tooling feature 활성화 시만 포함)" 섹션 (8줄, 표준 본문) append. 기존 본문 0 변경.
+
+**기존 영역 정책 변경**:
+- `.claude/settings.local.json` — 기존엔 update "수정 X" 였으나, v1.4 부터 hooks 영역 / `permissions.allow` 도구 권한 영역으로 분리 (CONTRACTS.md 7절). update 는 둘 다 보존, audit 가 `permissions.allow` 환경 동기화 소관.
+
+**호환성**:
+- v1.3.x 프로젝트 → update 진입 시 features 배열에서 `agent-tooling` 부재 → AskUserQuestion 으로 활성화 여부 확인 (SKILL.md Phase 1-5 참조)
+- 사용자 거부 시: 기존 v1.3 동작 유지, harnessVersion 갱신 안 함 (CONTRACTS.md 4절 미적용 시 미갱신 정책)
+- 도구 0개 환경에서 활성화 시도: setup Phase 1-5 와 동일하게 "비활성 권고" 안내 후 사용자 결정
+
+**update 스킬 자체의 호환성**:
+- v1.3.x update 는 본 항목을 인지하지 못함 → /plugin update 후 v1.4 update 가 처음으로 마이그레이션 propose
+- 본 영역의 동기화 규칙 → `references/sync-rules.md` 9절 (agent-tooling 산출물 정책)
+
+**검증**: scores.json 점수 0 손실, 발행된 ADR 본문 0 변경, current-phase.md 진행 상태 보존 (idempotent: 같은 update 재실행 시 두 번째는 UP-TO-DATE).
+
 향후 버전에서도 이 섹션을 확장하여 차이 지도를 유지한다.
