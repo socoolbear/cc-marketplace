@@ -1,0 +1,5 @@
+{
+  "name": "snippets",
+  "version": "0.1.0",
+  "description": "코드베이스에서 재사용 가능한 snippet 을 추출해 README + 코드 디렉토리로 wrapping. 로컬 경로 / GitHub URL 입력, gitleaks 보안 스캐닝, local / private gist / repo push 출력 옵션."
+}

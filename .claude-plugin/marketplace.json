@@ -29,6 +29,17 @@
       },
       "category": "writing",
       "tags": ["documents", "resume", "career", "writing"]
+    },
+    {
+      "name": "snippets",
+      "source": "./plugins/snippets",
+      "description": "코드베이스 → 재사용 가능한 snippet 추출. gitleaks 보안 스캐닝, README 자동 생성, local / private gist / repo push 출력 옵션",
+      "version": "0.1.0",
+      "author": {
+        "name": "socoolbear"
+      },
+      "category": "developer-productivity",
+      "tags": ["snippets", "extraction", "code-reuse", "github", "gist", "security-scanning", "dev-templates"]
     }
   ]
 }

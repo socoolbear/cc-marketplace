@@ -14,10 +14,12 @@
 |---------|------|------|------|
 | harness | `/harness:setup`, `/harness:audit`, `/harness:update` | 프로젝트에 하네스 엔지니어링 인프라 구축 (setup) + 내부 드리프트 진단/정리 (audit) + 스킬 버전 변경사항 반영 (update) | |
 | documents | `/documents:resume` | 경력기술서, 이력서를 MD 파일로 작성 | [@devninja03](https://www.threads.com/@devninja03/post/DWQtpYXAers) |
+| snippets | `/snippets:extract` | 코드베이스 → 재사용 가능한 snippet 추출 (보안 스캐닝, README 자동 생성, local/gist/push 출력) | |
 
 ## 플러그인 설치
 
 ```bash
 /plugin install harness@cc-marketplace
 /plugin install documents@cc-marketplace
+/plugin install snippets@cc-marketplace
 ```
