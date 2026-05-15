@@ -1,9 +1,9 @@
 # 표준 파일 매니페스트
 
-update 스킬이 비교할 표준 파일 목록과 각 파일의 "정답" 출처.
-정답은 `../../setup/SKILL.md` 의 해당 섹션에서 추출한다.
+update 모드가 비교할 표준 파일 목록과 각 파일의 "정답" 출처.
+정답은 `../modes/setup.md` 의 해당 섹션에서 추출한다.
 
-> **권한 모델**: 어떤 파일을 누가 (setup/audit/update) 어디까지 만질 수 있는지는 `../../../CONTRACTS.md` 7절 보호 파일 매트릭스에서 단일 정의된다. 본 문서의 "절대 보존" 표는 update 관점에서의 요약일 뿐이며, 충돌 시 CONTRACTS.md 가 우선한다.
+> **권한 모델**: 어떤 파일을 누가 (setup/audit/update) 어디까지 만질 수 있는지는 `../CONTRACTS.md` 7절 보호 파일 매트릭스에서 단일 정의된다. 본 문서의 "절대 보존" 표는 update 관점에서의 요약일 뿐이며, 충돌 시 CONTRACTS.md 가 우선한다.
 
 ---
 
@@ -38,7 +38,7 @@ update 스킬이 비교할 표준 파일 목록과 각 파일의 "정답" 출처
 | `_workspace/phase-*-*-retry-*.md` | 수정 루프 산출물 (이력 — audit 대상) |
 | `_workspace/analysis-report.md` | setup Phase 1 분석 결과 |
 | `_workspace/audit-*.md` | audit 보고서 |
-| `_workspace/update-plan-*.md` | update 플랜 (본인 이전 실행 — audit 도 건드리지 않음, `../../../CONTRACTS.md` 7절) |
+| `_workspace/update-plan-*.md` | update 플랜 (본인 이전 실행 — audit 도 건드리지 않음, `../CONTRACTS.md` 7절) |
 | `docs/quality/scores.json` | 품질 점수 이력 (초기화 시 재앙) |
 | `docs/quality/quality-log.md` | 평가 로그 (누적 이력) |
 | `docs/quality/audit-log.md` | audit 실행 로그 |
@@ -57,7 +57,7 @@ update 스킬이 비교할 표준 파일 목록과 각 파일의 "정답" 출처
 
 ## 2. 표준 템플릿 (stock-templates)
 
-정답 출처: `../../setup/SKILL.md` Phase 4-2
+정답 출처: `../modes/setup.md` Phase 4-2
 
 | 파일 | 정답 섹션 |
 |------|-----------|
@@ -70,7 +70,7 @@ update 스킬이 비교할 표준 파일 목록과 각 파일의 "정답" 출처
 
 ## 3. 표준 프롬프트 (stock-prompts)
 
-정답 출처: `../../setup/SKILL.md` Phase 4-3
+정답 출처: `../modes/setup.md` Phase 4-3
 
 | 파일 | 정답 섹션 |
 |------|-----------|
@@ -89,14 +89,14 @@ update 스킬이 비교할 표준 파일 목록과 각 파일의 "정답" 출처
 
 ## 4. 구조 (structural — 신설 파일/디렉터리)
 
-정답 출처: `../../setup/SKILL.md` Phase 2-6
+정답 출처: `../modes/setup.md` Phase 2-6
 
 | 파일 | 정답 섹션 | 기본 동작 |
 |------|-----------|-----------|
 | `docs/adr/TEMPLATE.md` | Phase 2-6 의 TEMPLATE 코드 블록 | 없으면 생성, 있으면 stock-template 로 처리 |
 | `docs/adr/README.md` | Phase 2-6 의 README 코드 블록 | 없으면 빈 인덱스 생성. **있으면 인덱스 테이블 보존** + 상단 헤더/작성 규칙 섹션만 교체 대상 |
 
-**주의 — `docs/adr/README.md` 특수 처리** (분담 규칙 → `../../../CONTRACTS.md` 7절):
+**주의 — `docs/adr/README.md` 특수 처리** (분담 규칙 → `../CONTRACTS.md` 7절):
 - 이 파일은 빈 인덱스로 시작하지만 Evaluator 가 ADR 을 발행할 때마다 테이블에 행이 추가된다
 - update 가 전체 교체하면 **발행된 ADR 인덱스가 리셋됨** — 재앙
 - **update 소관**: 상단 `# Architecture Decision Records` ~ `## 작성 규칙` 섹션만 교체 대상
@@ -111,8 +111,8 @@ AGENTS.md 전체가 아닌 **특정 섹션**만 스킬이 관리한다.
 
 | 섹션 | 정답 출처 | 식별 방법 |
 |------|-----------|-----------|
-| "Phase 실행 — 4단계 파이프라인" | `../../setup/SKILL.md` Phase 4-4 | `## Phase 실행 — 4단계 파이프라인` 마크다운 헤더 |
-| 문서 지도의 ADR 포인터 | `../../setup/SKILL.md` Phase 2-1 | `아키텍처 결정 이력 → docs/adr/README.md` 라인 |
+| "Phase 실행 — 4단계 파이프라인" | `../modes/setup.md` Phase 4-4 | `## Phase 실행 — 4단계 파이프라인` 마크다운 헤더 |
+| 문서 지도의 ADR 포인터 | `../modes/setup.md` Phase 2-1 | `아키텍처 결정 이력 → docs/adr/README.md` 라인 |
 
 **원칙**:
 - AGENTS.md 는 **전체 교체 금지**
@@ -132,7 +132,7 @@ AGENTS.md 전체가 아닌 **특정 섹션**만 스킬이 관리한다.
 
 ## 7. 플레이스홀더 치환 감지
 
-플레이스홀더 5종 단일 정의 → `../../../CONTRACTS.md` 3-6 절
+플레이스홀더 5종 단일 정의 → `../CONTRACTS.md` 3-6 절
 
 **비교 알고리즘** (update 고유):
 1. 프로젝트 파일에서 플레이스홀더 위치에 들어있는 명령어를 추출
@@ -173,12 +173,12 @@ update 가 참조할 "이 버전에서 무엇이 바뀌었는지" 요약.
 - update 가 변경사항 없이 종료하는 경우 `lastUpdate` 갱신을 건너뜀
 - audit 의 Phase 0-2 가 `.harness-version` 을 informational 로 읽음 (레거시 프로젝트 안내)
 
-**update 스킬 자체의 호환성**:
-- v1.2.x update 가 갱신한 `.harness-version` 에는 `setupBy` 가 없을 수 있음 (silent drop 버그). v1.3 update 는 이 경우 부재 필드를 `"unknown (lost in v1.2.x migration)"` 으로 채워 넣고 사용자에게 안내한다 (이후 보존 대상). 상세 → `../SKILL.md` Phase 5-1 의 "필드 누락 처리".
+**update 모드 자체의 호환성**:
+- v1.2.x update 가 갱신한 `.harness-version` 에는 `setupBy` 가 없을 수 있음 (silent drop 버그). v1.3 update 는 이 경우 부재 필드를 `"unknown (lost in v1.2.x migration)"` 으로 채워 넣고 사용자에게 안내한다 (이후 보존 대상). 상세 → `../modes/update.md` Phase 5-1 의 "필드 누락 처리".
 
 ### v1.3.0 → v1.4.0 (agent-tooling feature 도입)
 
-**테마**: CLI 도구 규약을 하네스 엔지니어링의 5번째 차원으로 도입. 권위적 정의 → `setup/references/agent-tooling.md`.
+**테마**: CLI 도구 규약을 하네스 엔지니어링의 5번째 차원으로 도입. 권위적 정의 → `./agent-tooling.md`.
 
 **신설 (MISSING 예상, agent-tooling feature 활성화 시)**:
 - `docs/conventions/cli-tooling.md` — 권장 도구 목록 + 사용 규칙 + fallback 정책 (포터블, repo 커밋)
@@ -196,9 +196,9 @@ update 가 참조할 "이 버전에서 무엇이 바뀌었는지" 요약.
 - 사용자 거부 시: 기존 v1.3 동작 유지, harnessVersion 갱신 안 함 (CONTRACTS.md 4절 미적용 시 미갱신 정책)
 - 도구 0개 환경에서 활성화 시도: setup Phase 1-5 와 동일하게 "비활성 권고" 안내 후 사용자 결정
 
-**update 스킬 자체의 호환성**:
+**update 모드 자체의 호환성**:
 - v1.3.x update 는 본 항목을 인지하지 못함 → /plugin update 후 v1.4 update 가 처음으로 마이그레이션 propose
-- 본 영역의 동기화 규칙 → `references/sync-rules.md` 9절 (agent-tooling 산출물 정책)
+- 본 영역의 동기화 규칙 → `./sync-rules.md` 9절 (agent-tooling 산출물 정책)
 
 **검증**: scores.json 점수 0 손실, 발행된 ADR 본문 0 변경, current-phase.md 진행 상태 보존 (idempotent: 같은 update 재실행 시 두 번째는 UP-TO-DATE).
 

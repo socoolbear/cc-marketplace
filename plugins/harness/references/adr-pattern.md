@@ -161,6 +161,6 @@ Evaluator 가 Phase 종료 시마다 갱신한다.
 
 ## 참고
 
-- 지식 아키텍처 전체: `references/knowledge-architecture.md`
-- Phase 실행 프로토콜: `references/phase-execution-protocol.md`
+- 지식 아키텍처 전체: `./knowledge-architecture.md`
+- Phase 실행 프로토콜: `./phase-execution-protocol.md`
 - 원 출처: Michael Nygard, "Documenting Architecture Decisions" (2011)

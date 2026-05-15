@@ -1,22 +1,39 @@
 # Harness Contracts — 공유 규약
 
-`setup`, `audit`, `update` 세 스킬이 공통으로 따르는 데이터 계약과 파일 규약.
-스킬은 이 파일의 정의에 따라 동작하고, **행동 (어떻게 진행하는가)** 만 자기 SKILL.md 에 정의한다.
+`setup`, `audit`, `update` 세 **모드**가 공통으로 따르는 데이터 계약과 파일 규약.
+사용자는 `/harness:run` 단일 진입점만 호출하고, 라우터 ([`skills/run/SKILL.md`](skills/run/SKILL.md)) 가 프로젝트 상태를 감지하여 [`modes/{setup,update,audit}.md`](modes/) 중 하나로 분기한다.
+각 모드는 이 파일의 정의에 따라 동작하고, **행동 (어떻게 진행하는가)** 만 자기 mode 파일에 정의한다.
 
 > 이 파일이 정의하는 것: 디렉터리 레이아웃, 파일 명명 규칙, 데이터 스키마, 보호 파일 매트릭스, 정보 격벽.
-> 이 파일이 정의하지 않는 것: Phase 워크플로우, AskUserQuestion 흐름, 진단/동기화 알고리즘 (각 스킬 SKILL.md 참조).
+> 이 파일이 정의하지 않는 것: 라우팅 의사결정 (라우터 SKILL.md 참조), Phase 워크플로우 / AskUserQuestion 흐름 / 진단/동기화 알고리즘 (각 mode 파일 참조).
+
+### 플러그인 내부 레이아웃 (참고)
+
+```
+plugins/harness/
+  .claude-plugin/plugin.json     # 버전 + 메타
+  CONTRACTS.md                   # 본 파일 (단일 진실)
+  skills/run/SKILL.md            # 사용자 진입점 (라우터, 자동 모드 감지)
+  modes/
+    setup.md                     # 0→1 구축 워크플로우
+    update.md                    # 스킬 버전 동기화 워크플로우
+    audit.md                     # 내부 드리프트 정리 워크플로우
+  references/                    # 모드들이 공유하는 패턴/규칙 문서 11개
+  scripts/                       # setup 가 사용하는 코드 생성기
+```
 
 ---
 
-## 1. 스킬 역할 분리
+## 1. 모드 역할 분리
 
-| 스킬 | 방향 | 기준 | 빈도 |
-|------|------|------|------|
-| `setup` | 0 → 1 | 하네스가 없는 프로젝트에 구축 | 1회성 |
-| `audit` | 프로젝트 내부 드리프트 제거 | 프로젝트 vs 프로젝트 (내부 정합성) | 월 1회 또는 3~5 Phase 완료 시점 |
-| `update` | 스킬 버전 차이 반영 | 프로젝트 vs 최신 스킬 (외부 동기화) | `/plugin update` 후 |
+| 모드 | 방향 | 기준 | 빈도 | 라우터 분기 조건 |
+|------|------|------|------|------------------|
+| `setup` | 0 → 1 | 하네스가 없는 프로젝트에 구축 | 1회성 | 마커 부재 + 핵심 3종 부재 |
+| `audit` | 프로젝트 내부 드리프트 제거 | 프로젝트 vs 프로젝트 (내부 정합성) | 월 1회 또는 3~5 Phase 완료 시점 | 마커 존재 + 버전 일치 |
+| `update` | 스킬 버전 차이 반영 | 프로젝트 vs 최신 스킬 (외부 동기화) | `/plugin update` 후 | 마커 존재 + 버전 불일치, 또는 레거시 |
 
-세 스킬은 같은 프로젝트 산출물을 다루므로 본 문서의 규약을 공유한다.
+세 모드는 같은 프로젝트 산출물을 다루므로 본 문서의 규약을 공유한다.
+사용자는 모드를 직접 호출하지 않는다 — 라우터가 감지 후 AskUserQuestion 으로 확인받아 위임한다 (사용자 override 가능).
 
 ---
 
@@ -89,13 +106,13 @@
 
 `sprint-contract.md`, `self-review.md`, `completion-record.md`, `fix-directive.md`
 
-정답 출처: `setup/SKILL.md` Phase 4-2
+정답 출처: `modes/setup.md` Phase 4-2
 
 ### 3-4. 표준 프롬프트 (`_workspace/prompts/`, 5개)
 
 `pre-analysis.md`, `planner.md`, `generator.md`, `self-reviewer.md`, `evaluator.md`
 
-정답 출처: `setup/SKILL.md` Phase 4-3
+정답 출처: `modes/setup.md` Phase 4-3
 
 setup 이 프로젝트별 명령어로 플레이스홀더 (`{빌드 명령어}` 등) 를 치환한다. 비교 시 치환 위치는 사용자 커스터마이징으로 보지 않는다.
 
@@ -145,7 +162,7 @@ setup 이 `_workspace/prompts/*.md` 작성 시 프로젝트별 명령어로 치�
 | `docs/conventions/cli-tooling.md` | 포터블 (repo 커밋) | setup (전체 권장 도구 목록 + 설치 명령, 환경 무관) |
 | `.claude/settings.local.json` 의 `permissions.allow` 도구 권한 (`Bash(<tool>:*)`) | 머신별 (gitignore) | setup (설치된 도구만), audit (환경 동기화) |
 
-**분리 이유**: 다른 머신에서 clone 시 cli-tooling.md 가 설치 가이드 역할을 하고, audit 가 머신 환경에 맞게 settings.local.json 을 재생성한다. 권위적 원천 → `setup/references/agent-tooling.md` 5절.
+**분리 이유**: 다른 머신에서 clone 시 cli-tooling.md 가 설치 가이드 역할을 하고, audit 가 머신 환경에 맞게 settings.local.json 을 재생성한다. 권위적 원천 → `references/agent-tooling.md` 5절.
 
 ---
 
@@ -182,7 +199,7 @@ setup 이 `_workspace/prompts/*.md` 작성 시 프로젝트별 명령어로 치�
 - update 가 **변경을 하나도 적용하지 않은 실행** (모든 항목 UP-TO-DATE 또는 사용자 keep/skip) 에서는 `lastUpdate`, `updatedBy`, `harnessVersion` 모두 **갱신하지 않는다**. `lastUpdate` 는 "마지막으로 실제 적용한 update" 만을 의미한다.
 - 레거시 모드에서 기록된 `unknown` 값은 영구 고정 (이후 update 도 보존). 사용자가 정확한 값을 알고 직접 수정하는 건 본 규약 밖의 수동 작업.
 - **필드 누락 호환**: v1.2.x update 가 `setupBy` 를 silently drop 한 파일을 v1.3 update 가 만나면, 부재 필드를 `"unknown (lost in v1.2.x migration)"` 으로 채워 넣고 사용자에게 안내한다. 이후엔 보존 대상.
-- **`agent-tooling` feature**: CLI 도구 규약 (도구 매핑, 권한, fallback 정책). 도구 0개 환경 (rg/fd/jq 모두 미설치) 에서는 setup 이 features 배열에 포함하지 않을 수 있다 (사용자 확인 후 결정). 권위적 정의 → `setup/references/agent-tooling.md`.
+- **`agent-tooling` feature**: CLI 도구 규약 (도구 매핑, 권한, fallback 정책). 도구 0개 환경 (rg/fd/jq 모두 미설치) 에서는 setup 이 features 배열에 포함하지 않을 수 있다 (사용자 확인 후 결정). 권위적 정의 → `references/agent-tooling.md`.
 
 ### setup 직후 (update 미실행)
 
@@ -214,9 +231,9 @@ setup 이 `_workspace/prompts/*.md` 작성 시 프로젝트별 명령어로 치�
 
 ## 5. `scores.json` 핵심 키
 
-위치: `docs/quality/scores.json`. 권위적 스키마 정의 → `setup/references/quality-tracking.md` 1절.
+위치: `docs/quality/scores.json`. 권위적 스키마 정의 → `references/quality-tracking.md` 1절.
 
-세 스킬이 공통으로 의존하는 최상위 키:
+세 모드가 공통으로 의존하는 최상위 키:
 
 | 키 | 의미 | 누가 갱신하나 |
 |----|------|---------------|
@@ -294,7 +311,7 @@ update 는 본문도 상태도 수정하지 않는다.
 - `보존`: 절대 수정/이동/삭제 안 함
 - `교체 가능`: 사용자 승인 시 표준 버전으로 갱신
 - `archive`: `_archive/` 로 이동 (원본 위치 비움)
-- `PRISTINE / CUSTOMIZED`: update 의 판정 (정규화 비교). 상세 → `update/references/sync-rules.md` 섹션 2
+- `PRISTINE / CUSTOMIZED`: update 의 판정 (정규화 비교). 상세 → `references/sync-rules.md` 섹션 2
 - `환경 동기화`: 머신 환경 변화 (`command -v` 결과) 를 감지하여 권한 추가/제거 propose (자동 적용 X)
 
 ### `docs/adr/README.md` 분담 (충돌 방지)
@@ -342,7 +359,7 @@ update 는 본문도 상태도 수정하지 않는다.
 - **Evaluator** 는 Self-Reviewer 의 리뷰 결과를 보지 않는다 (독립 평가 보장)
 - **Phase 간** 컨텍스트 리셋 — `_workspace/` 의 파일로만 인수인계
 
-세 스킬은 이 격벽을 깨지 않는 범위에서만 동작한다.
+세 모드는 이 격벽을 깨지 않는 범위에서만 동작한다.
 
 ---
 
@@ -353,23 +370,23 @@ update 는 본문도 상태도 수정하지 않는다.
 | 정보의 종류 | 단일 진실 | 예시 |
 |-------------|-----------|------|
 | 데이터 스키마 / 파일 명명 / 디렉터리 레이아웃 / 보호 권한 | **CONTRACTS.md** (이 문서) | `.harness-version` 필드, ADR 번호 형식, `_archive/` 네임스페이스 |
-| 표준 템플릿 본문 / 표준 프롬프트 본문 | **setup/SKILL.md** Phase 4-2, 4-3 | `sprint-contract.md` 양식, `evaluator.md` 프롬프트 |
+| 표준 템플릿 본문 / 표준 프롬프트 본문 | **modes/setup.md** Phase 4-2, 4-3 | `sprint-contract.md` 양식, `evaluator.md` 프롬프트 |
 | 각 스킬의 행동 (Phase 흐름, AskUserQuestion, 알고리즘) | **각 SKILL.md** + `references/` | audit 의 9 영역 진단 순서, update 의 PRISTINE 판정 |
-| 도메인 상세 (실패 교훈, 컨텍스트 불안 대응 등) | **setup/references/** | `phase-execution-protocol.md` 섹션 9 |
-| agent-tooling 규약 (도구 매핑, 빌트인 우선순위, fallback 정책) | **setup/references/agent-tooling.md** | rg/fd/bat 매핑, gh --json 강제, 미설치 fallback |
+| 도메인 상세 (실패 교훈, 컨텍스트 불안 대응 등) | **references/** | `phase-execution-protocol.md` 섹션 9 |
+| agent-tooling 규약 (도구 매핑, 빌트인 우선순위, fallback 정책) | **references/agent-tooling.md** | rg/fd/bat 매핑, gh --json 강제, 미설치 fallback |
 
 ### 변경 시 영향 범위
 
-- **CONTRACTS.md 변경** → 세 스킬에 동시 영향. 호환성 영향 (이미 셋업된 프로젝트의 동작 변화 여부) 을 검토하고 **`plugins/harness/.claude-plugin/plugin.json`** 과 **`.claude-plugin/marketplace.json`** 의 harness `version` 을 동시에 minor 이상 bump (두 파일이 일치해야 마켓플레이스에서 정확히 동기화됨). update 스킬의 `version-manifest.md` 8절 (버전 간 차이 지도) 에도 변경 사항을 추가한다.
-- **agent-tooling 영역 변경** (도구 목록, 매핑, fallback 정책) → setup, audit, update 세 스킬 동시 영향. 권위적 원천은 `setup/references/agent-tooling.md`. version-manifest 8절에 차이 추가 + plugin.json/marketplace.json minor 이상 bump.
-- **setup/SKILL.md Phase 4-2/4-3 변경** → 표준 템플릿/프롬프트 변경. update 의 차이 지도 (`version-manifest.md` 8절) 갱신 필요.
+- **CONTRACTS.md 변경** → 세 모드에 동시 영향. 호환성 영향 (이미 셋업된 프로젝트의 동작 변화 여부) 을 검토하고 **`plugins/harness/.claude-plugin/plugin.json`** 과 **`.claude-plugin/marketplace.json`** 의 harness `version` 을 동시에 minor 이상 bump (두 파일이 일치해야 마켓플레이스에서 정확히 동기화됨). update 모드의 `references/version-manifest.md` 8절 (버전 간 차이 지도) 에도 변경 사항을 추가한다.
+- **agent-tooling 영역 변경** (도구 목록, 매핑, fallback 정책) → setup, audit, update 세 모드 동시 영향. 권위적 원천은 `references/agent-tooling.md`. version-manifest 8절에 차이 추가 + plugin.json/marketplace.json minor 이상 bump.
+- **`modes/setup.md` Phase 4-2/4-3 변경** → 표준 템플릿/프롬프트 변경. update 의 차이 지도 (`version-manifest.md` 8절) 갱신 필요.
 - **각 SKILL.md 행동 변경** → 해당 스킬 1개에만 영향. 다른 스킬과의 인수인계 (보호 매트릭스, 산출물 명) 가 변경되면 CONTRACTS.md 도 함께 갱신.
 
 ### 참조하는 곳
 
-- `skills/setup/SKILL.md` — 셋업 시 본 규약대로 인프라 생성
-- `skills/audit/SKILL.md` — 본 규약 위반을 드리프트로 진단
-- `skills/update/SKILL.md` — 본 규약을 보존하며 스킬 버전 동기화
-- `skills/setup/references/knowledge-architecture.md` — 지도 원칙 (AGENTS.md 분량 가이드)
-- `skills/audit/references/drift-patterns.md` — 본 규약 위반 패턴 정의
-- `skills/update/references/version-manifest.md` — 본 규약을 따르는 update 매니페스트
+- `modes/setup.md` — 셋업 시 본 규약대로 인프라 생성
+- `modes/audit.md` — 본 규약 위반을 드리프트로 진단
+- `modes/update.md` — 본 규약을 보존하며 스킬 버전 동기화
+- `references/knowledge-architecture.md` — 지도 원칙 (AGENTS.md 분량 가이드)
+- `references/drift-patterns.md` — 본 규약 위반 패턴 정의
+- `references/version-manifest.md` — 본 규약을 따르는 update 매니페스트

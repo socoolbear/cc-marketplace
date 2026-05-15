@@ -175,7 +175,7 @@ agent-tooling 산출물은 **포터블 (repo 커밋)** 과 **머신별 (gitignor
 ### 다른 머신에서 clone 했을 때
 
 - `docs/conventions/cli-tooling.md` 가 설치 가이드 역할을 한다 (2절의 일괄 설치 명령)
-- `.claude/settings.local.json` 은 없으므로 `/harness:audit` 실행으로 머신 환경에 맞게 재생성한다
+- `.claude/settings.local.json` 은 없으므로 `/harness:run` 실행으로 머신 환경에 맞게 재생성한다
 
 ### 권한 분담
 
@@ -184,7 +184,7 @@ setup, audit, update 가 각각 어느 영역을 만지는지의 권위적 정�
 - `docs/conventions/cli-tooling.md` — setup 작성, audit 본문 보존, update PRISTINE 시 교체
 - `.claude/settings.local.json` 의 `permissions.allow` 도구 권한 영역 — setup 추가, audit 환경 동기화, update 보존
 
-상세는 → `../../../CONTRACTS.md` 7절.
+상세는 → `../CONTRACTS.md` 7절.
 
 ---
 
@@ -196,7 +196,7 @@ setup, audit, update 가 각각 어느 영역을 만지는지의 권위적 정�
 
 ```
 brew install fzf       # 셋업 시 미설치였던 도구
-/harness:audit         # 9번째 드리프트 영역이 환경 변화 감지
+/harness:run         # 9번째 드리프트 영역이 환경 변화 감지
 → AskUserQuestion: "fzf 권한을 settings.local.json 에 추가하시겠습니까? (Y/n)"
 → Y: .claude/settings.local.json 에 Bash(fzf:*) 추가
 → docs/conventions/cli-tooling.md 본문 0 변경 (포터블 보장)
@@ -206,7 +206,7 @@ brew install fzf       # 셋업 시 미설치였던 도구
 
 ```
 brew uninstall fd
-/harness:audit
+/harness:run
 → AskUserQuestion: "fd 권한을 settings.local.json 에서 제거하시겠습니까? (Y/n)"
 → Y: settings.local.json 에서 Bash(fd:*) 제거
 → 이후 generator 의 Bash 호출은 4절 fallback 정책에 따라 find 사용
@@ -214,7 +214,7 @@ brew uninstall fd
 
 ### 권장 목록 자체 갱신
 
-본 파일 (`references/agent-tooling.md`) 의 2~4절을 수정하고 harness 플러그인의 minor version 을 bump 한다. 이후 update 스킬이 PRISTINE 프로젝트의 `cli-tooling.md` 를 자동 동기화한다 (CUSTOMIZED 프로젝트는 차이 보고만).
+본 파일 (`./agent-tooling.md`) 의 2~4절을 수정하고 harness 플러그인의 minor version 을 bump 한다. 이후 update 모드가 PRISTINE 프로젝트의 `cli-tooling.md` 를 자동 동기화한다 (CUSTOMIZED 프로젝트는 차이 보고만).
 
 ---
 
@@ -236,15 +236,15 @@ brew uninstall fd
 ### 참조 흐름
 
 ```
-setup/SKILL.md
+modes/setup.md
   → references/agent-tooling.md (본 파일, 권위적 원천)
   → CONTRACTS.md 7절 (권한 분담)
 
-audit/SKILL.md
+modes/audit.md
   → references/drift-patterns.md 9절 (본 파일 6절 확장 정책 구체화)
   → CONTRACTS.md 7절
 
-update/SKILL.md
+modes/update.md
   → references/version-manifest.md 8절 (v1.3 → v1.4 차이)
   → references/sync-rules.md (cli-tooling.md PRISTINE/CUSTOMIZED 정책)
   → CONTRACTS.md 7절

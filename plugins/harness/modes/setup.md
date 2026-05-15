@@ -1,14 +1,11 @@
----
-name: harness
-description: "프로젝트에 하네스 엔지니어링 인프라를 구축하는 스킬. OpenAI/Anthropic 의 하네스 엔지니어링 방법론을 적용하여 (1) 지식 아키텍처 재구성 (AGENTS.md 를 지도로, docs/ 를 시스템 오브 레코드로), (2) 아키텍처 불변 조건의 기계적 강제 (레이어 경계 검사, Hook, 린트), (3) 4단계 파이프라인 (설계→구현→자기리뷰→QA 평가), (4) 품질 점수 추적, (5) 실패 방지 메커니즘을 설정한다. '하네스 엔지니어링 적용', '프로젝트에 하네스 구축', '4단계 파이프라인 설정', '레이어 경계 강제', '품질 추적 설정', 'OpenAI/Anthropic 하네스 방법론 적용' 요청 시 사용."
----
+# Harness — Setup 모드 (0 → 1 구축)
 
-# Harness Engineering — 프로젝트 인프라 구축
+OpenAI 와 Anthropic 의 하네스 엔지니어링 방법론을 프로젝트에 적용하는 워크플로우.
+하네스가 없는 프로젝트에 인프라를 1회성으로 구축한다.
 
-OpenAI 와 Anthropic 의 하네스 엔지니어링 방법론을 프로젝트에 적용하는 스킬.
-에이전트가 대규모/장기 프로젝트를 안정적으로 실행할 수 있는 인프라를 구축한다.
-
-> **사전 지식**: 이 스킬은 `audit`, `update` 와 [`../../CONTRACTS.md`](../../CONTRACTS.md) 의 공유 규약 (디렉터리 레이아웃, 파일 명명 규칙, `.harness-version` 스키마, 보호 파일 매트릭스, 정보 격벽) 을 따른다. 본 SKILL.md 는 **셋업 행동** 만 정의한다.
+> **진입점**: 사용자는 `/harness:run` 만 호출한다. 라우터 (`../skills/run/SKILL.md`) 가 프로젝트 상태를 감지하여 본 모드로 분기한다.
+>
+> **사전 지식**: 본 모드는 `audit`, `update` 모드와 [`../CONTRACTS.md`](../CONTRACTS.md) 의 공유 규약 (디렉터리 레이아웃, 파일 명명 규칙, `.harness-version` 스키마, 보호 파일 매트릭스, 정보 격벽) 을 따른다. 본 파일은 **셋업 행동** 만 정의한다.
 
 ## 핵심 원칙 (출처)
 
@@ -26,7 +23,12 @@ OpenAI 와 Anthropic 의 하네스 엔지니어링 방법론을 프로젝트에 
 
 ### Phase 0: 재실행 가드
 
-setup 은 **1회성 구축 스킬**이다. 이미 셋업된 프로젝트에서 재실행하면 `_workspace/current-phase.md` (진행 상태), `docs/quality/scores.json` (점수 이력), `docs/adr/README.md` (ADR 인덱스) 등이 초기화될 위험이 있다.
+setup 은 **1회성 구축 워크플로우**이다. 이미 셋업된 프로젝트에서 재실행하면 `_workspace/current-phase.md` (진행 상태), `docs/quality/scores.json` (점수 이력), `docs/adr/README.md` (ADR 인덱스) 등이 초기화될 위험이 있다.
+
+> **라우터에서의 진입 경로**:
+> - 라우터의 분기 규칙 1 (마커 부재 + 핵심 3종 부재) → 본 모드 진입 시 가드 미발동 (정상 신규 셋업)
+> - 라우터의 분기 규칙 5·6 (손상·혼란 상태) 에서 사용자가 "setup 강제" 선택 → 본 가드 발동 가능 (마커 또는 일부 파일 존재)
+> - 라우터의 분기 규칙 2·3·4 (마커/핵심 존재) 에서 사용자가 "setup 강제" 선택 → 본 가드 반드시 발동
 
 **감지 방법** — 다음 중 하나라도 존재하면 setup 이 이미 실행된 것으로 간주한다:
 - `docs/quality/.harness-version` (버전 마커)
@@ -37,12 +39,14 @@ setup 은 **1회성 구축 스킬**이다. 이미 셋업된 프로젝트에서 �
 1. 감지되면 즉시 **중단**하고 사용자에게 안내한다:
 
    > 이 프로젝트는 이미 하네스가 셋업되어 있습니다.
-   > 스킬 변경사항을 반영하려면 `/harness:update` 를 사용하세요.
+   > 일반적으로 setup 재실행은 필요하지 않습니다 — `/harness:run` 을 다시 호출하면 라우터가 update 또는 audit 모드로 자동 분기합니다.
    > setup 재실행은 진행 상태, 품질 점수, ADR 인덱스, 사용자 커스터마이징을 리셋할 수 있습니다.
 
-2. 사용자가 **명시적으로 "강제 재설치" 의사**를 확인하는 경우에만 진행한다. 이때도 먼저 다음을 수행한다:
+2. 사용자가 **명시적으로 "강제 재설치" 의사**를 확인하는 경우에만 진행한다 (라우터의 사전 안내에 동의 + 본 가드의 재확인 모두 필요). 이때도 먼저 다음을 수행한다:
    - `_workspace/`, `docs/quality/`, `docs/adr/` 를 `_archive/YYYY-MM-DD-before-reset/` 로 이동
    - 기존 `AGENTS.md` 를 `_archive/YYYY-MM-DD-before-reset/AGENTS.md.bak` 로 복사
+
+   **이중 확인 원칙**: 라우터에서 "setup 강제" 를 선택했더라도, 본 가드는 별도의 AskUserQuestion 으로 "정말 진행하시겠습니까? {백업 경로}" 를 다시 묻는다. 사용자가 한 번 더 확정해야만 archive + 신규 셋업이 시작된다.
 
 ### Phase 1: 프로젝트 분석
 
@@ -85,7 +89,7 @@ setup 은 **1회성 구축 스킬**이다. 이미 셋업된 프로젝트에서 �
 **도구 0개 분기**: 핵심 도구 (rg, fd, jq) 가 모두 미설치인 경우 AskUserQuestion 으로 확인:
 
 > 현대 CLI 도구 (ripgrep, fd, jq 등) 가 감지되지 않았습니다. agent-tooling 기능은 이러한 도구를 활용하도록 에이전트 환경을 설정하므로, 도구 없이는 효과가 제한적입니다. 비활성화할까요?
-> - Y: agent-tooling 기능 제외 (이후 `brew install ripgrep fd jq` 설치 후 `/harness:audit` 실행으로 활성화 가능)
+> - Y: agent-tooling 기능 제외 (이후 `brew install ripgrep fd jq` 로 도구 설치 후 `/harness:run` 호출 → 라우터가 audit 모드로 분기 → 9영역이 환경 동기화 propose)
 > - n: 그래도 활성화 (cli-tooling.md/AGENTS.md 포인터/프롬프트 섹션 작성, settings.local.json permissions 는 비어있는 상태로 시작 — 도구 설치 시 audit 9영역이 자동 동기화)
 
 Y 선택 시 (비활성화):
@@ -99,7 +103,7 @@ n 선택 시 (그래도 활성화):
 - Phase 4-8 의 permissions.allow 는 감지된 도구 0개라 비어있는 상태로 작성 (이후 brew install + audit 으로 채워짐)
 - features 배열에 `agent-tooling` 포함
 
-상세 → `references/agent-tooling.md` 1, 4, 6절. 이후 환경 변화는 `/harness:audit` 9영역이 동기화한다.
+상세 → `../references/agent-tooling.md` 1, 4, 6절. 이후 환경 변화는 audit 모드의 9영역 (`drift-patterns.md` 9절) 이 동기화한다.
 
 산출물: `_workspace/analysis-report.md`
 
@@ -107,11 +111,11 @@ n 선택 시 (그래도 활성화):
 
 프로젝트의 문서를 "지도 + 시스템 오브 레코드" 구조로 재편한다.
 
-상세 패턴 → `references/knowledge-architecture.md`
+상세 패턴 → `../references/knowledge-architecture.md`
 
 **2-1. AGENTS.md 재작성 (지도 형태, 포인터 모음 50줄 내외):**
 
-이 단계에서 작성하는 포인터 모음 자체는 50줄 내외. Phase 4-4 에서 추가되는 "Phase 실행 — 4단계 파이프라인" 섹션 (≈25줄) 까지 포함하면 최종 AGENTS.md 는 80줄 이내가 자연스럽다 (분량 가이드 → `references/knowledge-architecture.md` 1절).
+이 단계에서 작성하는 포인터 모음 자체는 50줄 내외. Phase 4-4 에서 추가되는 "Phase 실행 — 4단계 파이프라인" 섹션 (≈25줄) 까지 포함하면 최종 AGENTS.md 는 80줄 이내가 자연스럽다 (분량 가이드 → `../references/knowledge-architecture.md` 1절).
 
 모든 섹션이 심화 문서로 포인터를 제공한다. 각 섹션은 1-3줄의 한 줄 포인터로 압축한다 — 설명·예시·체크리스트는 모두 링크된 문서로 옮긴다:
 - 프로젝트 개요 (1-2줄)
@@ -178,7 +182,7 @@ docs/
 `docs/architecture.md` 가 "현재 아키텍처는 이렇다"의 스냅샷이라면, `docs/adr/` 는 "왜 이렇게 결정했나"의 이력이다.
 두 문서는 상호 보완적이며, ADR 은 전략적 결정 발생 시점에 추가된다.
 
-상세 패턴 → `references/adr-pattern.md`
+상세 패턴 → `../references/adr-pattern.md`
 
 `docs/adr/TEMPLATE.md` 생성:
 
@@ -230,7 +234,7 @@ docs/
 ## 작성 규칙
 - 전략적 결정만 기록 (레이어 구조, 타입 경계, 핵심 의존성, 금지 패턴 등)
 - 기존 ADR 은 사후 수정 금지 — 번복 시 새 ADR 작성 후 기존 ADR 을 `Superseded` 로 변경
-- 상세 기준: `skill 의 references/adr-pattern.md` 참조
+- 상세 기준: `harness 플러그인의 references/adr-pattern.md` 참조
 ```
 
 **기존 아키텍처 결정의 ADR 회고 작성 (선택):**
@@ -246,7 +250,7 @@ docs/
 
 아키텍처 규칙을 코드와 도구로 강제한다. 문서에만 의존하지 않는다.
 
-상세 패턴 → `references/mechanical-enforcement.md`
+상세 패턴 → `../references/mechanical-enforcement.md`
 
 **3-1. 레이어 경계 검사 스크립트:**
 
@@ -288,9 +292,9 @@ ERROR: 레이어 위반 — src/types/foo.ts
 파이프라인의 각 단계는 역할에 맞는 에이전트를 사용한다 — 빌트인 Agent 또는 프로젝트에 정의된 커스텀 에이전트.
 **프롬프트 템플릿**, **문서 템플릿**, **초기 상태 파일**을 생성한다.
 
-상세 프로토콜 → `references/phase-execution-protocol.md`
-품질 추적 스키마 → `references/quality-tracking.md`
-실패 방지 → `references/failure-prevention.md`
+상세 프로토콜 → `../references/phase-execution-protocol.md`
+품질 추적 스키마 → `../references/quality-tracking.md`
+실패 방지 → `../references/failure-prevention.md`
 
 **4-1. `_workspace/` 초기 상태 생성:**
 
@@ -638,15 +642,15 @@ Self-Reviewer 의 리뷰 결과를 보지 않고, 코드만 보고 평가한다.
 - `docs/quality/scores.json` — 이전 품질 점수 (회귀 비교용)
 - 구현된 소스 코드 (src/ 하위)
 
-## 작업 — 다음 순서로 검증한다 (상세: `skill 의 references/phase-execution-protocol.md` 섹션 2):
+## 작업 — 다음 순서로 검증한다 (상세: `harness 플러그인의 references/phase-execution-protocol.md` 섹션 2):
 1. `{타입체크 명령어}` 실행
 2. `{린트 명령어}` 실행
 3. `{테스트 명령어}` 실행
 4. `{레이어 검사 명령어}` 실행
 5. 스프린트 계약서의 성공 기준 체크리스트를 하나씩 점검
 6. 이전 Phase 대비 회귀가 있는지 확인
-7. **컨텍스트 불안 감지**: 전반부 vs 후반부 구현 품질 비교, TODO/FIXME 검출 (상세: `skill 의 references/phase-execution-protocol.md` 섹션 9)
-8. **아키텍처 결정 점검**: 계약서의 "예상 ADR 후보" 와 실제 구현을 비교하여, 전략적 결정이 발생했는지 판단한다 (상세 기준: `skill 의 references/adr-pattern.md`)
+7. **컨텍스트 불안 감지**: 전반부 vs 후반부 구현 품질 비교, TODO/FIXME 검출 (상세: `harness 플러그인의 references/phase-execution-protocol.md` 섹션 9)
+8. **아키텍처 결정 점검**: 계약서의 "예상 ADR 후보" 와 실제 구현을 비교하여, 전략적 결정이 발생했는지 판단한다 (상세 기준: `harness 플러그인의 references/adr-pattern.md`)
 
 ## 판정
 - **PASS**: 모든 성공 기준 충족 + 회귀 없음
@@ -656,7 +660,7 @@ Self-Reviewer 의 리뷰 결과를 보지 않고, 코드만 보고 평가한다.
 1. `_workspace/phase-{N}-eval.md` 작성 (PASS + 품질 점수)
    (수정 루프 M회차에서 PASS 시: `_workspace/phase-{N}-eval-retry-{M}.md`)
 2. `docs/quality/scores.json` 갱신
-3. `docs/quality/quality-log.md` 에 항목 추가 (형식: `references/quality-tracking.md` 참조)
+3. `docs/quality/quality-log.md` 에 항목 추가 (형식: `../references/quality-tracking.md` 참조)
 4. **ADR 발행 (아키텍처 결정이 발생한 경우):**
    - `docs/adr/README.md` 에서 다음 번호 확인 (기존 최대 번호 + 1, 4자리 zero-padded)
    - `docs/adr/TEMPLATE.md` 를 복사하여 `docs/adr/NNNN-title.md` 로 초안 작성
@@ -736,7 +740,7 @@ Phase 1 분석 결과를 반영하여 다음 파일을 생성한다.
 ```
 
 프로젝트에 Phase 스펙이 이미 존재하면, 해당 Phase 들을 `phases` 에 pending 상태로 추가한다.
-점수 스키마 상세 → `references/quality-tracking.md`
+점수 스키마 상세 → `../references/quality-tracking.md`
 
 `docs/quality/quality-log.md`:
 
@@ -744,7 +748,7 @@ Phase 1 분석 결과를 반영하여 다음 파일을 생성한다.
 # 품질 추적 로그
 
 (Phase 평가 완료 시 최신 항목을 상단에 추가한다)
-(형식: references/quality-tracking.md 참조)
+(형식: ../references/quality-tracking.md 참조)
 ```
 
 **4-6. 실패 방지 초기 설정:**
@@ -762,14 +766,14 @@ Phase 1 분석 결과를 반영하여 다음 파일을 생성한다.
 
 (Phase 실행 중 FAIL 이 발생하면 여기에 기록한다)
 (형식: 증상 → 원인 → 해결 규칙)
-(상세: references/failure-prevention.md 참조)
+(상세: ../references/failure-prevention.md 참조)
 ```
 
 **4-7. 셸 도구 규약 문서 작성** (agent-tooling feature 활성화 시):
 
 `docs/conventions/cli-tooling.md` 를 작성한다. 본 파일은 환경 무관 (포터블, repo 커밋) 으로 다른 머신에서 clone 시 설치 가이드 역할도 한다.
 
-권위적 정의 → `references/agent-tooling.md` 의 2~5절. 다음을 포함한다 (도구 설치 여부와 무관, 전체 권장 목록):
+권위적 정의 → `../references/agent-tooling.md` 의 2~5절. 다음을 포함한다 (도구 설치 여부와 무관, 전체 권장 목록):
 
 - 6개 그룹별 도구 매핑 표 (도구 | 용도 | 대체 대상 | 설치 명령)
   - 코어 대체 (rg, fd, bat, eza, zoxide)
@@ -810,9 +814,9 @@ audit 는 본 파일 본문을 보존하고, update 는 PRISTINE 시 교체한�
 원칙:
 - read-only 도구만 등록 (rm, mv 같은 파괴적 도구 금지)
 - 기존 `hooks` 영역은 절대 수정하지 않는다 (CONTRACTS.md 7절: hooks 영역과 permissions.allow 영역의 권한 분리)
-- 설치된 도구가 후에 늘어나면 `/harness:audit` 9영역이 환경 동기화 propose
+- 설치된 도구가 후에 늘어나면 `/harness:run` 호출 → audit 모드의 9영역이 환경 동기화 propose
 
-상세 → `references/agent-tooling.md` 5절 (환경 분리), 6절 (확장 정책)
+상세 → `../references/agent-tooling.md` 5절 (환경 분리), 6절 (확장 정책)
 
 ### Phase 5: 검증
 
@@ -847,9 +851,9 @@ audit 는 본 파일 본문을 보존하고, update 는 PRISTINE 시 교체한�
 ### Phase 6: 버전 마커 기록
 
 setup 완료 시점에 `docs/quality/.harness-version` 을 생성한다.
-이후 `/harness:update` 스킬이 이 파일을 읽어 버전 차이를 계산하고, `/harness:audit` 도 사전 확인 시 참조한다.
+이후 라우터가 본 파일의 `harnessVersion` 을 읽어 update 모드 또는 audit 모드로 분기를 결정하고, 분기된 모드도 사전 확인 시 본 파일을 참조한다.
 
-스키마 정의 (필드 의미, 누가 갱신하는지) → `../../CONTRACTS.md` 4절
+스키마 정의 (필드 의미, 누가 갱신하는지) → `../CONTRACTS.md` 4절
 
 setup 직후 작성하는 형태:
 
@@ -880,7 +884,7 @@ Phase 2~4 완료 후 프로젝트에 존재해야 하는 파일:
 - [ ] `docs/references/failure-lessons.md` — 실패 교훈 초기 파일
 - [ ] `docs/quality/scores.json` — 품질 점수 초기 상태
 - [ ] `docs/quality/quality-log.md` — 품질 추적 로그
-- [ ] `docs/quality/.harness-version` — 버전 마커 (update 스킬이 읽음)
+- [ ] `docs/quality/.harness-version` — 버전 마커 (update 모드가 읽음)
 - [ ] `scripts/check-layer-import.js` — 레이어 경계 검사 스크립트 (레이어 구조가 있는 경우)
 - [ ] `.claude/settings.local.json` — PostToolUse Hook (레이어 구조가 있는 경우)
 - [ ] `_workspace/current-phase.md` — 현재 Phase 상태
@@ -915,10 +919,10 @@ Phase 2~4 완료 후 프로젝트에 존재해야 하는 파일:
 
 ## 참고
 
-- **공유 규약 (audit/update 와 동일한 단일 진실)**: `../../CONTRACTS.md`
-- 지식 아키텍처 패턴: `references/knowledge-architecture.md`
-- ADR 패턴 (언제/어떻게 작성하나): `references/adr-pattern.md`
-- 기계적 강제 패턴: `references/mechanical-enforcement.md`
-- 4단계 파이프라인 상세: `references/phase-execution-protocol.md`
-- 품질 추적 스키마: `references/quality-tracking.md`
-- 실패 방지 메커니즘: `references/failure-prevention.md`
+- **공유 규약 (audit/update 와 동일한 단일 진실)**: `../CONTRACTS.md`
+- 지식 아키텍처 패턴: `../references/knowledge-architecture.md`
+- ADR 패턴 (언제/어떻게 작성하나): `../references/adr-pattern.md`
+- 기계적 강제 패턴: `../references/mechanical-enforcement.md`
+- 4단계 파이프라인 상세: `../references/phase-execution-protocol.md`
+- 품질 추적 스키마: `../references/quality-tracking.md`
+- 실패 방지 메커니즘: `../references/failure-prevention.md`

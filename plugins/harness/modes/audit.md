@@ -1,14 +1,11 @@
----
-name: audit
-description: "하네스 셋업된 프로젝트의 문서/인프라 드리프트를 진단하고 안전하게 정리하는 스킬. 시간이 지남에 따라 누적되는 깨진 포인터, 고아 문서, 완료 Phase 의 작업 파일, ADR 번호 결번/중복, 코드-문서 괴리, 쓰이지 않는 레퍼런스 등 9개 영역의 오염 패턴을 탐지하여 보고서를 생성한다. 명백한 항목은 AskUserQuestion 으로 사용자 확인 후 _archive/ 로 자동 이동, 판단 필요 항목은 보고서에만 기록한다. '하네스 감사', '하네스 정리', '문서 드리프트 진단', '가비지 컬렉션', 'audit harness project', '프로젝트 오염 진단', 'harness 유지보수' 요청 시 사용. setup 스킬로 구축된 하네스가 있는 프로젝트에서만 동작."
----
+# Harness — Audit 모드 (내부 드리프트 정리)
 
-# Harness Audit — 드리프트 진단 및 안전한 정리
+하네스 셋업 이후 시간이 지남에 따라 누적되는 오염을 진단하고 정리하는 워크플로우.
+OpenAI 하네스 엔지니어링의 **"가비지 컬렉션"** 원칙을 실행 경로로 구현한 모드.
 
-하네스 셋업 이후 시간이 지남에 따라 누적되는 오염을 진단하고 정리한다.
-OpenAI 하네스 엔지니어링의 **"가비지 컬렉션"** 원칙을 실행 경로로 구현한 스킬.
-
-> **사전 지식**: 이 스킬은 `setup`, `update` 와 [`../../CONTRACTS.md`](../../CONTRACTS.md) 의 공유 규약 (디렉터리 레이아웃, 파일 명명 규칙, 보호 파일 매트릭스, ADR 불변 조건) 을 따른다. 본 SKILL.md 는 **드리프트 진단/정리 행동** 만 정의한다.
+> **진입점**: 사용자는 `/harness:run` 만 호출한다. 라우터 (`../skills/run/SKILL.md`) 가 셋업된 프로젝트 + 스킬 버전 일치인 경우 본 모드로 분기한다.
+>
+> **사전 지식**: 본 모드는 `setup`, `update` 모드와 [`../CONTRACTS.md`](../CONTRACTS.md) 의 공유 규약 (디렉터리 레이아웃, 파일 명명 규칙, 보호 파일 매트릭스, ADR 불변 조건) 을 따른다. 본 파일은 **드리프트 진단/정리 행동** 만 정의한다.
 
 **setup 과의 관계:**
 - `setup` = 1회성 하네스 인프라 구축
@@ -36,7 +33,7 @@ OpenAI 하네스 엔지니어링의 **"가비지 컬렉션"** 원칙을 실행 �
 - `_workspace/current-phase.md` 존재
 - `docs/quality/scores.json` 존재
 
-하나라도 없으면 "먼저 `/harness:setup` 을 실행하세요" 안내 후 종료.
+하나라도 없으면 "하네스가 아직 셋업되지 않은 프로젝트입니다. `/harness:run` 호출 시 라우터가 setup 모드로 분기했어야 합니다 — 라우터 권장을 확인해주세요" 안내 후 종료.
 
 **0-2. 버전 마커 정보 표시 (informational):**
 
@@ -46,7 +43,7 @@ OpenAI 하네스 엔지니어링의 **"가비지 컬렉션"** 원칙을 실행 �
   - `lastUpdate` 가 부재 (setup 직후 update 미실행) → "(update 미실행)" 으로 표기
   - `setupBy` / `setupDate` 가 `unknown` (레거시 모드 update 후) → 그대로 표시 + "(레거시 마이그레이션)" 부기
 - **마커 부재 (레거시)**: 사용자에게 안내한다:
-  > "이 프로젝트는 setup v1.1 이전 (마커 도입 전) 에 구축된 레거시 하네스로 보입니다 (`.harness-version` 없음). audit 은 정상 진행 가능하지만, `/harness:update` 를 먼저 실행하면 마커 생성 + 최신 스킬 동기화가 함께 처리됩니다."
+  > "이 프로젝트는 setup v1.1 이전 (마커 도입 전) 에 구축된 레거시 하네스로 보입니다 (`.harness-version` 없음). audit 은 정상 진행 가능하지만, `/harness:run` 을 다시 호출하여 update 모드로 분기하면 마커 생성 + 최신 스킬 동기화가 함께 처리됩니다."
 
 audit 자체는 `.harness-version` 을 수정하지 않는다 (`CONTRACTS.md` 7절 매트릭스).
 
@@ -56,13 +53,13 @@ audit 자체는 `.harness-version` 을 수정하지 않는다 (`CONTRACTS.md` 7�
 - 포함됨 → Phase 1 진단에 9영역 (agent-tooling 환경 동기화) 포함
 - 미포함 (도구 0개 환경 또는 v1.3 이하 프로젝트) → Phase 1 은 8영역만 검사 + 보고서에 "agent-tooling feature 미활성 — 9영역 skip" 기록
 
-상세 → `references/drift-patterns.md` 9절
+상세 → `../references/drift-patterns.md` 9절
 
 ### Phase 1: 진단 (Auditor)
 
 **역할**: 읽기 전용 진단. 어떤 파일도 수정하지 않는다.
 
-상세 드리프트 패턴 → `references/drift-patterns.md`
+상세 드리프트 패턴 → `../references/drift-patterns.md`
 
 9개 영역을 순서대로 진단한다 (병렬 탐색 가능, 9번 영역은 agent-tooling feature 활성화 시만):
 
@@ -118,7 +115,7 @@ audit 자체는 `.harness-version` 을 수정하지 않는다 (`CONTRACTS.md` 7�
 
 보고서 요약을 사용자에게 보여준 뒤, **AskUserQuestion** 으로 처리 방향을 수집한다.
 
-AskUserQuestion 사용 패턴 → `references/cleanup-rules.md` (섹션 3)
+AskUserQuestion 사용 패턴 → `../references/cleanup-rules.md` (섹션 3)
 
 **질문 1 — auto-safe 일괄**:
 > "자동 정리 가능한 N개 항목을 `_archive/YYYY-MM-DD/` 로 이동할까요?"
@@ -177,8 +174,8 @@ audit-log.md 가 존재하지 않으면 생성한다.
 
 ## 참고
 
-- **공유 규약 (setup/update 와 동일한 단일 진실)**: `../../CONTRACTS.md`
-- 드리프트 패턴 (9개 영역 상세): `references/drift-patterns.md`
-- 정리 규칙 (archive/delete 판단, AskUserQuestion 패턴): `references/cleanup-rules.md`
-- setup 스킬 (하네스 최초 구축): `../setup/SKILL.md`
-- update 스킬 (스킬 버전 동기화): `../update/SKILL.md`
+- **공유 규약 (setup/update 와 동일한 단일 진실)**: `../CONTRACTS.md`
+- 드리프트 패턴 (9개 영역 상세): `../references/drift-patterns.md`
+- 정리 규칙 (archive/delete 판단, AskUserQuestion 패턴): `../references/cleanup-rules.md`
+- setup 모드 (하네스 최초 구축): `./setup.md`
+- update 모드 (스킬 버전 동기화): `./update.md`

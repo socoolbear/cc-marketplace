@@ -1,12 +1,12 @@
 # 정리 규칙 — archive/delete 판단 및 AskUserQuestion 패턴
 
-audit 스킬의 Phase 3-4 에서 따라야 할 정리 규칙.
+audit 모드의 Phase 3-4 에서 따라야 할 정리 규칙.
 
 ---
 
 ## 1. Archive 디렉터리 구조
 
-모든 archive 는 `audit/` 네임스페이스 하위에 저장한다 (`../../../CONTRACTS.md` 3-5 절):
+모든 archive 는 `audit/` 네임스페이스 하위에 저장한다 (`../CONTRACTS.md` 3-5 절):
 
 ```
 프로젝트 루트/
@@ -115,7 +115,7 @@ Phase 3 에서 manual 항목이 있음을 사용자에게 **텍스트로 통지*
 
 | 인덱스 | 갱신 방법 | 주의사항 |
 |--------|-----------|----------|
-| `docs/adr/README.md` 인덱스 테이블 | `docs/adr/*.md` 실제 파일 기준으로 테이블 재생성 | TEMPLATE.md 는 제외. **헤더/작성 규칙 섹션은 update 소관 — audit 은 건드리지 않음** (`../../../CONTRACTS.md` 7절 분담) |
+| `docs/adr/README.md` 인덱스 테이블 | `docs/adr/*.md` 실제 파일 기준으로 테이블 재생성 | TEMPLATE.md 는 제외. **헤더/작성 규칙 섹션은 update 소관 — audit 은 건드리지 않음** (`../CONTRACTS.md` 7절 분담) |
 | `docs/quality/scores.json` | `lastUpdated` 를 오늘 날짜로, 누락 Phase 는 `pending` 으로 추가 | 기존 Phase 점수 건드리지 않음 |
 | `AGENTS.md` 의 깨진 포인터 | **삭제하지 않고 주석 처리** (`<!-- BROKEN: docs/... (2026-04-24 audit) -->`) | 사람이 최종 제거 판단 |
 
@@ -152,7 +152,7 @@ harness:audit 실행 이력. 최신 항목이 상단.
 
 ## 6. 예외 규칙 (정리에서 제외)
 
-다음은 어떤 상황에서도 audit 이 건드리지 않는다 (출처: `../../../CONTRACTS.md` 7절 보호 파일 매트릭스):
+다음은 어떤 상황에서도 audit 이 건드리지 않는다 (출처: `../CONTRACTS.md` 7절 보호 파일 매트릭스):
 
 | 대상 | 이유 |
 |------|------|

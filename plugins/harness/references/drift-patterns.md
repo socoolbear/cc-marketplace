@@ -1,6 +1,6 @@
 # 드리프트 패턴 — 9개 영역 상세
 
-setup 스킬로 구축된 하네스 인프라에서 시간이 지남에 따라 발생할 수 있는 오염 패턴.
+setup 모드로 구축된 하네스 인프라에서 시간이 지남에 따라 발생할 수 있는 오염 패턴.
 각 패턴마다 **탐지 방법**과 **정리 방법**을 명시한다.
 
 ---
@@ -122,7 +122,7 @@ AGENTS.md:
 `minor`
 
 ### 정리 방법
-`auto-safe` — `_archive/YYYY-MM-DD/audit/{원래경로}` 로 이동. 원본이 `_workspace/phase-0-fix-directive-1.md` 면 `_archive/YYYY-MM-DD/audit/_workspace/phase-0-fix-directive-1.md` 로 (`../../../CONTRACTS.md` 3-5 절 — 원래 경로 복제 원칙)
+`auto-safe` — `_archive/YYYY-MM-DD/audit/{원래경로}` 로 이동. 원본이 `_workspace/phase-0-fix-directive-1.md` 면 `_archive/YYYY-MM-DD/audit/_workspace/phase-0-fix-directive-1.md` 로 (`../CONTRACTS.md` 3-5 절 — 원래 경로 복제 원칙)
 
 ### 예시
 ```
@@ -159,7 +159,7 @@ _workspace/:
 - 다른 문서와 병합 필요 → manual
 
 ### 예외 (정리 대상에서 제외)
-- `docs/references/failure-lessons.md` — setup 스킬이 초기 파일로 생성. 비어있어도 유지
+- `docs/references/failure-lessons.md` — setup 모드가 초기 파일로 생성. 비어있어도 유지
 
 ---
 
@@ -228,7 +228,7 @@ _workspace/:
 
 ## 9. agent-tooling 환경 동기화
 
-`agent-tooling` feature 활성화 프로젝트에서 머신 환경 변화 (도구 추가/제거) 를 감지하여 `.claude/settings.local.json` 의 `permissions.allow` 도구 권한 영역을 동기화한다. 권위적 정의 → `setup/references/agent-tooling.md` 6절.
+`agent-tooling` feature 활성화 프로젝트에서 머신 환경 변화 (도구 추가/제거) 를 감지하여 `.claude/settings.local.json` 의 `permissions.allow` 도구 권한 영역을 동기화한다. 권위적 정의 → `./agent-tooling.md` 6절.
 
 ### 정의
 

@@ -1,20 +1,17 @@
----
-name: update
-description: "이미 setup 된 하네스 프로젝트를 최신 스킬 버전에 맞춰 안전하게 동기화하는 스킬. /plugin update 로 스킬을 최신화한 뒤 /harness:update 를 실행하면 프로젝트의 AGENTS.md, docs/, _workspace/ 를 최신 스킬 기준으로 diff 하여 차이를 보고하고, 사용자 커스터마이징과 진행 이력(current-phase, scores.json, 발행된 ADR, 누적 교훈)을 절대 건드리지 않으면서 AskUserQuestion 으로 항목별 승인을 받아 적용한다. 신규 추가, 안전 업그레이드, 충돌 해결, 구조 변경, AGENTS.md 섹션 삽입을 처리한다. '하네스 업데이트', '하네스 최신화', 'harness update', '스킬 변경 반영', 'setup 재실행 대신', '버전 마이그레이션' 요청 시 사용. setup 을 재실행하면 진행 상태·점수 이력·ADR 인덱스가 리셋될 수 있으므로 반드시 이 스킬을 사용해야 한다."
----
+# Harness — Update 모드 (스킬 버전 동기화)
 
-# Harness Update — 최신 스킬 기준 프로젝트 동기화
-
-하네스가 이미 셋업된 프로젝트를 최신 스킬 버전에 맞춰 안전하게 동기화한다.
+하네스가 이미 셋업된 프로젝트를 최신 스킬 버전에 맞춰 안전하게 동기화하는 워크플로우.
 setup 과 달리 **기존 커스터마이징과 진행 이력을 보존**하면서 차이만 반영한다.
 
-> **사전 지식**: 이 스킬은 `setup`, `audit` 와 [`../../CONTRACTS.md`](../../CONTRACTS.md) 의 공유 규약 (디렉터리 레이아웃, `.harness-version` 스키마와 보존 규칙, 보호 파일 매트릭스, ADR 불변 조건) 을 따른다. 본 SKILL.md 는 **버전 동기화 행동** 만 정의한다.
+> **진입점**: 사용자는 `/harness:run` 만 호출한다. 라우터 (`../skills/run/SKILL.md`) 가 `plugin.json` 버전 ≠ `.harness-version.harnessVersion` 인 경우 본 모드로 분기한다.
+>
+> **사전 지식**: 본 모드는 `setup`, `audit` 모드와 [`../CONTRACTS.md`](../CONTRACTS.md) 의 공유 규약 (디렉터리 레이아웃, `.harness-version` 스키마와 보존 규칙, 보호 파일 매트릭스, ADR 불변 조건) 을 따른다. 본 파일은 **버전 동기화 행동** 만 정의한다.
 
 ## setup / audit / update 의 역할 분리
 
 `CONTRACTS.md` 1절 참조. 요약:
 
-| 스킬 | 방향 | 기준 |
+| 모드 | 방향 | 기준 |
 |------|------|------|
 | `setup` | 0 → 1 | 하네스가 없는 프로젝트에 구축 (1회성) |
 | `audit` | 프로젝트 내부 드리프트 제거 | 프로젝트 vs 프로젝트 (내부 정합성) |
@@ -22,10 +19,10 @@ setup 과 달리 **기존 커스터마이징과 진행 이력을 보존**하면�
 
 ## 선결 조건
 
-1. **`/plugin update harness@cc-marketplace`** 를 먼저 실행 — 스킬 파일 자체를 마켓플레이스 최신 버전으로 갱신
-2. 그 다음 이 스킬을 호출
+1. **`/plugin update harness@cc-marketplace`** 를 먼저 실행 — harness 플러그인 자체를 마켓플레이스 최신 버전으로 갱신
+2. 그 다음 `/harness:run` 을 호출 → 라우터가 update 모드로 분기
 
-스킬이 최신이 아니면 이 스킬도 구버전 기준으로 동작하므로 의미가 없다.
+harness 플러그인이 최신이 아니면 update 모드도 구버전 기준으로 동작하므로 의미가 없다.
 Phase 0 에서 사용자에게 이 순서를 확인한다.
 
 ## 파괴적 작업 원칙
@@ -34,8 +31,8 @@ Phase 0 에서 사용자에게 이 순서를 확인한다.
 - **절대 보존 카테고리**: 진행 이력, 품질 점수, 발행된 ADR 본문, 누적 교훈 — 어떤 상황에서도 건드리지 않음
 - **AskUserQuestion 기반 승인** (audit 과 동일 원칙)
 
-보호 대상 상세 → `references/version-manifest.md` 의 "절대 보존" 섹션
-승인 패턴 상세 → `references/sync-rules.md`
+보호 대상 상세 → `../references/version-manifest.md` 의 "절대 보존" 섹션
+승인 패턴 상세 → `../references/sync-rules.md`
 
 ## 워크플로우
 
@@ -43,7 +40,7 @@ Phase 0 에서 사용자에게 이 순서를 확인한다.
 
 **0-1. 하네스 셋업 여부 확인:**
 - `AGENTS.md`, `docs/architecture.md`, `_workspace/current-phase.md` 존재 여부 확인
-- 하나라도 없으면 "먼저 `/harness:setup` 을 실행하세요" 안내 후 종료
+- 하나라도 없으면 "하네스가 아직 셋업되지 않은 프로젝트입니다. `/harness:run` 호출 시 라우터가 setup 모드로 분기했어야 합니다 — 라우터 권장을 확인해주세요" 안내 후 종료
 
 **0-2. 버전 마커 확인:**
 - `docs/quality/.harness-version` 존재 → **마커 기반 모드**
@@ -55,14 +52,14 @@ Phase 0 에서 사용자에게 이 순서를 확인한다.
 
 사용자에게 **AskUserQuestion** 으로 확인:
 
-> "이 스킬의 로컬 버전은 v{현재}. 마켓플레이스 최신 버전을 받으려면 먼저 `/plugin update harness@cc-marketplace` 를 실행해야 합니다.
-> 이미 최신으로 업데이트했다면 '예' 를 선택하세요. 그렇지 않으면 이 스킬을 중단하고 먼저 `/plugin update` 를 실행해주세요."
+> "harness 플러그인의 로컬 버전은 v{현재}. 마켓플레이스 최신 버전을 받으려면 먼저 `/plugin update harness@cc-marketplace` 를 실행해야 합니다.
+> 이미 최신으로 업데이트했다면 '예' 를 선택하세요. 그렇지 않으면 update 모드를 중단하고 먼저 `/plugin update` 를 실행해주세요."
 >
-> 옵션: 1. 예 (스킬이 최신임) / 2. 아니오 (중단)
+> 옵션: 1. 예 (플러그인이 최신임) / 2. 아니오 (중단)
 
 ### Phase 1: 차이 계산 (Auditor 역할)
 
-표준 파일 매니페스트 → `references/version-manifest.md`
+표준 파일 매니페스트 → `../references/version-manifest.md`
 
 **1-1. 표준 파일 목록 수집:**
 
@@ -85,7 +82,7 @@ Phase 0 에서 사용자에게 이 순서를 확인한다.
 
 **1-3. 표준 내용 추출:**
 
-각 표준 파일의 "정답" 은 `../setup/SKILL.md` 의 해당 섹션에 있다. 매니페스트가 어느 섹션을 참조할지 알려준다.
+각 표준 파일의 "정답" 은 `./setup.md` 의 해당 섹션에 있다. 매니페스트가 어느 섹션을 참조할지 알려준다.
 
 **1-4. 플레이스홀더 처리:**
 
@@ -94,7 +91,7 @@ Phase 0 에서 사용자에게 이 순서를 확인한다.
 **1-5. agent-tooling feature 활성화 검사 (v1.4.0+):**
 
 `docs/quality/.harness-version` 의 features 배열에 `"agent-tooling"` 포함 여부 확인:
-- 포함됨 → `references/sync-rules.md` 9절 (agent-tooling 산출물 정책) 적용하여 차이 계산
+- 포함됨 → `../references/sync-rules.md` 9절 (agent-tooling 산출물 정책) 적용하여 차이 계산
 - 미포함 (v1.3.x 프로젝트 또는 도구 0개로 비활성) → AskUserQuestion 으로 활성화 의사 확인:
 
 ```
@@ -109,7 +106,7 @@ v1.4.0 부터 agent-tooling 기능이 도입되었습니다 (CLI 도구 규약, 
 
 도구 0개 환경에서 Y 선택 시: setup Phase 1-5 와 동일하게 "현대 CLI 도구가 감지되지 않습니다. 비활성화 권고" 안내. 사용자가 그래도 활성화 원하면 cli-tooling.md 와 AGENTS.md 포인터만 추가 (settings.local.json permissions 는 audit 가 추후 동기화).
 
-상세 → `references/sync-rules.md` 9절, `setup/references/agent-tooling.md` 1, 4절
+상세 → `../references/sync-rules.md` 9절, `../references/agent-tooling.md` 1, 4절
 
 ### Phase 2: 업데이트 플랜 보고서 (Reporter)
 
@@ -157,7 +154,7 @@ v1.4.0 부터 agent-tooling 기능이 도입되었습니다 (CLI 도구 규약, 
 
 ### Phase 3: 승인 (대화형)
 
-승인 패턴 상세 → `references/sync-rules.md` 섹션 3
+승인 패턴 상세 → `../references/sync-rules.md` 섹션 3
 
 **질문 A — auto-safe 일괄**:
 
@@ -248,7 +245,7 @@ Phase 4 에서 실제 적용된 변경사항이 **하나도 없으면** (모든 
 
 **5-1. `.harness-version` 갱신**:
 
-스키마 정의 (필드 의미, 누가 쓰는지) → `../../CONTRACTS.md` 4절
+스키마 정의 (필드 의미, 누가 쓰는지) → `../CONTRACTS.md` 4절
 
 **보존 규칙**: `setupDate`, `setupBy` 는 **절대 수정하지 않는다**. 기존 값을 읽어 그대로 보존한다 (한 번이라도 update 가 돌면 최초 셋업 흔적이 사라지면 안 됨).
 
@@ -288,11 +285,11 @@ Phase 4 에서 실제 적용된 변경사항이 **하나도 없으면** (모든 
 }
 ```
 
-**주의**: 위 `unknown` 값은 한 번 기록되면 보존 규칙에 따라 영구 고정된다 (이후 update 도 setupDate/setupBy 를 건드리지 않음). 사용자가 실제 셋업 날짜를 안다면 update 직후 `.harness-version` 을 직접 수정해도 된다 — 본 스킬의 자동 동작은 아님을 안내한다.
+**주의**: 위 `unknown` 값은 한 번 기록되면 보존 규칙에 따라 영구 고정된다 (이후 update 도 setupDate/setupBy 를 건드리지 않음). 사용자가 실제 셋업 날짜를 안다면 update 직후 `.harness-version` 을 직접 수정해도 된다 — 본 모드의 자동 동작은 아님을 안내한다.
 
 **5-2. `docs/quality/update-log.md` 항목 추가**:
 
-로그 형식 → `references/sync-rules.md` 섹션 6
+로그 형식 → `../references/sync-rules.md` 섹션 6
 
 로그 파일이 없으면 생성한다.
 
@@ -306,15 +303,15 @@ Phase 4 에서 실제 적용된 변경사항이 **하나도 없으면** (모든 
 ## 적용하지 않는 것
 
 - 스킬 파일 자체 최신화 → `/plugin update harness@cc-marketplace` 사용
-- 하네스가 없는 프로젝트에 0→1 구축 → `/harness:setup` 사용
-- 내부 드리프트 탐지/정리 → `/harness:audit` 사용
+- 하네스가 없는 프로젝트에 0→1 구축 → 라우터의 setup 모드 (`./setup.md`)
+- 내부 드리프트 탐지/정리 → 라우터의 audit 모드 (`./audit.md`)
 - 코드 변경 / 테스트 실행 → 별도 도구
 - `docs/legacy-*/` 정리 → 동결 원칙 유지
 
 ## 참고
 
-- **공유 규약 (setup/audit 와 동일한 단일 진실)**: `../../CONTRACTS.md`
-- 표준 파일 매니페스트 (어떤 파일이 표준인지, 어디서 정답을 가져올지): `references/version-manifest.md`
-- 동기화 규칙 (AskUserQuestion 패턴, 충돌 해결, archive, log 형식): `references/sync-rules.md`
-- setup 스킬 (최초 구축): `../setup/SKILL.md`
-- audit 스킬 (내부 드리프트 제거): `../audit/SKILL.md`
+- **공유 규약 (setup/audit 와 동일한 단일 진실)**: `../CONTRACTS.md`
+- 표준 파일 매니페스트 (어떤 파일이 표준인지, 어디서 정답을 가져올지): `../references/version-manifest.md`
+- 동기화 규칙 (AskUserQuestion 패턴, 충돌 해결, archive, log 형식): `../references/sync-rules.md`
+- setup 모드 (최초 구축): `./setup.md`
+- audit 모드 (내부 드리프트 제거): `./audit.md`

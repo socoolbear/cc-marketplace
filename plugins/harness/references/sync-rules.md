@@ -1,6 +1,6 @@
 # 동기화 규칙 — 충돌 해결 및 AskUserQuestion 패턴
 
-update 스킬의 Phase 3-5 에서 따르는 세부 규칙.
+update 모드의 Phase 3-5 에서 따르는 세부 규칙.
 
 ---
 
@@ -18,7 +18,7 @@ update 는 이 파일들에 대해 다음만 수행한다:
 - archive 로 이동
 - 삭제
 
-사용자가 명시적으로 수정을 요청해도 update 스킬은 수행하지 않는다 (audit 스킬의 범위).
+사용자가 명시적으로 수정을 요청해도 update 모드는 수행하지 않는다 (audit 모드의 범위).
 
 ---
 
@@ -123,7 +123,7 @@ AGENTS.md 에 '{섹션 제목}' 섹션을 추가할까요?
 
 ## 4. 플레이스홀더 처리
 
-플레이스홀더 5종 단일 정의 → `../../../CONTRACTS.md` 3-6 절
+플레이스홀더 5종 단일 정의 → `../CONTRACTS.md` 3-6 절
 
 ### 감지
 
@@ -144,7 +144,7 @@ setup 이 모든 플레이스홀더를 치환했어야 한다. 프로젝트 파�
 
 ## 5. Archive 구조
 
-교체 발생 시 (`../../../CONTRACTS.md` 3-5 절):
+교체 발생 시 (`../CONTRACTS.md` 3-5 절):
 
 ```
 프로젝트 루트/
@@ -212,7 +212,7 @@ harness:update 실행 이력. 최신 항목이 상단.
 
 - 이전 버전을 `unknown` 으로 간주
 - 표준 파일 비교는 동일 (PRISTINE/CUSTOMIZED/MISSING)
-- update 완료 시 `.harness-version` 을 **신규 생성** (스키마 정의 → `../../../CONTRACTS.md` 4절):
+- update 완료 시 `.harness-version` 을 **신규 생성** (스키마 정의 → `../CONTRACTS.md` 4절):
   ```json
   {
     "harnessVersion": "{새 버전}",
@@ -255,7 +255,7 @@ harness:update 실행 이력. 최신 항목이 상단.
 
 ## 9. agent-tooling 산출물 정책 (v1.4.0+)
 
-agent-tooling feature 활성화 프로젝트의 신규 산출물에 대한 update 동기화 규칙. 권위적 정의 → `setup/references/agent-tooling.md`. 버전 차이 지도 → `version-manifest.md` 8절 v1.3.0 → v1.4.0.
+agent-tooling feature 활성화 프로젝트의 신규 산출물에 대한 update 동기화 규칙. 권위적 정의 → `./agent-tooling.md`. 버전 차이 지도 → `version-manifest.md` 8절 v1.3.0 → v1.4.0.
 
 ### 9-1. `docs/conventions/cli-tooling.md`
 
@@ -278,7 +278,7 @@ agent-tooling feature 활성화 프로젝트의 신규 산출물에 대한 updat
 
 - **update 는 절대 수정 X** (CONTRACTS.md 7절: audit 9영역 소관)
 - 기존 권한 (예: `Bash(rg:*)` 등) 이 있으면 그대로 보존
-- v1.3 → v1.4 마이그레이션 시 사용자가 활성화에 동의하더라도 update 는 권한을 작성하지 않는다. `/harness:audit` 9영역이 머신 환경에 맞춰 사용자에게 propose
+- v1.3 → v1.4 마이그레이션 시 사용자가 활성화에 동의하더라도 update 는 권한을 작성하지 않는다. `/harness:run` 9영역이 머신 환경에 맞춰 사용자에게 propose
 
 ### 9-4. AGENTS.md 의 "셸 도구 규약" 한 줄 포인터
 
