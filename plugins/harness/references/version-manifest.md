@@ -202,4 +202,37 @@ update 가 참조할 "이 버전에서 무엇이 바뀌었는지" 요약.
 
 **검증**: scores.json 점수 0 손실, 발행된 ADR 본문 0 변경, current-phase.md 진행 상태 보존 (idempotent: 같은 update 재실행 시 두 번째는 UP-TO-DATE).
 
+### v1.5.0 → v1.6.0 (reflect 모드 도입)
+
+**테마**: 세션 학습 → 영속 아티팩트 승격을 라우터의 4번째 분기로 도입. 새 슬래시 명령 없이 `/harness:run` 의 보조 옵션으로만 노출. 권위적 정의 → `../modes/reflect.md`.
+
+**신설 (MISSING 예상, reflect 첫 실행 시 자동 생성)**:
+- `_workspace/.last-reflect` — 마지막 실행 timestamp (ISO 8601 한 줄)
+- `_workspace/learnings/learn-YYYY-MM-DD.md` — reflect 보고서 (매 실행 시 누적)
+- `docs/quality/reflect-log.md` — 시계열 로그 (첫 실행 시 생성, 이후 append)
+- `_workspace/inbox.md` — 선택. 사용자가 직접 채우는 인라인 학습 마커 (reflect 가 읽기만 함)
+
+**라우터 변경**:
+- Phase 0 에 0-4 (학습 누적 감지) 추가 — 읽기 전용, auto-memory feedback 파일 + inbox 마커 줄 합계 ≥ 3 시 보조 옵션 노출
+- Phase 1 의 메인 결정 트리 6규칙은 그대로. reflect 는 메인 권장 후보 아님 (보조 옵션 전용)
+- Phase 2 에 옵션 5 (조건부 노출) 추가
+- Phase 3 의 위임 목록에 reflect 추가
+
+**기존 영역 정책 변경 (없음)**:
+- AGENTS.md / docs/conventions/ / docs/references/ 본문: reflect 가 **관리 섹션 append** 만 가능. 사용자 작성 섹션은 보존
+- `.claude/settings.local.json` / `docs/architecture.md` / ADR / scores.json / `_archive/`: reflect 는 절대 수정하지 않음 (위임 또는 manual 권고)
+- CONTRACTS.md § 7 에 "reflect 의 보호 권한" 보충 섹션 추가 (기존 매트릭스 컬럼 확장은 하지 않음 — 패치 사이즈 최소화)
+
+**호환성**:
+- v1.5.x 프로젝트 → `/plugin update` 후 v1.6 update 진입 시 변경 사항 0 (reflect 는 신규 모드이며 기존 산출물에 영향 X). update 자체는 UP-TO-DATE 로 종료
+- 기존 프로젝트는 auto-memory feedback 누적 시 라우터가 자동으로 reflect 옵션을 노출하기 시작 — 사용자 선택 시에만 동작
+- 학습 소스가 둘 다 부재 (feedback 디렉토리 없음 + inbox.md 없음) → reflect 옵션 자체 미노출, 동작 변화 0
+
+**update 모드 자체의 호환성**:
+- v1.5.x update 는 본 항목을 인지하지 못함 → /plugin update 후 v1.6 update 가 처음으로 라우터 갱신을 propose (라우터 SKILL.md 가 PRISTINE 상태일 때만)
+- reflect 산출물 (`_workspace/.last-reflect`, `_workspace/learnings/`, `docs/quality/reflect-log.md`) 은 reflect 모드의 자기 이력이므로 update 가 보존
+- 본 영역의 동기화 규칙 → `./sync-rules.md` (reflect 산출물은 update 의 갱신 대상 아님)
+
+**검증**: scores.json / quality-log.md / 발행된 ADR / current-phase.md / audit-log.md / update-log.md 모두 0 변경. reflect 가 만지는 영역은 자기 산출물 + 관리 섹션 append 로 한정 (CONTRACTS § 7 reflect 보호 권한 표 준수).
+
 향후 버전에서도 이 섹션을 확장하여 차이 지도를 유지한다.

@@ -1,7 +1,7 @@
 # Harness Contracts — 공유 규약
 
-`setup`, `audit`, `update` 세 **모드**가 공통으로 따르는 데이터 계약과 파일 규약.
-사용자는 `/harness:run` 단일 진입점만 호출하고, 라우터 ([`skills/run/SKILL.md`](skills/run/SKILL.md)) 가 프로젝트 상태를 감지하여 [`modes/{setup,update,audit}.md`](modes/) 중 하나로 분기한다.
+`setup`, `audit`, `update`, `reflect` 네 **모드**가 공통으로 따르는 데이터 계약과 파일 규약.
+사용자는 `/harness:run` 단일 진입점만 호출하고, 라우터 ([`skills/run/SKILL.md`](skills/run/SKILL.md)) 가 프로젝트 상태를 감지하여 [`modes/{setup,update,audit,reflect}.md`](modes/) 중 하나로 분기한다.
 각 모드는 이 파일의 정의에 따라 동작하고, **행동 (어떻게 진행하는가)** 만 자기 mode 파일에 정의한다.
 
 > 이 파일이 정의하는 것: 디렉터리 레이아웃, 파일 명명 규칙, 데이터 스키마, 보호 파일 매트릭스, 정보 격벽.
@@ -18,6 +18,7 @@ plugins/harness/
     setup.md                     # 0→1 구축 워크플로우
     update.md                    # 스킬 버전 동기화 워크플로우
     audit.md                     # 내부 드리프트 정리 워크플로우
+    reflect.md                   # 세션 학습 → 영속 아티팩트 승격 워크플로우
   references/                    # 모드들이 공유하는 패턴/규칙 문서 11개
   scripts/                       # setup 가 사용하는 코드 생성기
 ```
@@ -31,9 +32,12 @@ plugins/harness/
 | `setup` | 0 → 1 | 하네스가 없는 프로젝트에 구축 | 1회성 | 마커 부재 + 핵심 3종 부재 |
 | `audit` | 프로젝트 내부 드리프트 제거 | 프로젝트 vs 프로젝트 (내부 정합성) | 월 1회 또는 3~5 Phase 완료 시점 | 마커 존재 + 버전 일치 |
 | `update` | 스킬 버전 차이 반영 | 프로젝트 vs 최신 스킬 (외부 동기화) | `/plugin update` 후 | 마커 존재 + 버전 불일치, 또는 레거시 |
+| `reflect` | 세션 학습 → 영속 아티팩트 승격 | auto-memory feedback / inbox vs `AGENTS.md`·conventions·hooks 등 | 학습 누적 시 (보조 권장, 직교) | 핵심 4파일 존재 + `.last-reflect` 이후 학습 ≥ 3건 |
 
-세 모드는 같은 프로젝트 산출물을 다루므로 본 문서의 규약을 공유한다.
+네 모드는 같은 프로젝트 산출물을 다루므로 본 문서의 규약을 공유한다.
 사용자는 모드를 직접 호출하지 않는다 — 라우터가 감지 후 AskUserQuestion 으로 확인받아 위임한다 (사용자 override 가능).
+
+setup/update/audit 은 라우터의 의사결정 트리에서 **상호 배타** 로 한 모드가 메인 권장된다. reflect 는 메인 결정 트리와 **직교** 하여 학습 누적 임계 만족 시 보조 옵션으로만 노출된다 — 메인 권장이 되지는 않는다.
 
 ---
 
@@ -59,6 +63,7 @@ plugins/harness/
       quality-log.md                 # 평가 로그
       audit-log.md                   # audit 실행 이력 (audit 이 생성)
       update-log.md                  # update 실행 이력 (update 가 생성)
+      reflect-log.md                 # reflect 실행 이력 (reflect 가 생성)
     conventions/                     # agent-tooling feature 활성화 시
       cli-tooling.md                 # 셸 도구 규약 (포터블, repo 커밋)
     legacy-*/                        # 동결된 기존 문서
@@ -67,6 +72,10 @@ plugins/harness/
     analysis-report.md               # setup Phase 1 분석
     audit-YYYY-MM-DD.md              # audit 보고서
     update-plan-YYYY-MM-DD.md        # update 플랜
+    .last-reflect                    # reflect 마지막 실행 timestamp (한 줄 ISO 8601)
+    inbox.md                         # 인라인 학습 마커 (선택, reflect 가 읽음)
+    learnings/
+      learn-YYYY-MM-DD.md            # reflect 보고서
     phase-N-*.md                     # Phase 실행 산출물 (3-1 절)
     templates/                       # 4개 표준 템플릿
     prompts/                         # 5개 표준 프롬프트
@@ -323,6 +332,27 @@ update 는 본문도 상태도 수정하지 않는다.
 
 같은 날 audit + update 를 모두 돌려도 영역이 분리되어 충돌하지 않는다.
 
+### reflect 의 보호 권한 (위 매트릭스 보충)
+
+reflect 는 setup/audit/update 와 직교한다. 매트릭스의 모든 행에 추가 컬럼을 그리는 대신, reflect 가 만지는 영역만 명시한다 (그 외는 **보존**):
+
+| 파일 / 디렉터리 | reflect 권한 |
+|-----------------|--------------|
+| `AGENTS.md` 본문 | 관리 섹션 (예: `## 언어`, `## 코딩 스타일`) 끝에 항목 추가만. 사용자 작성 섹션 / 포인터 영역 / 파이프라인 가이드 영역은 보존 |
+| `docs/conventions/<topic>.md` | 없으면 생성 (`# {topic}` 헤더만), 있으면 항목 append |
+| `docs/conventions/cli-tooling.md` | append 가능 (agent-tooling feature 활성 시). 본문 재구성은 update 소관 |
+| `docs/references/*.md` | append 가능 (manual 분류 항목은 보고서에만 기록, 직접 쓰기 X) |
+| `.claude/agents/<name>.md` | 신규 scaffold 만 (TODO 헤더만, 본문 자동 작성 X). 기존 sub-agent 본문 수정 X |
+| `_workspace/.last-reflect` | 작성 (최초) + 갱신 (매 실행) |
+| `_workspace/learnings/learn-*.md` | 작성 (자기 이력) |
+| `_workspace/inbox.md` | 읽기만 (사용자가 채움) |
+| `docs/quality/reflect-log.md` | 첫 실행 시 생성, 이후 append 만 |
+| `${CLAUDE_PROJECT_DIR}/memory/feedback_*.md` | frontmatter 에 `applied: YYYY-MM-DD` 메타 추가만. 본문 보존 |
+| `.claude/settings.local.json` (hooks / permissions) | **수정 X** — `update-config` / `fewer-permission-prompts` 스킬에 위임 |
+| `docs/architecture.md` / `docs/adr/NNNN-*.md` / `scores.json` / `docs/phases/` / `_workspace/phase-*-*.md` / `_workspace/templates/` / `_workspace/prompts/` / `docs/quality/.harness-version` / `docs/quality/quality-log.md` / `docs/quality/audit-log.md` / `docs/quality/update-log.md` / `_archive/` | **보존** (수정·이동·삭제 X) |
+
+reflect 가 다른 모드의 산출물 영역 (audit-log, update-log, ADR, scores 등) 을 절대 만지지 않으므로 같은 날 다른 모드와 함께 실행해도 충돌하지 않는다.
+
 ---
 
 ## 8. 4단계 파이프라인 산출물 흐름
@@ -387,6 +417,7 @@ update 는 본문도 상태도 수정하지 않는다.
 - `modes/setup.md` — 셋업 시 본 규약대로 인프라 생성
 - `modes/audit.md` — 본 규약 위반을 드리프트로 진단
 - `modes/update.md` — 본 규약을 보존하며 스킬 버전 동기화
+- `modes/reflect.md` — 세션 학습을 본 규약 준수하며 영속 아티팩트로 승격
 - `references/knowledge-architecture.md` — 지도 원칙 (AGENTS.md 분량 가이드)
 - `references/drift-patterns.md` — 본 규약 위반 패턴 정의
 - `references/version-manifest.md` — 본 규약을 따르는 update 매니페스트

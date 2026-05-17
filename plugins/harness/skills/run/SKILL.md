@@ -6,15 +6,16 @@ description: "하네스 엔지니어링 인프라의 모든 라이프사이클�
 # Harness — 단일 진입점 라우터
 
 `/harness:run` 으로 호출되는 유일한 사용자 진입점.
-프로젝트 상태를 감지하여 [`setup`](../../modes/setup.md) / [`update`](../../modes/update.md) / [`audit`](../../modes/audit.md) 세 모드 중 하나로 분기한다.
+프로젝트 상태를 감지하여 [`setup`](../../modes/setup.md) / [`update`](../../modes/update.md) / [`audit`](../../modes/audit.md) / [`reflect`](../../modes/reflect.md) 네 모드 중 하나로 분기한다.
 
-> **세 모드의 역할 분리** ([`../../CONTRACTS.md`](../../CONTRACTS.md) 1절):
+> **네 모드의 역할 분리** ([`../../CONTRACTS.md`](../../CONTRACTS.md) 1절):
 >
 > | 모드 | 방향 | 기준 | 빈도 |
 > |------|------|------|------|
 > | `setup` | 0 → 1 | 하네스가 없는 프로젝트에 구축 | 1회성 |
 > | `audit` | 프로젝트 내부 드리프트 제거 | 프로젝트 vs 프로젝트 | 월 1회 또는 3~5 Phase 완료 시점 |
 > | `update` | 스킬 버전 차이 반영 | 프로젝트 vs 최신 스킬 | `/plugin update` 후 |
+> | `reflect` | 세션 학습 → 영속 아티팩트 승격 | auto-memory feedback / inbox vs AGENTS.md·conventions·hooks 등 | 학습 누적 시 (보조 권장, 다른 모드와 직교) |
 
 ## 워크플로우
 
@@ -35,6 +36,19 @@ description: "하네스 엔지니어링 인프라의 모든 라이프사이클�
 
 **0-3. 플러그인 버전:**
 - `../../.claude-plugin/plugin.json` 의 `version` 필드값
+
+**0-4. 학습 누적 (reflect 보조 권장 후보):**
+
+reflect 모드는 setup/update/audit 와 **직교** 한다 (학습 승격은 셋업 상태·버전·드리프트와 별개). Phase 1 의 메인 결정 트리는 그대로 두고, 본 단계에서 누적 신호만 추가로 수집한다.
+
+- 학습 소스 경로:
+  - **auto-memory feedback**: `${CLAUDE_PROJECT_DIR}/memory/feedback_*.md` — `CLAUDE_PROJECT_DIR` 환경변수가 없으면 `~/.claude/projects/<현재 cwd 의 slug>/memory/` 로 추정
+  - **인라인 inbox (선택)**: `_workspace/inbox.md` — 존재하면 `- REMEMBER:` / `- 규칙:` 접두사 줄 수
+- 임계값 비교:
+  - `_workspace/.last-reflect` (없으면 epoch 0) 이후 mtime 인 feedback 파일 + inbox 마커 줄 합계 ≥ **3** → reflect 보조 권장 (Phase 2 옵션 5 노출)
+  - 미달 → reflect 옵션은 보고서 상태에만 "누적 N건 (임계 3건 미달)" 으로 표시, 옵션 자체는 노출 X
+- 본 단계는 읽기 전용. 어떤 파일도 수정하지 않는다.
+- 학습 소스가 둘 다 부재 (feedback 디렉토리 자체가 없음 + inbox.md 부재) → reflect 옵션 자체를 노출하지 않는다 (보고서에서도 생략).
 
 ### Phase 1: 모드 결정 (의사결정 트리)
 
@@ -70,6 +84,14 @@ description: "하네스 엔지니어링 인프라의 모든 라이프사이클�
    → 동작: 5번과 동일하게 사용자에게 위임. setup 강제 시 setup 모드의 Phase 0 재실행 가드는 마커 부재 + 핵심 3종 모두 부재가 아니므로 발동될 수 있다.
 ```
 
+**보조 권장 (reflect):**
+
+위 6규칙은 setup/update/audit 중 하나만 메인 권장으로 선택한다. reflect 는 별개 축이므로 메인 권장과 무관하게 **Phase 0-4 의 임계 만족 여부** 만으로 옵션 노출을 결정한다:
+
+- 임계 만족 (학습 누적 ≥ 3) → Phase 2 옵션 5 "reflect 진행" 추가 노출
+- 임계 미달 또는 학습 소스 부재 → 옵션 5 미노출
+- 셋업 미완 (규칙 1·5·6 매칭) 인 경우에도 reflect 의 Phase 0-1 가드 (핵심 4파일) 가 발동하므로 옵션 5 미노출
+
 ### Phase 2: 사용자 확인 (AskUserQuestion)
 
 감지 결과를 사용자에게 보고하고 **반드시 AskUserQuestion** 으로 확인을 받는다.
@@ -85,6 +107,7 @@ description: "하네스 엔지니어링 인프라의 모든 라이프사이클�
   - _workspace/current-phase.md: {O/X}
   - docs/quality/scores.json: {O/X}
   - 스킬 버전: v{plugin.json.version}
+  - 학습 누적 (reflect): {N건, 임계 3건 만족/미달} ← 학습 소스 존재 시만 표시
 
 권장 모드: {setup/update/audit/없음}
 사유: {Phase 1 의 사유 텍스트}
@@ -96,6 +119,7 @@ description: "하네스 엔지니어링 인프라의 모든 라이프사이클�
   2. setup 진행 (0→1 구축, 또는 기존 셋업의 강제 재설치)
   3. update 진행 (스킬 버전 동기화)
   4. audit 진행 (내부 드리프트 정리)
+  5. reflect 진행 (세션 학습 → 아티팩트 승격)  ← Phase 0-4 임계 만족 + 셋업 완료 시만 표시
 ```
 
 **옵션 매핑 규칙**:
@@ -103,6 +127,8 @@ description: "하네스 엔지니어링 인프라의 모든 라이프사이클�
 - 권장 모드가 setup 인 경우: 옵션 3 (update) / 옵션 4 (audit) 선택 시 "셋업되지 않은 프로젝트에서는 모드 자체의 Phase 0 가드에서 종료될 수 있습니다" 사전 안내
 - 권장 모드가 update / audit 인 경우 (마커 존재): 옵션 2 (setup) 선택 시 "setup 모드의 Phase 0 재실행 가드가 발동되어 강제 재설치 의사를 다시 확인합니다. 진행 시 _workspace/, docs/quality/, docs/adr/ 가 `_archive/{date}-before-reset/` 로 백업됩니다" 사전 안내
 - 권장 없음 (5·6번 규칙) 인 경우: 옵션 2/3/4 의 각 모드 Phase 0 가드가 어떻게 반응할지 한 줄씩 사전 안내
+- **옵션 5 (reflect)** 노출 조건: Phase 0-4 의 학습 누적 ≥ 3 AND 핵심 4파일 모두 존재. 메인 권장이 reflect 가 되는 경우는 없다 (메인 결정 트리는 setup/update/audit 만 선택). reflect 는 항상 보조 옵션으로만 노출되며, 사용자가 명시적으로 선택해야 진행한다.
+- 옵션 5 노출 시 라벨 부기: "(학습 N건 누적)" — 사용자가 누적량을 즉시 인지 가능하도록
 
 ### Phase 3: 모드 위임
 
@@ -111,6 +137,7 @@ description: "하네스 엔지니어링 인프라의 모든 라이프사이클�
 - **setup 선택** → [`../../modes/setup.md`](../../modes/setup.md) 의 Phase 0~6 진행
 - **update 선택** → [`../../modes/update.md`](../../modes/update.md) 의 Phase 0~5 진행
 - **audit 선택** → [`../../modes/audit.md`](../../modes/audit.md) 의 Phase 0~5 진행
+- **reflect 선택** → [`../../modes/reflect.md`](../../modes/reflect.md) 의 Phase 0~7 진행
 
 선택된 모드의 SKILL 본문을 읽어 그대로 실행한다. 본 라우터는 모드의 행동을 변경하지 않는다 (격벽 유지).
 
@@ -130,5 +157,6 @@ description: "하네스 엔지니어링 인프라의 모든 라이프사이클�
 - **Setup 모드**: [`../../modes/setup.md`](../../modes/setup.md)
 - **Update 모드**: [`../../modes/update.md`](../../modes/update.md)
 - **Audit 모드**: [`../../modes/audit.md`](../../modes/audit.md)
+- **Reflect 모드**: [`../../modes/reflect.md`](../../modes/reflect.md)
 - **References (각 모드가 사용하는 패턴 문서)**: [`../../references/`](../../references/)
 - **Scripts (setup 가 사용하는 생성기)**: [`../../scripts/`](../../scripts/)
