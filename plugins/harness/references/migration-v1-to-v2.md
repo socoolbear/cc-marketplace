@@ -23,6 +23,7 @@ v1 하네스 (docs/adr/·docs/quality/·_workspace/ 등 ~40개 파일) 프로젝
 | `AGENTS.md` | 재작성 | v2 골격 (document-formats 1절 — 검증 명령·포인터·경계·문서 유지 규칙). **사용자 작성 섹션 보존**, v1 관리 섹션 ("Phase 실행 — 4단계 파이프라인" 등) 은 제거 |
 | `CLAUDE.md` | 부재 시 브리지 생성 | `@AGENTS.md` 한 줄 |
 | `scripts/check-layer-import.js` + settings hook | 그대로 유지 | enforcement 존속. `package.json` 에 `check:layers` 가 없으면 등록 제안 |
+| (없음) | `.gitignore` 항목 | setup Phase 2-7 과 동일 — `.prompts/`, `.claude/settings.local.json`, `.claude/worktrees/` 누락 시 append (기존 항목 무변경). worktree 제외 확인 (2-8) 도 동일 수행 |
 | `docs/legacy-*/`, 기존 `_archive/` | 그대로 유지 | 동결 원칙 |
 
 ## 2. 삭제 vs 보관

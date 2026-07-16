@@ -59,6 +59,8 @@ plugins/harness/
 
 - 마이그레이션 보관 선택 시에만 `_archive/v1-YYYY-MM-DD/` 가 추가로 존재할 수 있다.
 - enforcement 활성 여부는 `scripts/check-layer-import.js` + settings hook 존재로 **감지**한다 (마커에 기록하지 않음).
+- **머신 로컬 (gitignore 대상)**: `.prompts/` (로컬 프롬프트 모음), `.claude/settings.local.json`, `.claude/worktrees/` — setup Phase 2-7 (마이그레이션도 동일 수행) 이 git 저장소에서 `.gitignore` 등재를 보장한다. 기존 항목은 수정하지 않고 누락분만 append.
+- **worktree 규약**: git worktree 는 `.claude/worktrees/` 하위에 생성한다 (Claude Code 내장 worktree 와 동일 경로). 루트에서의 전역 탐색·검사 (검색/린트/컴파일/테스트) 는 이 디렉토리를 제외한다 — AGENTS.md 경계 고정 2줄 (document-formats 1절) + setup Phase 2-7·2-8 이 보장.
 
 ## 4. `harness/.harness.json` 스키마
 

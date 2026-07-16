@@ -44,6 +44,15 @@ Explore 서브에이전트로 병렬 조사한다. 어떤 파일도 수정하지
 
 **2-6. `harness/LESSONS.md`** (6절): 빈 골격. 기존 실패 기록 문서가 있으면 이관을 제안한다.
 
+**2-7. `.gitignore` 정비** (git 저장소인 경우만): 다음 항목이 없으면 append 한다 (있으면 무변경, `.gitignore` 부재 시 생성):
+- `.prompts/` — 프로젝트 로컬 프롬프트 모음 (머신 로컬, 커밋 금지)
+- `.claude/settings.local.json` — 머신별 설정 (Phase 3 의 enforcement hook 포함)
+- `.claude/worktrees/` — git worktree 생성 위치 (CONTRACTS 3절 worktree 규약)
+
+기존 `.gitignore` 의 다른 항목은 절대 수정·삭제하지 않는다 (append 만).
+
+**2-8. 탐색·검사 범위에서 worktree 제외 확인**: 린트/타입체크/테스트 설정이 전역 글롭 (예: `**/*.ts`) 을 쓰는 경우, `.claude/worktrees` 제외 누락 시 사용자 확인 후 추가한다 (예: tsconfig `exclude`, ESLint flat config `ignores`, vitest/jest `exclude`). rg·fd 등 gitignore 준수 도구는 2-7 만으로 충분하다. `src/` 등 좁은 include 만 쓰는 설정은 손대지 않는다.
+
 ### Phase 3: 기계적 강제 (선택)
 
 1-3 에서 레이어 구조가 감지된 경우에만, AskUserQuestion 1건으로 적용 여부를 확인한다:
@@ -66,6 +75,7 @@ Explore 서브에이전트로 병렬 조사한다. 어떤 파일도 수정하지
 - [ ] `AGENTS.md` (≤40줄) / `CLAUDE.md` 브리지
 - [ ] `harness/ARCHITECTURE.md` / `ADR.md` / `GLOSSARY.md` / `LESSONS.md`
 - [ ] `harness/.harness.json`
+- [ ] `.gitignore` 에 `.prompts/` + `.claude/settings.local.json` + `.claude/worktrees/` (git 저장소인 경우)
 - [ ] (선택) `scripts/check-layer-import.js` + hook + `check:layers`
 
 ## 적용하지 않는 것
