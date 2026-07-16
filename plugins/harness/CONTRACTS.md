@@ -1,7 +1,7 @@
 # Harness Contracts — 공유 규약 (v2)
 
 `setup`, `update`, `audit`, `reflect` 네 **모드**가 공통으로 따르는 규약.
-사용자는 `/harness:run` 단일 진입점만 호출하고, 라우터 ([`skills/run/SKILL.md`](skills/run/SKILL.md)) 가 상태를 감지하여 [`modes/`](modes/) 의 모드로 분기한다.
+사용자는 `/harness` 단일 진입점만 호출하고, 라우터 ([`skills/harness/SKILL.md`](skills/harness/SKILL.md)) 가 상태를 감지하여 [`modes/`](modes/) 의 모드로 분기한다.
 
 > 이 파일이 정의하는 것: 설계 원칙, 대상 프로젝트 레이아웃, `.harness.json` 스키마, 보호 규칙, 정답 출처.
 > 이 파일이 정의하지 않는 것: 라우팅 (라우터), 각 모드의 행동 (각 mode 파일), 문서 골격 ([`references/document-formats.md`](references/document-formats.md)).
@@ -12,7 +12,7 @@
 plugins/harness/
   .claude-plugin/plugin.json     # 버전 + 메타
   CONTRACTS.md                   # 본 파일 (단일 진실)
-  skills/run/SKILL.md            # 사용자 진입점 (라우터)
+  skills/harness/SKILL.md        # 사용자 진입점 (라우터)
   modes/{setup,update,audit,reflect}.md
   references/
     document-formats.md          # 대상 문서 5종 표준 골격 (정답)

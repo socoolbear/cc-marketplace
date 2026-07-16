@@ -5,7 +5,7 @@ description: "경량 하네스 (에이전트용 지속 지식 문서 + 기계적
 
 # Harness — 단일 진입점 라우터
 
-`/harness:run` 으로 호출되는 유일한 사용자 진입점.
+`/harness` 로 호출되는 유일한 사용자 진입점.
 프로젝트 상태를 감지하여 [`setup`](../../modes/setup.md) / [`update`](../../modes/update.md) / [`audit`](../../modes/audit.md) / [`reflect`](../../modes/reflect.md) 로 분기한다.
 
 > 모드 역할 분리와 레이아웃 → [`../../CONTRACTS.md`](../../CONTRACTS.md) 2~3절

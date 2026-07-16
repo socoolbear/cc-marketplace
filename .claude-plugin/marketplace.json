@@ -11,8 +11,8 @@
     {
       "name": "harness",
       "source": "./plugins/harness",
-      "description": "경량 하네스 플러그인 — 에이전트용 지속 지식 문서 (AGENTS.md 지도 + harness/ 의 ARCHITECTURE·ADR·GLOSSARY·LESSONS) 와 선택적 기계적 강제 (레이어 검사 hook + CI) 를 단일 진입점 (/harness:run) 으로 관리. 프로젝트 상태를 자동 감지하여 setup (0→1 구축) / update (버전 동기화 + v1→v2 마이그레이션) / audit (문서 낡음 점검) / reflect (세션 학습 → 문서 승격) 네 모드로 라우팅",
-      "version": "2.0.0",
+      "description": "경량 하네스 플러그인 — 에이전트용 지속 지식 문서 (AGENTS.md 지도 + harness/ 의 ARCHITECTURE·ADR·GLOSSARY·LESSONS) 와 선택적 기계적 강제 (레이어 검사 hook + CI) 를 단일 진입점 (/harness) 으로 관리. 프로젝트 상태를 자동 감지하여 setup (0→1 구축) / update (버전 동기화 + v1→v2 마이그레이션) / audit (문서 낡음 점검) / reflect (세션 학습 → 문서 승격) 네 모드로 라우팅",
+      "version": "2.1.0",
       "author": {
         "name": "socoolbear"
       },

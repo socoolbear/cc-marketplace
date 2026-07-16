@@ -2,7 +2,7 @@
 
 하네스가 없는 프로젝트에 경량 하네스 (지속 지식 문서 + 선택적 기계적 강제) 를 1회성으로 구축한다.
 
-> **진입점**: 사용자는 `/harness:run` 만 호출한다. 라우터 (`../skills/run/SKILL.md`) 가 본 모드로 분기한다.
+> **진입점**: 사용자는 `/harness` 만 호출한다. 라우터 (`../skills/harness/SKILL.md`) 가 본 모드로 분기한다.
 >
 > **사전 지식**: [`../CONTRACTS.md`](../CONTRACTS.md) (원칙·레이아웃·보호 규칙), [`../references/document-formats.md`](../references/document-formats.md) (문서 골격의 정답). 본 파일은 **셋업 행동**만 정의한다.
 
@@ -10,8 +10,8 @@
 
 ### Phase 0: 재실행 가드
 
-- `harness/.harness.json` 존재, 또는 AGENTS.md + `harness/` 문서가 이미 존재 → **중단** + 안내: "이미 셋업되어 있습니다. `/harness:run` 재호출 시 라우터가 update/audit 으로 분기합니다."
-- v1 흔적 (`docs/quality/.harness-version`) 감지 → **중단** + 안내: "v1 하네스입니다. setup 이 아니라 update 모드의 v1→v2 마이그레이션 소관입니다 — `/harness:run` 을 재호출하세요."
+- `harness/.harness.json` 존재, 또는 AGENTS.md + `harness/` 문서가 이미 존재 → **중단** + 안내: "이미 셋업되어 있습니다. `/harness` 재호출 시 라우터가 update/audit 으로 분기합니다."
+- v1 흔적 (`docs/quality/.harness-version`) 감지 → **중단** + 안내: "v1 하네스입니다. setup 이 아니라 update 모드의 v1→v2 마이그레이션 소관입니다 — `/harness` 를 재호출하세요."
 - 강제 재설치는 AskUserQuestion 재확인 후에만: 기존 `harness/` 와 AGENTS.md 를 `_archive/YYYY-MM-DD-before-reset/` 로 백업 후 진행.
 
 ### Phase 1: 프로젝트 분석 (읽기 전용)
