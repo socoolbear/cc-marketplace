@@ -1,0 +1,5 @@
+{
+  "name": "sessions",
+  "version": "1.0.0",
+  "description": "Claude Code 세션 관련 도구 묶음. crosstalk: 같은 머신의 다른 세션과 UDS (유닉스 도메인 소켓) 로 메시지를 주고받는 세션 간 메시징 (connect / send / list / disconnect, 터미널 종류 무관)."
+}
