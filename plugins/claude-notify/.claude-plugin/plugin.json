@@ -1,0 +1,5 @@
+{
+  "name": "claude-notify",
+  "version": "1.0.0",
+  "description": "Claude Code 알림 훅 (macOS) — 터미널 foreground / 화면 잠금 상태를 감지해 terminal-notifier (로컬) 와 ntfy (모바일 푸시) 중 알맞은 채널을 자동 선택"
+}

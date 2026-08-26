@@ -1,0 +1,27 @@
+{
+  "description": "Claude Code 알림 훅 — Notification / Stop 이벤트를 시스템 상태에 따라 라우팅",
+  "hooks": {
+    "Notification": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/claude-notify.mjs\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/claude-notify.mjs\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -51,6 +51,17 @@
       },
       "category": "developer-productivity",
       "tags": ["snippets", "extraction", "code-reuse", "github", "gist", "security-scanning", "dev-templates"]
+    },
+    {
+      "name": "claude-notify",
+      "source": "./plugins/claude-notify",
+      "description": "Claude Code 알림 훅 (macOS) — 터미널 foreground / 화면 잠금 상태를 감지해 terminal-notifier (로컬) 와 ntfy (모바일 푸시) 중 알맞은 채널을 자동 선택. 설치만으로 훅이 붙고, /notify-setup 으로 초기 설정, /notify-doctor 로 진단",
+      "version": "1.0.0",
+      "author": {
+        "name": "socoolbear"
+      },
+      "category": "developer-productivity",
+      "tags": ["notification", "hooks", "macos", "ntfy", "terminal-notifier", "push"]
     }
   ]
 }
