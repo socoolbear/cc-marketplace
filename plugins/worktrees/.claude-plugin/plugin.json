@@ -1,0 +1,5 @@
+{
+  "name": "worktrees",
+  "version": "1.0.0",
+  "description": "git worktree 작업 공간 도구 묶음. worktree-setup: 여러 repo 에 걸친 작업의 브랜치·worktree 한 벌 준비 + BRIEF.md 출발 문서. worktree-refresh: worktree 브랜치를 저장소 상태 판정(리셋/동기화)으로 최신 기본 브랜치에 맞추기."
+}
