@@ -1,0 +1,5 @@
+{
+  "name": "site-audit",
+  "version": "1.0.0",
+  "description": "웹사이트의 기술적 성능 · SEO · AEO 를 Lighthouse 와 Playwright 로 종합 진단하는 스킬."
+}
