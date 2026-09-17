@@ -9,13 +9,15 @@
 #   ├── .local/<repo>/      repo 별 로컬 파일 원본 (.env·키·참조 소스, ignore) → worktree 에 심링크
 #   ├── shared/             repo 밖에 둬도 되는 공용 자료 (ignore)
 #   ├── tasks/INDEX.md      태스크 색인 (추적, 생성 파일 — index 가 notes.md 만으로 다시 씀)
-#   └── tasks/<ID>/         notes.md (추적) · .prompts/ (ignore) · <repo>/ worktree (ignore)
+#   ├── tasks/CLAUDE.md     작업 지도 (추적, 없으면 init/new 가 템플릿에서 생성. 상위라 worktree 세션에도 실림)
+#   └── tasks/<ID>/         notes.md (추적) · <repo>/ worktree (ignore) · <repo>/.prompts/ 스크래치 (info/exclude)
 #
 # macOS 기본 bash 3.2 호환 (연관배열·mapfile 사용 금지, 빈 배열은 ${arr[@]+"${arr[@]}"}).
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TEMPLATE="${SCRIPT_DIR}/../references/notes-template.md"
+TASKS_CLAUDE_TEMPLATE="${SCRIPT_DIR}/../references/tasks-claude-template.md"
 GITIGNORE_LINES=".bares/
 .local/
 shared/
@@ -31,7 +33,7 @@ usage() {
 사용법: taskspace.sh <서브커맨드> [인자...]
 
   root                                       루트 절대경로 출력
-  init [<dir>] [<url>[=<name>]...]           최초 세팅 (디렉토리 · git init · .gitignore · bare 등록)
+  init [<dir>] [<url>[=<name>]...]           최초 세팅 (디렉토리 · git init · .gitignore · tasks/CLAUDE.md · bare 등록)
   add  [<url>[=<name>]...]                   bare 등록. 인자 없으면 repos.txt 의 미등록 항목 전부
   repos                                      등록된 repo 와 기본 브랜치 · 열린 worktree 수
   new  <TASK-ID|next> [--slug <슬러그>] [--title <제목>] [<repo>[=<branch>]...]
@@ -171,6 +173,22 @@ notes_mark_done() {
     END { if (!done) print line }
   ' "${notes}" > "${tmp}"
   mv -- "${tmp}" "${notes}"
+}
+
+# tasks/CLAUDE.md 가 없을 때만 템플릿에서 만든다 (사용자 수정 보존)
+ensure_tasks_claude() {
+  [[ -f "${ROOT}/tasks/CLAUDE.md" ]] && return 0
+  [[ -f "${TASKS_CLAUDE_TEMPLATE}" ]] || die 1 "템플릿이 없습니다: ${TASKS_CLAUDE_TEMPLATE}"
+  cp -- "${TASKS_CLAUDE_TEMPLATE}" "${ROOT}/tasks/CLAUDE.md"
+  log "🗺️  tasks/CLAUDE.md 생성"
+}
+
+# worktree 안 스크래치 .prompts/ — bare 의 info/exclude 에 등록해 repo 의 .gitignore 를 건드리지 않는다
+ensure_prompts() {
+  local name=$1 wt=$2
+
+  mkdir -p "${wt}/.prompts"
+  ensure_line "$(exclude_file "${name}")" ".prompts/"
 }
 
 # 템플릿을 채워 stdout 으로. sed 대신 bash 치환 — 제목의 & | \ 가 그대로 들어간다
@@ -393,6 +411,7 @@ cmd_init() {
 
   mkdir -p -- "${dir}"
   dir="$(cd "${dir}" && pwd)"
+  [[ -f "${dir}/.git" ]] && die 1 "git worktree 안입니다 (.git 이 파일) — 워크스페이스 루트에서 실행하세요: ${dir}"
 
   parent="$(dirname "${dir}")"
   while [[ "${parent}" != "/" ]]; do
@@ -417,6 +436,7 @@ cmd_init() {
 
   ROOT="${dir}"
   log "📁 root: ${ROOT}"
+  ensure_tasks_claude
 
   [[ $# -eq 0 ]] || add_specs "$@"
 
@@ -611,7 +631,8 @@ cmd_new() {
   if [[ "${from_next}" -eq 1 ]]; then
     mkdir -- "${task_dir}" || die 1 "TASK-ID ${id} 가 방금 생겼습니다 — 다시 실행하세요"
   fi
-  mkdir -p "${task_dir}/.prompts"
+  mkdir -p "${task_dir}"
+  ensure_tasks_claude
 
   if [[ ! -f "${notes}" ]]; then
     [[ -f "${TEMPLATE}" ]] || die 1 "템플릿이 없습니다: ${TEMPLATE}"
@@ -650,6 +671,7 @@ cmd_new() {
     if git -C "${bare}" worktree list --porcelain | grep -qxF -- "worktree ${wt}"; then
       log "🔄 [${name}] worktree 이미 있음: ${wt}"
       notes_add_repo "${notes}" "${name}" "$(git -C "${wt}" symbolic-ref --short HEAD 2>/dev/null || printf '%s' "${br}")"
+      ensure_prompts "${name}" "${wt}"
       link_repo "${id}" "${name}"
       continue
     fi
@@ -670,6 +692,7 @@ cmd_new() {
     fi
 
     notes_add_repo "${notes}" "${name}" "${br}"
+    ensure_prompts "${name}" "${wt}"
     link_repo "${id}" "${name}"
   done
 
@@ -861,6 +884,8 @@ untracked_files() {
     if [[ -L "${wt}/${path}" ]] && [[ "$(readlink "${wt}/${path}")" == *".local/"* ]]; then
       continue
     fi
+    # .prompts/ 는 스크래치 — worktree 와 함께 사라지는 게 맞으므로 차단 사유가 아니다
+    case "${path}" in .prompts|.prompts/*) continue ;; esac
     printf '%s\n' "${path}"
   done
 }

@@ -10,7 +10,7 @@ description: bare 저장소 (`.bares/`) 로 여러 repo 를 중앙 등록해 두
 
 ## 1. 구조와 전제
 
-`.bares/` 에 여러 repo 를 bare 저장소로 중앙 등록해 두고, 이슈 하나(TASK-ID)마다 `tasks/<TASK-ID>/` 아래에 관련 repo 의 worktree 를 한 벌 모아 둔다. **워크스페이스 루트 자체가 git repo** 다 — `.gitignore`·`repos.txt`·`tasks/INDEX.md`·`tasks/*/notes.md`·`tasks/*/CLAUDE.md` 만 추적하고, `.bares/`·`.local/`·`shared/`·각 worktree 는 ignore 한다.
+`.bares/` 에 여러 repo 를 bare 저장소로 중앙 등록해 두고, 이슈 하나(TASK-ID)마다 `tasks/<TASK-ID>/` 아래에 관련 repo 의 worktree 를 한 벌 모아 둔다. **워크스페이스 루트 자체가 git repo** 다 — `.gitignore`·`repos.txt`·`tasks/CLAUDE.md`·`tasks/INDEX.md`·`tasks/*/notes.md`·`tasks/*/CLAUDE.md` 만 추적하고, `.bares/`·`.local/`·`shared/`·각 worktree 는 ignore 한다.
 
 ```
 <워크스페이스 루트>/            ← git repo (notes 추적용)
@@ -20,12 +20,13 @@ description: bare 저장소 (`.bares/`) 로 여러 repo 를 중앙 등록해 두
 ├── .local/<repo>/<상대경로>      # ignore — 비밀·참조 자료·개인 설정의 원본 (파일·디렉토리·외부 위치로의 심링크)
 ├── shared/                      # ignore — repo 밖에서도 의미 있는 자료 (배포 로그, QA 자료 등). notes.md 에서 경로로 참조
 └── tasks/
+    ├── CLAUDE.md                # 추적 — 작업 지도 (init/new 가 없으면 생성. 상위라 worktree 세션에도 실림)
     ├── INDEX.md                 # 추적 — 생성 파일 (index 가 다시 씀, 직접 편집 금지)
     └── <TASK-ID>/
-        ├── notes.md              # 추적 — 영구 보존 (done 후에도 남음)
-        ├── CLAUDE.md              # 추적 — 선택. 작업 루트에서 세션 열 때만 작성
-        ├── .prompts/              # ignore — 이 태스크의 프롬프트·스크래치
-        └── <repo>/                # ignore — worktree, 브랜치 feature/<TASK-ID>[-<슬러그>]
+        ├── notes.md             # 추적 — 영구 보존 (done 후에도 남음)
+        ├── CLAUDE.md            # 추적 — 선택. repo 가 둘 이상일 때 규칙 문서 경로 표
+        └── <repo>/              # ignore — worktree, 브랜치 feature/<TASK-ID>[-<슬러그>]
+            ├── .prompts/                                      # info/exclude — 스크래치, done 때 함께 삭제
             ├── .env → ../../../.local/<repo>/.env             # 상대 심링크 (파일)
             └── vendor-src → ../../../.local/<repo>/vendor-src  # 상대 심링크 (디렉토리)
 ```
@@ -43,7 +44,7 @@ description: bare 저장소 (`.bares/`) 로 여러 repo 를 중앙 등록해 두
    ```bash
    $TS init <dir> <git-url>[=<name>]...
    ```
-   디렉토리·`.bares/`·`tasks/` 생성, `git init` (이미 repo 면 통과), `.gitignore` 추가, repo 등록까지 한 번에 끝난다. 여러 번 실행해도 안전하다(멱등).
+   디렉토리·`.bares/`·`tasks/` 생성, `git init` (이미 repo 면 통과), `.gitignore` 추가, 지도 `tasks/CLAUDE.md` 생성(있으면 보존), repo 등록까지 한 번에 끝난다. 여러 번 실행해도 안전하다(멱등).
 4. `$TS repos` 로 등록 결과를 보고한다.
 5. **워크스페이스 repo 의 첫 커밋은 사용자가 지시할 때만 한다.** `init` 은 커밋하지 않는다 — `.gitignore`·notes 를 추적하는 repo 라는 사실과 원격 연결은 사용자 몫이라고 안내한다.
 
@@ -57,7 +58,7 @@ git -C <체크아웃> status --ignored --short
 
 **분류는 경로·이름과 사용자 답으로만 한다 — 내용은 어느 위치에서도 열지 않는다.** 세 질문으로 가른다.
 
-1. **재생성 가능한가** (`node_modules`, 빌드 산출물, 태스크 스크래치 — 스크래치는 `tasks/<TASK-ID>/.prompts/` 가 자리다) → 올리지 않는다. 기존 체크아웃에 쌓인 **과거 태스크 이력 문서**(`.prompts/` 등)는 `tasks/<TASK-ID>/.prompts/` 로 쪼개지 않는다 — 코드·문서가 repo 안 경로로 참조하면 `.local/<repo>/` 에 통째로, 아니면 `shared/<repo>/` 에 두고 notes.md 에서 가리킨다. 자격증명(`ftp.env` 등)만 `.local/<repo>/.secrets/` 로 따로 빼면 `link` 대상이 작아진다.
+1. **재생성 가능한가** (`node_modules`, 빌드 산출물, 태스크 스크래치 — 스크래치는 `tasks/<TASK-ID>/<repo>/.prompts/` 가 자리다) → 올리지 않는다. 기존 체크아웃에 쌓인 **과거 태스크 이력 문서**(`.prompts/` 등)는 `tasks/<TASK-ID>/<repo>/.prompts/` 로 쪼개지 않는다 — 코드·문서가 repo 안 경로로 참조하면 `.local/<repo>/` 에 통째로, 아니면 `shared/<repo>/` 에 두고 notes.md 에서 가리킨다. 자격증명(`ftp.env` 등)만 `.local/<repo>/.secrets/` 로 따로 빼면 `link` 대상이 작아진다.
 2. **repo 트리 안에 있어야 하는가** — 빌드·실행·repo 안 스크립트가 그 경로에서 읽거나, IDE·에이전트가 repo 트리 안에서 봐야 하는 자료 (`.env`, `keys/`, 코드가 참조하는 벤더 소스, `config/local.php`) → `.local/<repo>/` 에 두고 `link` 로 연결한다.
 3. **repo 밖에서도 의미 있는가** (배포 로그, QA 자료, 참조 문서) → `<root>/shared/` 에 두고 notes.md 에서 경로로 참조한다. `migrate` 대상이 아니다.
 
@@ -134,23 +135,23 @@ ID 를 지정받지 않았으면 `next` 로 자동 배정한다 (`001` 부터, �
 
 성공하면 stdout 마지막 줄에 태스크 디렉토리 절대경로가 출력된다. 실행 후 `notes.md` 의 "이슈 개요" 절을 사용자가 준 이슈 내용·링크로 채운다 (없으면 비워 둔다 — 추측하지 않는다).
 
-### 4-4. CLAUDE.md — 조건부로만 작성
+### 4-4. 세션 위치와 CLAUDE.md
 
-어디서 세션을 열지 사용자에게 확인한다. **작업 루트(`tasks/<TASK-ID>/`)에서 열 때만** `CLAUDE.md` 를 쓴다 — 각 repo 안에서 세션을 열면 그 repo 의 `CLAUDE.md` 가 이미 실리므로 필요 없다. 담을 내용은 하위 repo 안에서 열어도 참이 되게 쓴다:
+세션은 **주로 만질 repo 의 worktree** `tasks/<TASK-ID>/<repo>/` 에서 `claude --add-dir ..` 로 연다 — 훅·`settings.json` 은 cwd 의 `.claude/` 만 실리기 때문이다. `--add-dir ..` 는 `notes.md`·형제 repo 접근 승인 프롬프트를 없앤다 (`tasks/<TASK-ID>/` 에는 `.claude/` 가 없어 훅·설정 오염이 없다). `tasks/<TASK-ID>/` 에서 열면 repo 의 훅·설정을 잃는다고 사용자에게 알린다.
 
-- `tasks/<TASK-ID>/` 는 워크스페이스 repo(notes 추적용) 안이고, 각 `<repo>/` 는 별개 worktree 라는 사실 — 코드 작업의 git 은 반드시 `git -C <repo>`. cwd 가 repo 안이면 그 repo 규칙이 이 지도보다 우선한다.
-- 4-2 에서 찾은 repo 별 규칙 문서 경로 표
-- 경계 — commit·push·PR 은 지시할 때만, 두 repo 를 한 커밋에 섞지 않는다, 의존성 미설치
+기록 위치는 지도 `tasks/CLAUDE.md`(템플릿 `references/tasks-claude-template.md`)가 알려 준다 — `init`/`new` 가 없으면 만든다.
 
-`@notes.md` 임포트는 하지 않는다 — 모든 세션의 컨텍스트를 갉아먹는다. repo 를 나중에 추가할 때는 `new <TASK-ID> <repo>` 만 치면 된다 (슬러그는 notes.md 에서 계승된다) — 추가 후 표를 갱신한다.
+태스크 CLAUDE.md(`tasks/<TASK-ID>/CLAUDE.md`)는 **repo 가 둘 이상일 때만** 쓴다. 형제 repo 의 CLAUDE.md 는 조상도 자손도 아니라 실리지 않으므로, 4-2 에서 찾은 repo 별 규칙 문서 경로 표를 여기 둔다. 지도와 겹치는 경계는 넣지 않는다 (이중 로드). `@notes.md` 임포트는 하지 않는다 — 모든 세션의 컨텍스트를 갉아먹는다. repo 를 나중에 추가할 때는 `new <TASK-ID> <repo>` 만 치면 된다 (슬러그는 notes.md 에서 계승된다) — 추가 후 표를 갱신한다.
+
+1.3.0 이전 태스크의 CLAUDE.md 는 그대로 둬도 되나, 지도와 겹치는 경계 목록은 지운다.
 
 ### 4-5. 보고
 
 - ID · 제목 · 브랜치
 - repo 별 경로 · 브랜치 · 기준 커밋
 - 연결된 심링크 목록 (`.local/<repo>/` 가 비어 있으면 2-1·2-2 절 안내)
-- `.prompts/` 경로
-- 다음 세션을 열 디렉토리
+- 각 worktree 의 `.prompts/` (스크래치, done 때 삭제)
+- 다음 세션: `cd tasks/<TASK-ID>/<repo> && claude --add-dir ..` (주로 만질 repo)
 - 의존성이 설치돼 있지 않다는 사실
 
 ## 5. done — 태스크 정리
