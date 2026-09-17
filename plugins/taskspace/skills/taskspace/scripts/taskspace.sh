@@ -3,10 +3,11 @@
 #
 # 구조:
 #   <root>/                 워크스페이스 repo (notes 추적용)
-#   ├── .gitignore          .bares/ .local/ tasks/*/*/
+#   ├── .gitignore          .bares/ .local/ shared/ tasks/*/*/
 #   ├── repos.txt           등록한 repo 목록 (<url>[=<name>] 한 줄씩)
-#   ├── .bares/<repo>.git/  bare 저장소 (ignore)
-#   ├── .local/<repo>/      repo 별 로컬 파일 원본 (.env 등, ignore) → worktree 에 심링크
+#   ├── .bares/<repo>.git/  bare 저장소 (ignore). info/exclude 에 링크 경로를 등록 (전 worktree 적용)
+#   ├── .local/<repo>/      repo 별 로컬 파일 원본 (.env·키·참조 소스, ignore) → worktree 에 심링크
+#   ├── shared/             repo 밖에 둬도 되는 공용 자료 (ignore)
 #   └── tasks/<ID>/         notes.md (추적) · .prompts/ (ignore) · <repo>/ worktree (ignore)
 #
 # macOS 기본 bash 3.2 호환 (연관배열·mapfile 사용 금지, 빈 배열은 ${arr[@]+"${arr[@]}"}).
@@ -16,6 +17,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TEMPLATE="${SCRIPT_DIR}/../references/notes-template.md"
 GITIGNORE_LINES=".bares/
 .local/
+shared/
 tasks/*/*/"
 
 ROOT=""
@@ -32,7 +34,8 @@ usage() {
   add  [<url>[=<name>]...]                   bare 등록. 인자 없으면 repos.txt 의 미등록 항목 전부
   repos                                      등록된 repo 와 기본 브랜치 · 열린 worktree 수
   new  <TASK-ID> [<repo>[=<branch>]...]      태스크 생성 + worktree + notes.md + 심링크
-  link <TASK-ID> [<repo>...]                 .local/<repo>/ 의 파일을 worktree 에 상대 심링크
+  link [<TASK-ID> [<repo>...]]               .local/<repo>/ 를 worktree 에 상대 심링크 (디렉토리 통째 가능). 인자 없으면 전 태스크
+  migrate <repo> <checkout> <rel-path>...    기존 체크아웃의 gitignore 된 파일을 .local/<repo>/ 로 복사 (원본은 그대로)
   sync <TASK-ID> [<repo>...] [--rebase]      worktree 에 origin/<기본 브랜치> 반영 (merge 기본)
   done <TASK-ID> [--merged] [--discard-untracked] [--delete-branch] [--force]
                                              worktree 제거 (notes.md 보존). 안전 검사 통과 시에만
@@ -126,6 +129,28 @@ ensure_line() {
 
   [[ -f "${file}" ]] || : > "${file}"
   grep -qxF -- "${line}" "${file}" || printf '%s\n' "${line}" >> "${file}"
+}
+
+# 파일에서 정확히 같은 줄만 제거 (없으면 통과)
+remove_line() {
+  local file=$1 line=$2 tmp
+
+  [[ -f "${file}" ]] || return 0
+  grep -qxF -- "${line}" "${file}" || return 0
+  tmp="${file}.tmp.$$"
+  grep -vxF -- "${line}" "${file}" > "${tmp}" || true
+  mv -- "${tmp}" "${file}"
+}
+
+# bare 의 info/exclude 경로 — 여기 등록한 패턴은 그 bare 의 모든 worktree 에 적용된다
+exclude_file() { printf '%s/info/exclude\n' "$(bare_path "$1")"; }
+
+# exclude 패턴에 쓸 수 없는 이름 (주석·글롭·이스케이프 문자, 앞뒤 공백)
+is_bad_name() {
+  case "$1" in
+    *[\#\!\[\]\*\?\\]*|" "*|*" ") return 0 ;;
+  esac
+  return 1
 }
 
 # 태스크 아래의 worktree 디렉토리 이름 목록 (.git 파일이 있는 하위 디렉토리)
@@ -298,45 +323,93 @@ cmd_repos() {
 
 # ---------------------------------------------------------------- link
 
-# .local/<repo>/ 의 파일을 tasks/<id>/<repo>/ 의 같은 상대경로에 상대 심링크로 연결
-link_repo() {
-  local id=$1 name=$2
-  local local_dir="${ROOT}/.local/${name}" wt="${ROOT}/tasks/${id}/${name}"
-  local src rel dst depth ups target i
+# .local/<repo>/ 를 걸어 내려가며 worktree 에 없는 가장 얕은 경로에서 상대 심링크를 건다.
+# - .local/ 안의 심링크는 잎이다 (따라 들어가지 않고 그 자체를 링크) — 외부 위치를 가리키는 링크를 둘 수 있다
+# - 링크한 경로는 bare 의 info/exclude 에 "/<path>" 로 앵커 등록 (repo .gitignore 의 "dir/" 패턴은 심링크를 무시하지 않는다)
+# - worktree 에 실디렉토리가 있으면 (추적 디렉토리, 또는 sync 로 심링크가 실디렉토리가 된 경우) exclude 를 지우고 안으로 내려간다
+link_tree() {
+  local name=$1 local_dir=$2 wt=$3 rel=$4
+  local dir entry base path src dst depth ups target i excl
 
-  [[ -d "${local_dir}" && -d "${wt}" ]] || return 0
+  dir="${local_dir}${rel:+/${rel}}"
+  excl="$(exclude_file "${name}")"
 
-  find "${local_dir}" -type f -print | while IFS= read -r src; do
-    rel="${src#"${local_dir}"/}"
-    dst="${wt}/${rel}"
-    depth="$(printf '%s' "${rel}" | tr -cd '/' | wc -c | tr -d ' ')"
+  for entry in "${dir}"/* "${dir}"/.[!.]* "${dir}"/..?*; do
+    [[ -e "${entry}" || -L "${entry}" ]] || continue   # nullglob 없는 bash 3.2 의 리터럴 방어
+    base="$(basename "${entry}")"
+    [[ "${base}" == ".DS_Store" ]] && continue
+    path="${rel:+${rel}/}${base}"
+
+    if is_bad_name "${base}"; then
+      log "⚠️  [bad-name] [${name}] exclude 패턴에 쓸 수 없는 이름이라 건너뜀: ${path}"
+      continue
+    fi
+
+    src="${local_dir}/${path}"
+    dst="${wt}/${path}"
+    depth="$(printf '%s' "${path}" | tr -cd '/' | wc -c | tr -d ' ')"
     ups=$((3 + depth))
     target=""
     for ((i = 0; i < ups; i++)); do target="${target}../"; done
-    target="${target}.local/${name}/${rel}"
+    target="${target}.local/${name}/${path}"
 
+    # -L 을 -e 보다 먼저: 끊긴 링크는 -e 가 false 라 ln 이 실패한다
     if [[ -L "${dst}" ]]; then
       if [[ "$(readlink "${dst}")" == "${target}" ]]; then
-        continue
+        ensure_line "${excl}" "/${path}"
+      else
+        log "⚠️  [exists] 다른 곳을 가리키는 심링크가 있어 건너뜀: ${dst}"
       fi
-      log "⚠️  [exists] 다른 곳을 가리키는 심링크가 있어 건너뜀: ${dst}"
       continue
     fi
 
-    if [[ -e "${dst}" ]]; then
-      log "⚠️  [exists] 파일이 이미 있어 건너뜀: ${dst}"
+    if [[ ! -e "${dst}" ]]; then
+      mkdir -p "$(dirname "${dst}")"
+      ln -s "${target}" "${dst}"
+      ensure_line "${excl}" "/${path}"
+      log "🔗 [${name}] ${path} → ${target}"
       continue
     fi
 
-    mkdir -p "$(dirname "${dst}")"
-    ln -s "${target}" "${dst}"
-    log "🔗 [${name}] ${rel} → ${target}"
+    if [[ ! -L "${src}" && -d "${src}" && -d "${dst}" ]]; then
+      remove_line "${excl}" "/${path}"
+      link_tree "${name}" "${local_dir}" "${wt}" "${path}"
+      continue
+    fi
+
+    log "⚠️  [exists] 파일이 이미 있어 건너뜀: ${dst}"
+  done
+}
+
+link_repo() {
+  local id=$1 name=$2
+  local local_dir="${ROOT}/.local/${name}" wt="${ROOT}/tasks/${id}/${name}"
+
+  [[ -d "${local_dir}" && -d "${wt}" ]] || return 0
+  mkdir -p "$(dirname "$(exclude_file "${name}")")"
+  link_tree "${name}" "${local_dir}" "${wt}" ""
+}
+
+# 모든 태스크의 모든 worktree 에 재연결 (.local/ 에 항목을 추가한 뒤)
+link_all() {
+  local d id name
+
+  for d in "${ROOT}"/tasks/*/; do
+    [[ -d "${d}" ]] || continue
+    id="$(basename "${d}")"
+    for name in $(task_worktrees "${d}"); do
+      link_repo "${id}" "${name}"
+    done
   done
 }
 
 cmd_link() {
-  [[ $# -ge 1 ]] || usage
   require_root
+
+  if [[ $# -eq 0 ]]; then
+    link_all
+    return 0
+  fi
 
   local id=$1 task_dir name
   shift
@@ -439,6 +512,105 @@ cmd_new() {
   return "${rc}"
 }
 
+# ---------------------------------------------------------------- migrate
+
+# 기존 체크아웃의 gitignore 된 파일을 .local/<repo>/ 로 복사한다. 원본은 건드리지 않는다 (정리는 사용자 몫).
+# 내용은 읽거나 출력하지 않는다 — 경로만 다룬다.
+cmd_migrate() {
+  [[ $# -ge 3 ]] || usage
+  require_root
+
+  local name=$1 checkout=$2 bare co_url bare_url rc=0
+  local arg rel src dst target n
+  shift 2
+
+  bare="$(bare_path "${name}")"
+  [[ -d "${bare}" ]] || die 1 "등록되지 않은 repo: ${name} ('add <url>' 먼저)"
+  [[ -d "${checkout}" ]] || die 1 "체크아웃 디렉토리가 없습니다: ${checkout}"
+  checkout="$(cd "${checkout}" && pwd)"
+  case "${checkout}/" in
+    "${ROOT}/tasks/"*) die 1 "taskspace 의 worktree 는 migrate 대상이 아닙니다: ${checkout}" ;;
+  esac
+  git -C "${checkout}" rev-parse --show-toplevel >/dev/null 2>&1 || die 1 "git 체크아웃이 아닙니다: ${checkout}"
+
+  co_url="$(git -C "${checkout}" remote get-url origin 2>/dev/null || true)"
+  bare_url="$(git -C "${bare}" remote get-url origin 2>/dev/null || true)"
+  if [[ -z "${co_url}" ]]; then
+    log "⚠️  [remote] 체크아웃에 origin 이 없어 같은 repo 인지 확인하지 못함 — 계속 진행"
+  elif [[ "${co_url}" != "${bare_url}" ]]; then
+    log "⚠️  [remote] origin 이 다릅니다: ${co_url} vs ${bare_url} — 계속 진행"
+  fi
+
+  mkdir -p "${ROOT}/.local/${name}"
+
+  for arg in "$@"; do
+    rel="${arg%/}"
+    rel="${rel#./}"
+    if [[ -z "${rel}" || "${rel}" == /* || "${rel}" == .. || "${rel}" == ../* || "${rel}" == */.. || "${rel}" == */../* ]]; then
+      log "⛔ [bad-path] 체크아웃 기준 상대 경로만 허용 (절대경로·.. 불가): '${arg}'"
+      rc=1
+      continue
+    fi
+
+    src="${checkout}/${rel}"
+    dst="${ROOT}/.local/${name}/${rel}"
+
+    if [[ ! -e "${src}" && ! -L "${src}" ]]; then
+      log "⛔ [missing] [${name}] ${rel}"
+      rc=1
+      continue
+    fi
+
+    if git -C "${checkout}" ls-files --error-unmatch -- ":(literal)${rel}" >/dev/null 2>&1; then
+      log "⛔ [tracked] [${name}] ${rel} — 추적 파일은 .local/ 에 둘 수 없음 (worktree 에 같은 경로가 있어 link 가 영원히 [exists] 로 건너뜀)"
+      rc=1
+      continue
+    fi
+
+    # check-ignore 는 pathspec 이 아니라 경로를 받는다 (:(literal) 불가)
+    if ! git -C "${checkout}" check-ignore -q -- "${rel}" 2>/dev/null; then
+      log "⚠️  [not-ignored] [${name}] ${rel} — .gitignore 에 없는 경로 (계속 진행)"
+    fi
+
+    if [[ -e "${dst}" || -L "${dst}" ]]; then
+      log "ℹ️  [exists] [${name}] ${rel} — 이미 .local/ 에 있어 건너뜀 (갱신하려면 diff -rq 로 다른지 확인한 뒤 .local/ 쪽을 지우고 재실행)"
+      continue
+    fi
+
+    mkdir -p "$(dirname "${dst}")"
+
+    if [[ -L "${src}" ]]; then
+      target="$(readlink "${src}")"
+      if [[ "${target}" == /* ]]; then
+        ln -s "${target}" "${dst}"
+        log "🔗 [${name}] ${rel} → ${target} (절대 심링크를 그대로 둠)"
+      else
+        log "⛔ [symlink] [${name}] ${rel} → ${target} — 상대 심링크는 복사하면 끊김. 원본 위치를 지정하세요"
+        rc=1
+      fi
+      continue
+    fi
+
+    # cp 는 소켓·읽기 불가 파일 하나에도 rc=1 을 내면서 나머지를 복사해 둔다 → 부분 사본은 지운다
+    trap 'rm -rf -- "${dst}"; trap - INT TERM; exit 130' INT TERM
+    if cp -pR -- "${src}" "${dst}"; then
+      trap - INT TERM
+      n="$(find "${dst}" -type l ! -exec test -e {} \; -print | wc -l | tr -d ' ')"
+      [[ "${n}" -eq 0 ]] || log "⚠️  [dangling] [${name}] ${rel} 안에 끊긴 심링크 ${n}개 (바깥을 가리키는 상대 링크)"
+      log "📥 [${name}] ${rel} → .local/${name}/${rel}"
+    else
+      trap - INT TERM
+      rm -rf -- "${dst}"
+      log "⛔ [copy-failed] [${name}] ${rel} — 복사 실패로 되돌림 (소켓·읽기 불가 파일?)"
+      rc=1
+    fi
+  done
+
+  chmod 700 "${ROOT}/.local"
+  link_all
+  return "${rc}"
+}
+
 # ---------------------------------------------------------------- sync
 
 cmd_sync() {
@@ -481,6 +653,7 @@ cmd_sync() {
 
     if git -C "${wt}" merge-base --is-ancestor "origin/${def}" HEAD; then
       log "✅ [${name}] up-to-date (origin/${def} 포함)"
+      link_repo "${id}" "${name}"
       continue
     fi
 
@@ -490,6 +663,7 @@ cmd_sync() {
         log "⚠️  [conflict] [${name}] rebase 충돌 — 해결 후 'git -C ${wt} rebase --continue' (취소: --abort)"
         git -C "${wt}" diff --name-only --diff-filter=U >&2
         rc=5
+        continue
       fi
     else
       log "🔀 [${name}] merge origin/${def}"
@@ -497,8 +671,12 @@ cmd_sync() {
         log "⚠️  [conflict] [${name}] merge 충돌 — 해결 후 'git -C ${wt} merge --continue' (취소: --abort)"
         git -C "${wt}" diff --name-only --diff-filter=U >&2
         rc=5
+        continue
       fi
     fi
+
+    # upstream 이 심링크 자리를 추적하기 시작하면 merge 가 심링크를 실디렉토리로 바꾼다 → 파일 단위로 재연결
+    link_repo "${id}" "${name}"
   done
 
   return "${rc}"
@@ -674,6 +852,7 @@ case "${cmd}" in
   repos) cmd_repos ;;
   new)   cmd_new "$@" ;;
   link)  cmd_link "$@" ;;
+  migrate) cmd_migrate "$@" ;;
   sync)  cmd_sync "$@" ;;
   done)  cmd_done "$@" ;;
   list)  cmd_list ;;

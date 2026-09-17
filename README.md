@@ -20,7 +20,7 @@
 | catchup | `/catchup:catchup` | 이전 Claude Code 세션의 transcript 를 찾아 요약하고 현재 세션으로 이어받기 (HANDOFF.md 없이 세션 이어가기) | |
 | site-audit | `/site-audit:site-audit` | 웹사이트의 기술적 성능 · SEO · AEO 를 Lighthouse 와 Playwright 로 종합 진단 | |
 | worktrees | `/worktrees:worktree-setup` · `/worktrees:worktree-refresh` | git worktree 작업 공간 도구 — 여러 repo 에 걸친 작업의 브랜치·worktree 한 벌 준비 (BRIEF.md 출발 문서 포함), worktree 브랜치를 저장소 상태 판정으로 최신 main 에 맞추기 | |
-| taskspace | `/taskspace:taskspace` | bare 중앙 저장소 + tasks/<TASK-ID>/ 격리 worktree + notes.md 를 워크스페이스 repo 로 추적 (init/add/new/link/sync/done/list) | |
+| taskspace | `/taskspace:taskspace` | bare 중앙 저장소 + tasks/<TASK-ID>/ 격리 worktree + notes.md 를 워크스페이스 repo 로 추적 (init/add/new/link/migrate/sync/done/list) | |
 
 ## 플러그인 설치
 
