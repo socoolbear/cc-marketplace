@@ -1,0 +1,5 @@
+{
+  "name": "taskspace",
+  "version": "1.0.0",
+  "description": "bare 중앙 저장소 + tasks/<TASK-ID>/ 격리 다중 repo 작업 환경. 최초 세팅(init)부터 repo 등록(add), 태스크별 worktree 생성(new)·로컬 파일 심링크(link)·기본 브랜치 반영(sync)·정리(done)·목록(list)까지 단일 스킬로 관리"
+}
