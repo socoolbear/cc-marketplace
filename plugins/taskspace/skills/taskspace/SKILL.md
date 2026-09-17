@@ -1,6 +1,6 @@
 ---
 name: taskspace
-description: bare 저장소 (`.bares/`) 로 여러 repo 를 중앙 등록해 두고, 이슈 단위 TASK-ID 로 `tasks/<TASK-ID>/` 아래에 repo 별 worktree 와 영구 보존 notes.md 를 격리해 관리하는 taskspace 워크스페이스 전용 스킬. "taskspace", "TASK-ID 로 작업 시작", "bare 저장소 등록", "tasks/ 아래에 worktree", "taskspace 워크스페이스 최초 세팅", "태스크 워크스페이스 정리 (done)", "태스크 worktree 에 최신 main 반영 (sync)", "taskspace 목록", "기존 체크아웃의 gitignore 된 로컬 파일을 .local/ 로 가져오기 (migrate)", ".env·키·참조 소스처럼 gitignore 된 필수 파일 공유" 같은 요청에 사용한다. `.bares/` 구조가 아닌 일반 우산 워크스페이스에 그때그때 worktree 만 깔아 달라는 요청은 이 스킬이 아니라 `worktree-setup` 이다.
+description: bare 저장소 (`.bares/`) 로 여러 repo 를 중앙 등록해 두고, 이슈 단위 TASK-ID 로 `tasks/<TASK-ID>/` 아래에 repo 별 worktree 와 영구 보존 notes.md 를 격리해 관리하는 taskspace 워크스페이스 전용 스킬. "taskspace", "TASK-ID 로 작업 시작", "bare 저장소 등록", "tasks/ 아래에 worktree", "taskspace 워크스페이스 최초 세팅", "태스크 워크스페이스 정리 (done)", "태스크 worktree 에 최신 main 반영 (sync)", "taskspace 목록", "태스크 색인 (index)", "지난 태스크 찾기", "기존 체크아웃의 gitignore 된 로컬 파일을 .local/ 로 가져오기 (migrate)", ".env·키·참조 소스처럼 gitignore 된 필수 파일 공유" 같은 요청에 사용한다. `.bares/` 구조가 아닌 일반 우산 워크스페이스에 그때그때 worktree 만 깔아 달라는 요청은 이 스킬이 아니라 `worktree-setup` 이다.
 ---
 
 # taskspace — bare 저장소 + tasks/<TASK-ID>/ 격리 작업 환경
@@ -10,7 +10,7 @@ description: bare 저장소 (`.bares/`) 로 여러 repo 를 중앙 등록해 두
 
 ## 1. 구조와 전제
 
-`.bares/` 에 여러 repo 를 bare 저장소로 중앙 등록해 두고, 이슈 하나(TASK-ID)마다 `tasks/<TASK-ID>/` 아래에 관련 repo 의 worktree 를 한 벌 모아 둔다. **워크스페이스 루트 자체가 git repo** 다 — `.gitignore`·`repos.txt`·`tasks/*/notes.md`·`tasks/*/CLAUDE.md` 만 추적하고, `.bares/`·`.local/`·`shared/`·각 worktree 는 ignore 한다.
+`.bares/` 에 여러 repo 를 bare 저장소로 중앙 등록해 두고, 이슈 하나(TASK-ID)마다 `tasks/<TASK-ID>/` 아래에 관련 repo 의 worktree 를 한 벌 모아 둔다. **워크스페이스 루트 자체가 git repo** 다 — `.gitignore`·`repos.txt`·`tasks/INDEX.md`·`tasks/*/notes.md`·`tasks/*/CLAUDE.md` 만 추적하고, `.bares/`·`.local/`·`shared/`·각 worktree 는 ignore 한다.
 
 ```
 <워크스페이스 루트>/            ← git repo (notes 추적용)
@@ -19,13 +19,15 @@ description: bare 저장소 (`.bares/`) 로 여러 repo 를 중앙 등록해 두
 ├── .bares/<repo>.git/           # ignore — bare 저장소
 ├── .local/<repo>/<상대경로>      # ignore — 비밀·참조 자료·개인 설정의 원본 (파일·디렉토리·외부 위치로의 심링크)
 ├── shared/                      # ignore — repo 밖에서도 의미 있는 자료 (배포 로그, QA 자료 등). notes.md 에서 경로로 참조
-└── tasks/<TASK-ID>/
-    ├── notes.md                 # 추적 — 영구 보존 (done 후에도 남음)
-    ├── CLAUDE.md                # 추적 — 선택. 작업 루트에서 세션 열 때만 작성
-    ├── .prompts/                # ignore — 이 태스크의 프롬프트·스크래치
-    └── <repo>/                  # ignore — worktree, 브랜치 feature/<TASK-ID>
-        ├── .env → ../../../.local/<repo>/.env             # 상대 심링크 (파일)
-        └── vendor-src → ../../../.local/<repo>/vendor-src  # 상대 심링크 (디렉토리)
+└── tasks/
+    ├── INDEX.md                 # 추적 — 생성 파일 (index 가 다시 씀, 직접 편집 금지)
+    └── <TASK-ID>/
+        ├── notes.md              # 추적 — 영구 보존 (done 후에도 남음)
+        ├── CLAUDE.md              # 추적 — 선택. 작업 루트에서 세션 열 때만 작성
+        ├── .prompts/              # ignore — 이 태스크의 프롬프트·스크래치
+        └── <repo>/                # ignore — worktree, 브랜치 feature/<TASK-ID>[-<슬러그>]
+            ├── .env → ../../../.local/<repo>/.env             # 상대 심링크 (파일)
+            └── vendor-src → ../../../.local/<repo>/vendor-src  # 상대 심링크 (디렉토리)
 ```
 
 루트는 `$TS root` 로 판별한다 (`TASKSPACE_ROOT` 환경변수 > cwd 부터 상위로 `.bares/` 또는 `repos.txt` 탐색 — clone 직후엔 `.bares/` 가 없어서 `repos.txt` 가 마커다). **루트를 찾지 못하면 taskspace 워크스페이스가 아직 없다는 뜻이다** — 추측으로 `.bares/` 를 만들지 말고 사용자에게 두 갈래를 제시해 고르게 한다:
@@ -55,7 +57,7 @@ git -C <체크아웃> status --ignored --short
 
 **분류는 경로·이름과 사용자 답으로만 한다 — 내용은 어느 위치에서도 열지 않는다.** 세 질문으로 가른다.
 
-1. **재생성 가능한가** (`node_modules`, 빌드 산출물, 태스크 스크래치 — 스크래치는 `tasks/<TASK-ID>/.prompts/` 가 자리다) → 올리지 않는다.
+1. **재생성 가능한가** (`node_modules`, 빌드 산출물, 태스크 스크래치 — 스크래치는 `tasks/<TASK-ID>/.prompts/` 가 자리다) → 올리지 않는다. 기존 체크아웃에 쌓인 **과거 태스크 이력 문서**(`.prompts/` 등)는 `tasks/<TASK-ID>/.prompts/` 로 쪼개지 않는다 — 코드·문서가 repo 안 경로로 참조하면 `.local/<repo>/` 에 통째로, 아니면 `shared/<repo>/` 에 두고 notes.md 에서 가리킨다. 자격증명(`ftp.env` 등)만 `.local/<repo>/.secrets/` 로 따로 빼면 `link` 대상이 작아진다.
 2. **repo 트리 안에 있어야 하는가** — 빌드·실행·repo 안 스크립트가 그 경로에서 읽거나, IDE·에이전트가 repo 트리 안에서 봐야 하는 자료 (`.env`, `keys/`, 코드가 참조하는 벤더 소스, `config/local.php`) → `.local/<repo>/` 에 두고 `link` 로 연결한다.
 3. **repo 밖에서도 의미 있는가** (배포 로그, QA 자료, 참조 문서) → `<root>/shared/` 에 두고 notes.md 에서 경로로 참조한다. `migrate` 대상이 아니다.
 
@@ -116,15 +118,19 @@ git -C <bare> ls-tree -r --name-only origin/<기본브랜치> \
 git -C <bare> show origin/<기본브랜치>:<path>
 ```
 
-모노레포는 앱 디렉토리 규칙이 루트 규칙보다 우선한다(`worktree-setup` 3절과 같은 원칙). 규칙이 `feat/<설명>` 처럼 TASK-ID 만으로 못 만드는 형식이면 설명을 사용자에게 받는다. 규칙이 있으면 `<repo>=<branch>`, 없으면 기본값 `feature/<TASK-ID>` 를 쓴다.
+모노레포는 앱 디렉토리 규칙이 루트 규칙보다 우선한다(`worktree-setup` 3절과 같은 원칙). 규칙이 `feat/<설명>` 처럼 TASK-ID 만으로 못 만드는 형식이면 설명을 사용자에게 받는다. 규칙이 있으면 `<repo>=<branch>`, 없으면 기본값 `feature/<TASK-ID>[-<슬러그>]` 를 쓴다.
+
+ID 가 번호형(`001`·`task-001`)이면 브랜치에 슬러그가 필수다 (순수 숫자 ID 는 스크립트가 거부한다). 사용자에게 **영문 kebab-case 슬러그**와 **사람용 제목**(한국어 가능)을 받는다. 앱 규칙 우선 원칙은 그대로 — 앱 규칙으로 `<repo>=<branch>` 를 쓰더라도 슬러그는 notes 기록용으로 받는다.
 
 **worktree 를 만들기 전에 브랜치명을 한 줄로 먼저 보고한다.** 브랜치는 PR·리뷰에 그대로 노출돼서, 만든 뒤 고치면 이미 늦다.
 
 ### 4-3. 실행
 
 ```bash
-$TS new <TASK-ID> [<repo>[=<branch>]...]
+$TS new <TASK-ID|next> [--slug <슬러그>] [--title <제목>] [<repo>[=<branch>]...]
 ```
+
+ID 를 지정받지 않았으면 `next` 로 자동 배정한다 (`001` 부터, 기존 접두사 계승, 접두사 혼재 시 오류 → ID 를 직접 받는다). `task-001` 접두사를 원하면 첫 태스크만 그 ID 로 만들면 이후 `next` 가 따라간다. `--title` 로 제목을 바로 넣는다 — 사후 편집 단계 없음.
 
 성공하면 stdout 마지막 줄에 태스크 디렉토리 절대경로가 출력된다. 실행 후 `notes.md` 의 "이슈 개요" 절을 사용자가 준 이슈 내용·링크로 채운다 (없으면 비워 둔다 — 추측하지 않는다).
 
@@ -136,10 +142,11 @@ $TS new <TASK-ID> [<repo>[=<branch>]...]
 - 4-2 에서 찾은 repo 별 규칙 문서 경로 표
 - 경계 — commit·push·PR 은 지시할 때만, 두 repo 를 한 커밋에 섞지 않는다, 의존성 미설치
 
-`@notes.md` 임포트는 하지 않는다 — 모든 세션의 컨텍스트를 갉아먹는다. repo 를 나중에 추가하면 표를 갱신한다.
+`@notes.md` 임포트는 하지 않는다 — 모든 세션의 컨텍스트를 갉아먹는다. repo 를 나중에 추가할 때는 `new <TASK-ID> <repo>` 만 치면 된다 (슬러그는 notes.md 에서 계승된다) — 추가 후 표를 갱신한다.
 
 ### 4-5. 보고
 
+- ID · 제목 · 브랜치
 - repo 별 경로 · 브랜치 · 기준 커밋
 - 연결된 심링크 목록 (`.local/<repo>/` 가 비어 있으면 2-1·2-2 절 안내)
 - `.prompts/` 경로
@@ -164,7 +171,7 @@ $TS done <TASK-ID>
 | `[locked]` | worktree 가 잠김 | 그 repo 만 건너뛰고 나머지 보고 |
 | `[offline]` | `fetch --prune` 실패 | 멈춘다 (stale 원격 상태로 판정하지 않는다) |
 
-`--delete-branch` 는 사용자가 말할 때만 붙인다. 완료 후 notes.md 는 보존된다는 사실과, 워크스페이스 repo 에 notes 변경이 미커밋 상태면 그 사실을 보고한다.
+`--delete-branch` 는 사용자가 말할 때만 붙인다. 완료 후 notes.md 는 보존되고 `- 완료 일시:` 줄이 추가되며 INDEX.md 가 갱신된다 — 워크스페이스 repo 에 2개 파일 diff. 미커밋 상태면 그 사실을 보고한다.
 
 ## 6. sync — 작업 중 기본 브랜치 반영
 
@@ -188,19 +195,24 @@ $TS sync <TASK-ID> [<repo>...] [--rebase]
 
 `sync` 는 끝에 `link` 를 다시 실행해 연결 상태를 재확인한다.
 
-## 7. list / repos
+## 7. list / index / repos
 
 ```bash
-$TS list    # tasks/* 목록: TASK-ID · worktree 있는 repo 수 (0 이면 archived) · 생성일
+$TS list    # tasks/* 목록: TASK-ID · worktree 있는 repo 수 (0 이면 archived) · 생성일 · TITLE. 끝에 tasks/INDEX.md 재생성
+$TS index   # tasks/INDEX.md 재생성만 (new·done·list 끝에도 자동 실행)
 $TS repos   # .bares/*.git 목록: 이름 · 기본 브랜치 · 열린 worktree 수 (repos.txt 에만 있으면 missing)
 ```
+
+**"지난 태스크 찾기" 요청은 `tasks/INDEX.md` 를 먼저 읽고 해당 `notes.md` 로 간다.** 제목을 고쳤으면 `$TS index` (또는 `list`) 로 재생성한다 — 색인은 손으로 고치지 않는다.
 
 ## 8. 경계
 
 - `.bares/` 와 worktree 밖에서 코드 repo 의 git 조작을 하지 않는다 — 항상 `git -C <repo>`.
 - 워크스페이스 repo(루트)의 commit·push 도 지시할 때만 한다.
 - 코드 수정·커밋·PR 은 지시할 때만 한다.
-- TASK-ID 는 `^[A-Za-z0-9][A-Za-z0-9._-]*$` 이면서 `git check-ref-format --branch "feature/<ID>"` 를 통과해야 한다 (`new`/`done` 이 스크립트에서 검증한다). `.`·`..`·`-x` 로 시작하는 값은 거부된다.
+- TASK-ID 는 `^[A-Za-z0-9][A-Za-z0-9._-]*$` 이면서 `git check-ref-format --branch "feature/<ID>"` 를 통과해야 한다 (`new`/`done` 이 스크립트에서 검증한다). `.`·`..`·`-x` 로 시작하는 값은 거부된다. `next` 는 예약어라 TASK-ID 로 못 쓴다.
+- 슬러그는 `^[a-z0-9][a-z0-9-]*$` 만 허용한다. 한 태스크 안에서 슬러그를 바꾸지 않는다 (계승된 값과 다른 `--slug` 는 오류).
+- `tasks/INDEX.md` 는 생성 파일이다 — 직접 편집하지 않는다. 제목을 고치려면 `notes.md` 첫 줄을 고친 뒤 `$TS index` 로 재생성한다.
 - 로컬 파일 후보의 내용은 어느 위치에서도 읽거나 출력하지 않는다 — 경로만 다룬다.
 - `.local/`·`shared/` 어디에 무엇을 올릴지는 사용자가 정한다. 추측으로 분류하지 않는다.
 - `migrate` 는 복사될 경로 목록을 보여 주고 확인받은 뒤, 지시할 때만 실행한다.

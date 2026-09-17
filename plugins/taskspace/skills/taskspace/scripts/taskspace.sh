@@ -8,6 +8,7 @@
 #   ├── .bares/<repo>.git/  bare 저장소 (ignore). info/exclude 에 링크 경로를 등록 (전 worktree 적용)
 #   ├── .local/<repo>/      repo 별 로컬 파일 원본 (.env·키·참조 소스, ignore) → worktree 에 심링크
 #   ├── shared/             repo 밖에 둬도 되는 공용 자료 (ignore)
+#   ├── tasks/INDEX.md      태스크 색인 (추적, 생성 파일 — index 가 notes.md 만으로 다시 씀)
 #   └── tasks/<ID>/         notes.md (추적) · .prompts/ (ignore) · <repo>/ worktree (ignore)
 #
 # macOS 기본 bash 3.2 호환 (연관배열·mapfile 사용 금지, 빈 배열은 ${arr[@]+"${arr[@]}"}).
@@ -33,13 +34,16 @@ usage() {
   init [<dir>] [<url>[=<name>]...]           최초 세팅 (디렉토리 · git init · .gitignore · bare 등록)
   add  [<url>[=<name>]...]                   bare 등록. 인자 없으면 repos.txt 의 미등록 항목 전부
   repos                                      등록된 repo 와 기본 브랜치 · 열린 worktree 수
-  new  <TASK-ID> [<repo>[=<branch>]...]      태스크 생성 + worktree + notes.md + 심링크
+  new  <TASK-ID|next> [--slug <슬러그>] [--title <제목>] [<repo>[=<branch>]...]
+                                             태스크 생성 + worktree + notes.md + 심링크. next 는 다음 번호 자동 배정,
+                                             슬러그가 있으면 브랜치 feature/<ID>-<슬러그> (번호만인 ID 는 슬러그 필수)
   link [<TASK-ID> [<repo>...]]               .local/<repo>/ 를 worktree 에 상대 심링크 (디렉토리 통째 가능). 인자 없으면 전 태스크
   migrate <repo> <checkout> <rel-path>...    기존 체크아웃의 gitignore 된 파일을 .local/<repo>/ 로 복사 (원본은 그대로)
   sync <TASK-ID> [<repo>...] [--rebase]      worktree 에 origin/<기본 브랜치> 반영 (merge 기본)
   done <TASK-ID> [--merged] [--discard-untracked] [--delete-branch] [--force]
                                              worktree 제거 (notes.md 보존). 안전 검사 통과 시에만
-  list                                       태스크 목록
+  list                                       태스크 목록 (TITLE 은 notes.md 첫 줄). 끝에 index 도 실행
+  index                                      tasks/INDEX.md 재생성 (new · done · list 끝에 자동 실행)
 
 종료코드: 1 인자 오류 · 2 루트 없음 · 3 repo 미지정 · 4 done 차단 · 5 sync 미완료
 EOF
@@ -80,10 +84,139 @@ require_root() {
 validate_id() {
   local id=$1
 
+  [[ "${id}" != "next" ]] || die 1 "TASK-ID 'next' 는 예약어입니다 (new next 로 다음 번호 자동 배정)"
   [[ "${id}" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] \
     || die 1 "TASK-ID 형식 오류: '${id}' (허용: ^[A-Za-z0-9][A-Za-z0-9._-]*$)"
   git check-ref-format --branch "feature/${id}" >/dev/null 2>&1 \
     || die 1 "TASK-ID 가 브랜치명으로 부적합합니다: '${id}'"
+}
+
+validate_slug() {
+  [[ "$1" =~ ^[a-z0-9][a-z0-9-]*$ ]] \
+    || die 1 "슬러그 형식 오류: '$1' (영문 소문자·숫자·하이픈 kebab-case)"
+}
+
+# tasks/ 의 번호형 디렉토리 (<접두사><숫자>) 중 최대 번호 +1 을 3자리로. 접두사는 계승하되 둘 이상 섞이면 거부
+next_id() {
+  local d base prefix num max=0 seen=0 first_prefix=""
+
+  for d in "${ROOT}"/tasks/*/; do
+    [[ -d "${d}" ]] || continue
+    base="$(basename "${d}")"
+    [[ "${base}" =~ ^([A-Za-z._-]*)([0-9]+)$ ]] || continue
+    prefix="${BASH_REMATCH[1]}"
+    num=$((10#${BASH_REMATCH[2]}))
+
+    if [[ "${seen}" -eq 0 ]]; then
+      first_prefix="${prefix}"
+      seen=1
+    elif [[ "${prefix}" != "${first_prefix}" ]]; then
+      die 1 "번호형 TASK-ID 의 접두사가 섞여 있어 next 를 정할 수 없습니다 ('${first_prefix}' 와 '${prefix}') — ID 를 직접 지정하세요"
+    fi
+    [[ "${num}" -gt "${max}" ]] && max="${num}"
+  done
+
+  printf '%s%03d\n' "${first_prefix}" "$((max + 1))"
+}
+
+# notes.md 의 '- <라벨>: <값>' 줄에서 값 (없으면 빈 문자열)
+notes_field() {
+  local notes=$1 label=$2 line
+
+  [[ -f "${notes}" ]] || return 0
+  line="$(grep -m1 -- "^- ${label}:" "${notes}" || true)"
+  line="${line#*:}"
+  line="${line# }"
+  printf '%s\n' "${line}"
+}
+
+# notes.md 첫 '# ' 줄에서 '<ID> — ' 접두사를 뗀 제목. 없거나 ID 와 같으면 '-'
+notes_title() {
+  local notes=$1 id=$2 title
+
+  title="$(grep -m1 '^# ' "${notes}" 2>/dev/null || true)"
+  title="${title#\# }"
+  [[ "${title}" == "${id} — "* ]] && title="${title#"${id} — "}"
+  [[ -n "${title}" && "${title}" != "${id}" ]] || title="-"
+  printf '%s\n' "${title}"
+}
+
+# notes.md 의 '- 관련 repo:' 줄에 '<name> (<branch>)' 를 없을 때만 덧붙인다. 줄 자체가 없으면 건드리지 않는다
+notes_add_repo() {
+  local notes=$1 name=$2 br=$3 tmp
+
+  [[ -f "${notes}" ]] || return 0
+  grep -q -- '^- 관련 repo:' "${notes}" || return 0
+  grep -m1 -- '^- 관련 repo:' "${notes}" | grep -qF -- " ${name} (" && return 0
+
+  tmp="${notes}.tmp.$$"
+  awk -v item="${name} (${br})" '
+    !done && /^- 관련 repo:/ { sub(/[[:space:]]+$/, ""); $0 = $0 ($0 ~ /:$/ ? " " : ", ") item; done = 1 }
+    { print }
+  ' "${notes}" > "${tmp}"
+  mv -- "${tmp}" "${notes}"
+}
+
+# notes.md 에 '- 완료 일시:' 줄을 없을 때만 넣는다 — '- 생성 일시:' 줄 뒤, 없으면 제목 줄 뒤
+notes_mark_done() {
+  local notes=$1 tmp
+
+  [[ -f "${notes}" ]] || return 0
+  grep -q -- '^- 완료 일시:' "${notes}" && return 0
+
+  tmp="${notes}.tmp.$$"
+  awk -v line="- 완료 일시: $(date '+%Y-%m-%d %H:%M')" '
+    { print }
+    !done && /^- 생성 일시:/ { print line; done = 1 }
+    END { if (!done) print line }
+  ' "${notes}" > "${tmp}"
+  mv -- "${tmp}" "${notes}"
+}
+
+# 템플릿을 채워 stdout 으로. sed 대신 bash 치환 — 제목의 & | \ 가 그대로 들어간다
+render_notes() {
+  local id=$1 slug=$2 title=$3 tpl heading now
+
+  heading="${id}"
+  [[ -n "${title:-${slug}}" ]] && heading="${id} — ${title:-${slug}}"
+  now="$(date '+%Y-%m-%d %H:%M')"
+  tpl="$(cat "${TEMPLATE}")"
+  tpl="${tpl//\{\{TITLE\}\}/${heading}}"
+  tpl="${tpl//\{\{DATE\}\}/${now}}"
+  if [[ -n "${slug}" ]]; then
+    tpl="${tpl//\{\{SLUG\}\}/${slug}}"
+    printf '%s\n' "${tpl}"
+  else
+    printf '%s\n' "${tpl}" | grep -v -- '{{SLUG}}'
+  fi
+}
+
+# tasks/INDEX.md 를 notes.md 만으로 다시 쓴다 (머신 로컬 상태는 넣지 않는다)
+write_index() {
+  local index="${ROOT}/tasks/INDEX.md" tmp d id notes title created finished status
+
+  tmp="${index}.tmp.$$"
+  {
+    printf '# 태스크 색인\n\n'
+    # shellcheck disable=SC2016
+    printf '<!-- 생성 파일 — `taskspace.sh index` 가 다시 씀. 직접 편집 금지. 제목은 각 notes.md 첫 줄에서 고친다 -->\n\n'
+    printf '| ID | 제목 | 상태 | repo (브랜치) | 생성 | 완료 |\n|---|---|---|---|---|---|\n'
+
+    for d in "${ROOT}"/tasks/*/; do
+      [[ -d "${d}" ]] || continue
+      id="$(basename "${d}")"
+      notes="${d}notes.md"
+      created="$(notes_field "${notes}" '생성 일시')"
+      finished="$(notes_field "${notes}" '완료 일시')"
+      title="$(notes_title "${notes}" "${id}")"
+      status="진행 중"
+      [[ -n "${finished}" ]] && status="완료"
+      printf '| [%s](%s/notes.md) | %s | %s | %s | %s | %s |\n' \
+        "${id}" "${id}" "${title//|/\\|}" "${status}" \
+        "$(notes_field "${notes}" '관련 repo')" "${created%% *}" "${finished%% *}"
+    done
+  } > "${tmp}"
+  mv -- "${tmp}" "${index}"
 }
 
 bare_path() { printf '%s/.bares/%s.git\n' "${ROOT}" "$1"; }
@@ -435,23 +568,63 @@ cmd_new() {
   [[ $# -ge 1 ]] || usage
   require_root
 
-  local id=$1 task_dir spec name br bare def wt rc=0 names=""
+  local id=$1 task_dir notes spec name br bare def wt rc=0 slug="" title="" existing from_next=0 specs=()
   shift
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --slug)  [[ $# -ge 2 ]] || die 1 "--slug 에 값이 없습니다"; slug=$2; shift 2 ;;
+      --title) [[ $# -ge 2 ]] || die 1 "--title 에 값이 없습니다"; title=$2; shift 2 ;;
+      --*) die 1 "알 수 없는 옵션: $1" ;;
+      *) specs+=("$1"); shift ;;
+    esac
+  done
+
+  if [[ "${id}" == "next" ]]; then
+    id="$(next_id)"
+    from_next=1
+    log "🔢 다음 TASK-ID: ${id}"
+  fi
   validate_id "${id}"
   task_dir="${ROOT}/tasks/${id}"
+  notes="${task_dir}/notes.md"
 
-  if [[ $# -eq 0 ]]; then
+  if [[ ${#specs[@]} -eq 0 ]]; then
     cmd_repos
-    die 3 "repo 를 지정하세요: new ${id} <repo>[=<branch>]..."
+    die 3 "repo 를 지정하세요: new ${id} [--slug <슬러그>] [--title <제목>] <repo>[=<branch>]..."
   fi
 
+  # 슬러그: 명시 > notes.md 계승. 한 태스크 안에서 브랜치 규칙이 둘이 되지 않게 불일치는 거부
+  existing="$(notes_field "${notes}" '슬러그')"
+  if [[ -n "${slug}" ]]; then
+    validate_slug "${slug}"
+    [[ -z "${existing}" || "${existing}" == "${slug}" ]] \
+      || die 1 "이 태스크의 슬러그는 이미 '${existing}' 입니다 (notes.md). 한 태스크 안에서 슬러그를 바꾸지 않습니다"
+  else
+    slug="${existing}"
+  fi
+  if [[ "${id}" =~ ^[0-9]+$ && -z "${slug}" && "${specs[*]}" != *=* ]]; then
+    die 1 "번호만인 TASK-ID 는 브랜치에 슬러그가 필요합니다: new ${id} --slug <슬러그> ... (또는 <repo>=<branch> 로 직접 지정)"
+  fi
+
+  # next 로 정한 디렉토리는 -p 없이 만들어 동시 실행 충돌을 실패로 드러낸다
+  if [[ "${from_next}" -eq 1 ]]; then
+    mkdir -- "${task_dir}" || die 1 "TASK-ID ${id} 가 방금 생겼습니다 — 다시 실행하세요"
+  fi
   mkdir -p "${task_dir}/.prompts"
 
-  for spec in "$@"; do
+  if [[ ! -f "${notes}" ]]; then
+    [[ -f "${TEMPLATE}" ]] || die 1 "템플릿이 없습니다: ${TEMPLATE}"
+    render_notes "${id}" "${slug}" "${title}" > "${notes}"
+    log "📝 notes.md 생성"
+  fi
+
+  for spec in "${specs[@]}"; do
     name="${spec%%=*}"
-    br="feature/${id}"
+    br="feature/${id}${slug:+-${slug}}"
     [[ "${spec}" == *=* ]] && br="${spec#*=}"
-    names="${names}${names:+ }${name}"
+    git check-ref-format --branch "${br}" >/dev/null 2>&1 \
+      || { log "⚠️  [${name}] 브랜치명 부적합: '${br}'"; rc=1; continue; }
 
     bare="$(bare_path "${name}")"
     if [[ ! -d "${bare}" ]]; then
@@ -476,6 +649,7 @@ cmd_new() {
 
     if git -C "${bare}" worktree list --porcelain | grep -qxF -- "worktree ${wt}"; then
       log "🔄 [${name}] worktree 이미 있음: ${wt}"
+      notes_add_repo "${notes}" "${name}" "$(git -C "${wt}" symbolic-ref --short HEAD 2>/dev/null || printf '%s' "${br}")"
       link_repo "${id}" "${name}"
       continue
     fi
@@ -495,18 +669,11 @@ cmd_new() {
       git -C "${bare}" worktree add --no-track -b "${br}" -- "${wt}" "origin/${def}" || { rc=1; continue; }
     fi
 
+    notes_add_repo "${notes}" "${name}" "${br}"
     link_repo "${id}" "${name}"
   done
 
-  if [[ ! -f "${task_dir}/notes.md" ]]; then
-    [[ -f "${TEMPLATE}" ]] || die 1 "템플릿이 없습니다: ${TEMPLATE}"
-    sed -e "s|{{TASK_ID}}|${id}|g" \
-        -e "s|{{DATE}}|$(date '+%Y-%m-%d %H:%M')|g" \
-        -e "s|{{REPOS}}|${names}|g" \
-        "${TEMPLATE}" > "${task_dir}/notes.md"
-    log "📝 notes.md 생성"
-  fi
-
+  write_index
   log "✅ 태스크 준비: ${task_dir}"
   printf '%s\n' "${task_dir}"
   return "${rc}"
@@ -778,7 +945,7 @@ cmd_done() {
   [[ "${blocks}" -eq 0 ]] || die 4 "차단 ${blocks}건 — 아무것도 지우지 않았습니다"
 
   # 2단계: 제거
-  local rc=0 br remove_flags
+  local rc=0 br remove_flags removed=0
 
   for name in ${names}; do
     case " ${skipped} " in *" ${name} "*) continue ;; esac
@@ -801,6 +968,7 @@ cmd_done() {
       continue
     fi
     git -C "${bare}" worktree prune
+    removed=$((removed + 1))
     log "🗑️  [${name}] worktree 제거"
 
     [[ "${delete_branch}" -eq 1 && -n "${br}" ]] || continue
@@ -814,7 +982,15 @@ cmd_done() {
     fi
   done
 
-  log "📄 notes.md 보존: ${task_dir}/notes.md"
+  # 이번 실행에서 지웠고 아무것도 안 남았을 때만 완료로 기록 (재실행·[locked] 잔류 시엔 찍지 않는다)
+  if [[ "${removed}" -gt 0 ]] && [[ -z "$(task_worktrees "${task_dir}")" ]]; then
+    notes_mark_done "${task_dir}/notes.md"
+    log "📄 notes.md 에 완료 일시 기록 (보존): ${task_dir}/notes.md"
+  else
+    log "📄 notes.md 보존: ${task_dir}/notes.md"
+  fi
+  write_index
+  log "📇 tasks/INDEX.md 갱신"
   return "${rc}"
 }
 
@@ -825,7 +1001,7 @@ cmd_list() {
 
   local d id n created status
 
-  printf '%-20s %-12s %s\n' "TASK" "STATUS" "CREATED"
+  printf '%-20s %-12s %-16s %s\n' "TASK" "STATUS" "CREATED" "TITLE"
 
   for d in "${ROOT}"/tasks/*/; do
     [[ -d "${d}" ]] || continue
@@ -835,8 +1011,16 @@ cmd_list() {
     created="${created#*: }"
     status="active(${n})"
     [[ "${n}" -eq 0 ]] && status="archived"
-    printf '%-20s %-12s %s\n' "${id}" "${status}" "${created:--}"
+    printf '%-20s %-12s %-16s %s\n' "${id}" "${status}" "${created:--}" "$(notes_title "${d}notes.md" "${id}")"
   done
+
+  write_index
+}
+
+cmd_index() {
+  require_root
+  write_index
+  log "📇 tasks/INDEX.md 갱신"
 }
 
 # ---------------------------------------------------------------- main
@@ -856,6 +1040,7 @@ case "${cmd}" in
   sync)  cmd_sync "$@" ;;
   done)  cmd_done "$@" ;;
   list)  cmd_list ;;
+  index) cmd_index ;;
   -h|--help|help) usage ;;
   *) log "알 수 없는 서브커맨드: ${cmd}"; usage ;;
 esac

@@ -1,7 +1,8 @@
-# {{TASK_ID}}
+# {{TITLE}}
 
 - 생성 일시: {{DATE}}
-- 관련 repo: {{REPOS}}
+- 슬러그: {{SLUG}}
+- 관련 repo:
 
 ## 이슈 개요 · 원문 링크
 
