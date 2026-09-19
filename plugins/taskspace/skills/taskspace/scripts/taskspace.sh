@@ -43,7 +43,8 @@ usage() {
   migrate <repo> <checkout> <rel-path>...    기존 체크아웃의 gitignore 된 파일을 .local/<repo>/ 로 복사 (원본은 그대로)
   sync <TASK-ID> [<repo>...] [--rebase]      worktree 에 origin/<기본 브랜치> 반영 (merge 기본)
   done <TASK-ID> [--merged] [--discard-untracked] [--delete-branch] [--force]
-                                             worktree 제거 (notes.md 보존). 안전 검사 통과 시에만
+                                             worktree 제거 (notes.md 보존). 안전 검사 통과 시에만.
+                                             --delete-branch 는 로컬 브랜치와, 병합이 확인된 경우 원격 브랜치까지 삭제
   list                                       태스크 목록 (TITLE 은 notes.md 첫 줄). 끝에 index 도 실행
   index                                      tasks/INDEX.md 재생성 (new · done · list 끝에 자동 실행)
 
@@ -970,7 +971,7 @@ cmd_done() {
   [[ "${blocks}" -eq 0 ]] || die 4 "차단 ${blocks}건 — 아무것도 지우지 않았습니다"
 
   # 2단계: 제거
-  local rc=0 br remove_flags removed=0
+  local rc=0 br remove_flags removed=0 containing
 
   for name in ${names}; do
     case " ${skipped} " in *" ${name} "*) continue ;; esac
@@ -998,12 +999,25 @@ cmd_done() {
 
     [[ "${delete_branch}" -eq 1 && -n "${br}" ]] || continue
 
-    if git -C "${bare}" branch -r --contains "${br}" | grep -q .; then
-      git -C "${bare}" branch -D "${br}" >/dev/null && log "🧹 [${name}] 브랜치 삭제: ${br} (원격에 사본 있음)"
-    elif [[ "${merged}" -eq 1 ]]; then
-      git -C "${bare}" branch -D "${br}" >/dev/null && log "🧹 [${name}] 브랜치 삭제: ${br} (--merged)"
-    else
+    # 브랜치 끝 커밋을 담은 원격 브랜치 목록. origin/<br> 자신뿐이면 push 만 된 것, 다른 브랜치 (기본 브랜치) 도 있으면 병합된 것
+    containing="$(git -C "${bare}" branch -r --contains "${br}" | sed 's/^[ *]*//')"
+    if [[ -z "${containing}" && "${merged}" -eq 0 ]]; then
       log "ℹ️  [${name}] 브랜치 유지: ${br} (원격에 사본 없음 — 병합 확인 후 --merged 와 함께)"
+      continue
+    fi
+    git -C "${bare}" branch -D "${br}" >/dev/null && log "🧹 [${name}] 로컬 브랜치 삭제: ${br}"
+
+    # 원격 브랜치는 병합이 확인됐을 때만 지운다 — push 만 된 브랜치를 지우면 작업이 사라진다
+    git -C "${bare}" rev-parse --verify --quiet "refs/remotes/origin/${br}" >/dev/null || continue
+    if [[ "${merged}" -eq 1 ]] || printf '%s\n' "${containing}" | grep -qvx "origin/${br}"; then
+      if git -C "${bare}" push --quiet origin --delete "${br}"; then
+        log "🧹 [${name}] 원격 브랜치 삭제: origin/${br}"
+      else
+        log "⚠️  [${name}] 원격 브랜치 삭제 실패: origin/${br}"
+        rc=1
+      fi
+    else
+      log "ℹ️  [${name}] 원격 브랜치 유지: origin/${br} (병합 확인 안 됨 — 병합 후 --merged 와 함께)"
     fi
   done
 
