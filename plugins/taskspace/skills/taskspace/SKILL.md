@@ -1,6 +1,6 @@
 ---
 name: taskspace
-description: bare 저장소 (`.bares/`) 로 여러 repo 를 중앙 등록해 두고, 이슈 단위 TASK-ID 로 `tasks/<TASK-ID>/` 아래에 repo 별 worktree 와 영구 보존 notes.md 를 격리해 관리하는 taskspace 워크스페이스 전용 스킬. "taskspace", "TASK-ID 로 작업 시작", "bare 저장소 등록", "tasks/ 아래에 worktree", "taskspace 워크스페이스 최초 세팅", "태스크 워크스페이스 정리 (done)", "태스크 worktree 에 최신 main 반영 (sync)", "taskspace 목록", "태스크 색인 (index)", "지난 태스크 찾기", "기존 체크아웃의 gitignore 된 로컬 파일을 .local/ 로 가져오기 (migrate)", ".env·키·참조 소스처럼 gitignore 된 필수 파일 공유" 같은 요청에 사용한다. `.bares/` 구조가 아닌 일반 우산 워크스페이스에 그때그때 worktree 만 깔아 달라는 요청은 이 스킬이 아니라 `worktree-setup` 이다.
+description: bare 저장소 (`.bares/`) 로 여러 repo 를 중앙 등록해 두고, 이슈 단위 TASK-ID 로 `tasks/<TASK-ID>/` 아래에 repo 별 worktree 와 영구 보존 notes.md 를 격리해 관리하는 taskspace 워크스페이스 전용 스킬. "taskspace", "TASK-ID 로 작업 시작", "bare 저장소 등록", "tasks/ 아래에 worktree", "taskspace 워크스페이스 최초 세팅", "태스크 워크스페이스 정리 (done)", "태스크 보류 (hold)", "태스크 폐기 (abandon)", "보류·폐기한 태스크 재개 (resume)", "태스크 worktree 에 최신 main 반영 (sync)", "taskspace 목록", "태스크 색인 (index)", "지난 태스크 찾기", "끝난 태스크를 archive/ 로 옮기기", "스킬 업데이트 반영 (upgrade)", "워크스페이스를 새 버전 구조로", "기존 체크아웃의 gitignore 된 로컬 파일을 .local/ 로 가져오기 (migrate)", ".env·키·참조 소스처럼 gitignore 된 필수 파일 공유" 같은 요청에 사용한다. `.bares/` 구조가 아닌 일반 우산 워크스페이스에 그때그때 worktree 만 깔아 달라는 요청은 이 스킬이 아니라 `worktree-setup` 이다.
 ---
 
 # taskspace — bare 저장소 + tasks/<TASK-ID>/ 격리 작업 환경
@@ -10,7 +10,7 @@ description: bare 저장소 (`.bares/`) 로 여러 repo 를 중앙 등록해 두
 
 ## 1. 구조와 전제
 
-`.bares/` 에 여러 repo 를 bare 저장소로 중앙 등록해 두고, 이슈 하나(TASK-ID)마다 `tasks/<TASK-ID>/` 아래에 관련 repo 의 worktree 를 한 벌 모아 둔다. **워크스페이스 루트 자체가 git repo** 다 — `.gitignore`·`repos.txt`·`tasks/CLAUDE.md`·`tasks/INDEX.md`·`tasks/*/notes.md`·`tasks/*/CLAUDE.md` 만 추적하고, `.bares/`·`.local/`·`shared/`·각 worktree 는 ignore 한다.
+`.bares/` 에 여러 repo 를 bare 저장소로 중앙 등록해 두고, 이슈 하나(TASK-ID)마다 `tasks/<TASK-ID>/` 아래에 관련 repo 의 worktree 를 한 벌 모아 둔다. 태스크가 끝나면(완료·보류·폐기) `archive/<TASK-ID>/` 로 옮겨 진행 중 목록에서 빠진다 — worktree 는 없고 notes.md·CLAUDE.md 등 추적 파일만 남는다. **워크스페이스 루트 자체가 git repo** 다 — `.gitignore`·`repos.txt`·`tasks/CLAUDE.md`·`tasks/INDEX.md`·`tasks/*/notes.md`·`tasks/*/CLAUDE.md`·`archive/*/notes.md`·`archive/*/CLAUDE.md` 만 추적하고, `.bares/`·`.local/`·`shared/`·각 worktree 는 ignore 한다.
 
 ```
 <워크스페이스 루트>/            ← git repo (notes 추적용)
@@ -19,16 +19,19 @@ description: bare 저장소 (`.bares/`) 로 여러 repo 를 중앙 등록해 두
 ├── .bares/<repo>.git/           # ignore — bare 저장소
 ├── .local/<repo>/<상대경로>      # ignore — 비밀·참조 자료·개인 설정의 원본 (파일·디렉토리·외부 위치로의 심링크)
 ├── shared/                      # ignore — repo 밖에서도 의미 있는 자료 (배포 로그, QA 자료 등). notes.md 에서 경로로 참조
-└── tasks/
-    ├── CLAUDE.md                # 추적 — 작업 지도 (init/new 가 없으면 생성. 상위라 worktree 세션에도 실림)
-    ├── INDEX.md                 # 추적 — 생성 파일 (index 가 다시 씀, 직접 편집 금지)
-    └── <TASK-ID>/
-        ├── notes.md             # 추적 — 영구 보존 (done 후에도 남음)
-        ├── CLAUDE.md            # 추적 — 선택. repo 가 둘 이상일 때 규칙 문서 경로 표
-        └── <repo>/              # ignore — worktree, 브랜치 feature/<TASK-ID>[-<슬러그>]
-            ├── .prompts/                                      # info/exclude — 스크래치, done 때 함께 삭제
-            ├── .env → ../../../.local/<repo>/.env             # 상대 심링크 (파일)
-            └── vendor-src → ../../../.local/<repo>/vendor-src  # 상대 심링크 (디렉토리)
+├── tasks/
+│   ├── CLAUDE.md                # 추적 — 작업 지도 (init/new 가 없으면 생성. 상위라 worktree 세션에도 실림)
+│   ├── INDEX.md                 # 추적 — 생성 파일 (index 가 다시 씀, 직접 편집 금지)
+│   └── <TASK-ID>/                # 진행 중
+│       ├── notes.md             # 추적 — 영구 보존 (archive 이동 후에도 남음)
+│       ├── CLAUDE.md            # 추적 — 선택. repo 가 둘 이상일 때 규칙 문서 경로 표
+│       └── <repo>/              # ignore — worktree, 브랜치 feature/<TASK-ID>[-<슬러그>]
+│           ├── .prompts/                                      # info/exclude — 스크래치, done/hold/abandon 때 함께 삭제
+│           ├── .env → ../../../.local/<repo>/.env             # 상대 심링크 (파일)
+│           └── vendor-src → ../../../.local/<repo>/vendor-src  # 상대 심링크 (디렉토리)
+└── archive/<TASK-ID>/            # 끝난 태스크 (완료·보류·폐기) — worktree 없음, done/hold/abandon 이 이동
+    ├── notes.md                  # 추적 — 상태·일시·사유·보존 브랜치 기록
+    └── CLAUDE.md                 # 추적 — 선택 (있었으면 그대로)
 ```
 
 루트는 `$TS root` 로 판별한다 (`TASKSPACE_ROOT` 환경변수 > cwd 부터 상위로 `.bares/` 또는 `repos.txt` 탐색 — clone 직후엔 `.bares/` 가 없어서 `repos.txt` 가 마커다). **루트를 찾지 못하면 taskspace 워크스페이스가 아직 없다는 뜻이다** — 추측으로 `.bares/` 를 만들지 말고 사용자에게 두 갈래를 제시해 고르게 한다:
@@ -145,6 +148,8 @@ ID 를 지정받지 않았으면 `next` 로 자동 배정한다 (`001` 부터, �
 
 1.3.0 이전 태스크의 CLAUDE.md 는 그대로 둬도 되나, 지도와 겹치는 경계 목록은 지운다.
 
+2.0.0 이전에 만든 `tasks/CLAUDE.md` 는 `init`/`new` 가 이미 있으면 건드리지 않는다 — `upgrade` 를 실행하면 표식(`<!-- taskspace:begin -->`~`<!-- taskspace:end -->`) 형식으로 자동 반영된다 (9절).
+
 ### 4-5. 보고
 
 - ID · 제목 · 브랜치
@@ -172,7 +177,37 @@ $TS done <TASK-ID>
 | `[locked]` | worktree 가 잠김 | 그 repo 만 건너뛰고 나머지 보고 |
 | `[offline]` | `fetch --prune` 실패 | 멈춘다 (stale 원격 상태로 판정하지 않는다) |
 
-`--delete-branch` 는 사용자가 말할 때만 붙인다. 로컬 브랜치를 지우고, **병합이 확인된 경우** (브랜치 끝 커밋이 기본 브랜치 `origin/<def>` 에 포함돼 있거나 `--merged`) 원격 브랜치 `origin/<branch>` 도 지운다. 다른 feature 브랜치에만 포함된 경우 (stacked branch) 는 병합으로 보지 않는다. push 만 되고 병합이 안 된 브랜치는 원격에 남기고 그 사실을 알린다 — 지우려면 병합 후 `--merged` 와 함께 다시 실행하거나 사용자가 직접 지운다. 완료 후 notes.md 는 보존되고 `- 완료 일시:` 줄이 추가되며 INDEX.md 가 갱신된다 — 워크스페이스 repo 에 2개 파일 diff. 미커밋 상태면 그 사실을 보고한다.
+`--delete-branch` 는 사용자가 말할 때만 붙인다. 로컬 브랜치를 지우고, **병합이 확인된 경우** (브랜치 끝 커밋이 기본 브랜치 `origin/<def>` 에 포함돼 있거나 `--merged`) 원격 브랜치 `origin/<branch>` 도 지운다. 다른 feature 브랜치에만 포함된 경우 (stacked branch) 는 병합으로 보지 않는다. push 만 되고 병합이 안 된 브랜치는 원격에 남기고 그 사실을 알린다 — 지우려면 병합 후 `--merged` 와 함께 다시 실행하거나 사용자가 직접 지운다.
+
+태스크에 worktree 가 하나도 안 남으면 (전부 제거했거나, 애초에 worktree 가 없던 레거시 태스크) notes.md 에 `- 상태: 완료`·`- 완료 일시:` 를 기록한 뒤 `tasks/<ID>` 를 `archive/<ID>` 로 옮기고 INDEX.md 를 갱신한다 — 워크스페이스 repo 에 notes.md 이동 + INDEX.md 갱신 diff. `[locked]` 로 건너뛴 repo 가 남으면 옮기지 않고 그 사실을 보고한다. 미커밋 상태면 그 사실을 보고한다.
+
+1.x 에서 만든, worktree 없이 완료만 된 태스크(`list` 가 `idle` 로 보여 준다)도 `done <ID>` 로 옮길 수 있다 — 이미 있는 `- 완료 일시:` 는 보존되고 `- 상태: 완료` 만 추가된다. 여러 개를 한 번에 옮기려면 9절의 `upgrade` 를 쓴다.
+
+## 5-1. hold / abandon / resume — 보류 · 폐기 · 재개
+
+지금 당장 끝내지 않지만 "이 태스크는 열어 둔 목록에서 빼고 싶다" 는 요청에 쓴다. 며칠 안에 다시 볼 정도면 명령 없이 `tasks/` 에 그대로 둔다 — hold 는 worktree 를 지우는 작업이라 되돌리려면 `resume` 을 다시 타야 한다.
+
+```bash
+$TS hold    <TASK-ID> [--reason <사유>] [--discard-untracked] [--force]
+$TS abandon <TASK-ID> [--reason <사유>] [--discard-untracked] [--delete-branch] [--force]
+$TS resume  <TASK-ID> [<repo>[=<branch>]...]
+```
+
+| | done | hold | abandon |
+|---|---|---|---|
+| worktree | 제거 | 제거 | 제거 |
+| notes.md | `- 상태: 완료` | `- 상태: 보류` | `- 상태: 폐기` |
+| `archive/` 이동 | 함 | 함 | 함 |
+| `- 보존 브랜치:` 기록 | 안 함 | 함 (제거 전) | 함 (제거 전) |
+| `[unpushed]` 대응 | `--merged` 로 우회 가능 | push 후 재실행 (`--force` 로만 무시) | push 후 재실행 (`--force` 로만 무시) |
+| `--delete-branch` | 됨 (병합 확인 시 원격도) | **거부** (브랜치 지우면 재개 불가) | 됨 — **로컬만**, 원격은 절대 안 지움 |
+| `--merged` | 됨 | 거부 | 거부 |
+
+`hold`·`abandon` 이 `[unpushed]` 를 막는 이유는 병합 여부가 아니라 백업이다 — push 하지 않은 채 worktree 를 지우면 그 브랜치는 이 머신의 `.bares/` 안에만 남아서, 다른 머신에서 워크스페이스 repo 를 clone 하면 코드가 통째로 사라진 것처럼 보인다. `[dirty]` 도 마찬가지로 "WIP 커밋 후 push" 를 안내만 한다 — 스킬이 대신 커밋하지 않는다 (사용자가 지시하지 않은 커밋은 하지 않는다는 8절 원칙).
+
+`--reason` 은 **사용자에게 받아서** 넘긴다 (추측해서 채우지 않는다). notes.md 에는 `- 사유:` 로 남는다.
+
+`resume` 은 `archive/<ID>` 를 `tasks/<ID>` 로 되돌리고, 이전 상태·일시·사유를 `- 재개 기록:` 한 줄로 옮긴 뒤 상태 줄들을 지운다. repo 를 지정하면 그걸로, 안 하면 hold/abandon 이 남긴 `- 보존 브랜치:` 로 worktree 를 그 브랜치 그대로 재생성한다 (둘 다 없으면 이동만 하고 `new <ID> <repo>` 를 안내). 끝나면 기본 브랜치가 그동안 전진했을 수 있으니 `sync <ID>` 를 안내한다.
 
 ## 6. sync — 작업 중 기본 브랜치 반영
 
@@ -199,12 +234,15 @@ $TS sync <TASK-ID> [<repo>...] [--rebase]
 ## 7. list / index / repos
 
 ```bash
-$TS list    # tasks/* 목록: TASK-ID · worktree 있는 repo 수 (0 이면 archived) · 생성일 · TITLE. 끝에 tasks/INDEX.md 재생성
-$TS index   # tasks/INDEX.md 재생성만 (new·done·list 끝에도 자동 실행)
+$TS list    # tasks/* 목록 (진행 중만): TASK-ID · worktree 있는 repo 수 (0 이면 idle) · 생성일 · TITLE.
+            # 끝에 archive 요약 한 줄(보류·폐기·완료 개수) · tasks/INDEX.md 재생성
+$TS index   # tasks/INDEX.md 재생성만 (new·done/hold/abandon·resume·list 끝에도 자동 실행)
 $TS repos   # .bares/*.git 목록: 이름 · 기본 브랜치 · 열린 worktree 수 (repos.txt 에만 있으면 missing)
 ```
 
-**"지난 태스크 찾기" 요청은 `tasks/INDEX.md` 를 먼저 읽고 해당 `notes.md` 로 간다.** 제목을 고쳤으면 `$TS index` (또는 `list`) 로 재생성한다 — 색인은 손으로 고치지 않는다.
+`list` 는 `tasks/` 만 보여 준다 — 끝난 태스크는 `archive/` 로 옮겨져 있어 목록에 안 나온다. `idle`(worktree 0개)인데 `- 완료 일시:` 가 있으면 1.x 레거시다 — `list`/`new` 끝에 `upgrade` 안내가 뜨면 9절대로 실행해 한 번에 옮긴다(개별로는 `done <ID>` 도 된다).
+
+`tasks/INDEX.md` 는 **진행 중 / 보류 / 폐기 / 완료** 네 섹션이다. 진행 중은 `tasks/<ID>/notes.md` 로, 나머지 셋은 `../archive/<ID>/notes.md` 로 링크한다. **"지난 태스크 찾기" 요청은 `tasks/INDEX.md` 를 먼저 읽고 해당 `notes.md` (진행 중이면 `tasks/`, 아니면 `archive/`) 로 간다.** 제목을 고쳤으면 `$TS index` (또는 `list`) 로 재생성한다 — 색인은 손으로 고치지 않는다.
 
 ## 8. 경계
 
@@ -218,3 +256,23 @@ $TS repos   # .bares/*.git 목록: 이름 · 기본 브랜치 · 열린 worktree
 - `.local/`·`shared/` 어디에 무엇을 올릴지는 사용자가 정한다. 추측으로 분류하지 않는다.
 - `migrate` 는 복사될 경로 목록을 보여 주고 확인받은 뒤, 지시할 때만 실행한다.
 - `migrate` 를 포함해 어떤 명령도 기존 체크아웃의 파일을 지우지 않는다.
+- `tasks/<ID>` ↔ `archive/<ID>` 이동은 plain `mv` 다 (`git mv` 로 스테이징하지 않는다) — 워크스페이스 repo 의 commit·push 는 사용자 몫이라는 원칙과 같다.
+- `archive/<ID>` 가 있는 TASK-ID 로 `new`/`hold`/`abandon`/`done` 을 실행하면 거부된다 — 재개는 `resume`.
+- `hold`·`abandon` 의 `--reason` 은 사용자에게 받은 그대로 넘긴다 — 추측해서 채우지 않는다.
+- `[dirty]`(hold·abandon) 는 WIP 커밋·push 를 안내만 한다 — 대신 커밋하지 않는다.
+
+## 9. upgrade — 플러그인 업데이트 후 반영
+
+사용자가 "업데이트 반영해줘" 라고 말하거나, 다른 명령(`list`/`new`) 끝에 `ℹ️  워크스페이스가 현재 스킬 버전보다 오래됐습니다 — 'upgrade' 로 반영` 이 출력되면 실행한다. **실행 전 확인은 필요 없다** — 이동은 `mv` 라 되돌리기 쉽고, 이 스킬은 커밋하지 않는다(8절). 자동 실행은 하지 않는다 — 사용자가 요청하거나 다른 명령이 안내했을 때만 돌린다.
+
+```bash
+$TS upgrade
+```
+
+멱등이다 — 여러 번 실행해도 결과가 같다. 하는 일:
+
+1. worktree 없이 `- 완료 일시:` 만 있는 레거시 태스크를 `done` 과 같은 경로로 `archive/<ID>` 로 옮긴다(1.x 워크스페이스 이전 수단). `완료 일시` 없는 idle 태스크는 건드리지 않고 목록만 보고한다 — `done`/`hold`/`abandon` 중 사용자가 고른다. 현재 cwd 가 이전 대상 태스크 안이면 그 태스크만 건너뛰고 알린다.
+2. `tasks/CLAUDE.md` 를 표식(`<!-- taskspace:begin -->`~`<!-- taskspace:end -->`) 형식으로 최신화한다 — 표식이 있으면 안쪽만 최신 템플릿으로 바꾸고 표식 밖(사용자가 추가한 내용)은 그대로 둔다. 표식이 없고 파일이 표식 도입 전 템플릿과 정확히 같으면 통째로 새 형식으로 바꾸고, 사용자가 고친 파일이면 건드리지 않고 표식을 넣는 방법만 안내한다.
+3. `tasks/INDEX.md` 를 다시 쓴다.
+
+실행 후 무엇을 옮겼는지, `tasks/CLAUDE.md` 를 어떻게 처리했는지, 수동으로 처리해야 할 항목(완료 일시 없는 idle 태스크, 사용자 수정 CLAUDE.md 등)을 보고하고, **워크스페이스 repo 에 미커밋 변경이 남아 있다는 사실**을 알린다 — 커밋은 사용자가 지시할 때만 한다.

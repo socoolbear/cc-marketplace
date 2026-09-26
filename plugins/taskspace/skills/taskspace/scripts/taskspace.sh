@@ -9,8 +9,10 @@
 #   ├── .local/<repo>/      repo 별 로컬 파일 원본 (.env·키·참조 소스, ignore) → worktree 에 심링크
 #   ├── shared/             repo 밖에 둬도 되는 공용 자료 (ignore)
 #   ├── tasks/INDEX.md      태스크 색인 (추적, 생성 파일 — index 가 notes.md 만으로 다시 씀)
-#   ├── tasks/CLAUDE.md     작업 지도 (추적, 없으면 init/new 가 템플릿에서 생성. 상위라 worktree 세션에도 실림)
-#   └── tasks/<ID>/         notes.md (추적) · <repo>/ worktree (ignore) · <repo>/.prompts/ 스크래치 (info/exclude)
+#   ├── tasks/CLAUDE.md     작업 지도 (추적, 없으면 init/new 가 템플릿에서 생성. 상위라 worktree 세션에도 실림.
+#                           <!-- taskspace:begin/end --> 표식 안쪽만 upgrade 가 관리, 밖은 사용자 영역)
+#   ├── tasks/<ID>/         진행 중 — notes.md (추적) · <repo>/ worktree (ignore) · <repo>/.prompts/ 스크래치 (info/exclude)
+#   └── archive/<ID>/       끝난 태스크 (완료·보류·폐기) — notes.md 등 추적 파일만, worktree 없음 (done/hold/abandon 이 이동)
 #
 # macOS 기본 bash 3.2 호환 (연관배열·mapfile 사용 금지, 빈 배열은 ${arr[@]+"${arr[@]}"}).
 set -euo pipefail
@@ -22,6 +24,11 @@ GITIGNORE_LINES=".bares/
 .local/
 shared/
 tasks/*/*/"
+
+# 표식(<!-- taskspace:begin/end -->) 도입 전, 정확히 이 내용이었던 tasks/CLAUDE.md 의 해시 목록
+# (끝 개행 차이 무시, content_hash 로 계산). upgrade 가 "사용자가 안 고친 구버전 원본"인지 판별하는 데만 쓴다.
+#   644d58437e0d17644a1e82f976f4760880df8ad8d7157182a1726f515e0ea728 — 커밋 2980e71 "taskspace 1.3.0" 의 원본 (표식 도입 전)
+CLAUDE_LEGACY_HASHES="644d58437e0d17644a1e82f976f4760880df8ad8d7157182a1726f515e0ea728"
 
 ROOT=""
 
@@ -43,12 +50,23 @@ usage() {
   migrate <repo> <checkout> <rel-path>...    기존 체크아웃의 gitignore 된 파일을 .local/<repo>/ 로 복사 (원본은 그대로)
   sync <TASK-ID> [<repo>...] [--rebase]      worktree 에 origin/<기본 브랜치> 반영 (merge 기본)
   done <TASK-ID> [--merged] [--discard-untracked] [--delete-branch] [--force]
-                                             worktree 제거 (notes.md 보존). 안전 검사 통과 시에만.
+                                             worktree 제거. worktree 가 하나도 안 남으면 notes.md 에 완료 기록 후
+                                             tasks/<ID> → archive/<ID> 이동. 안전 검사 통과 시에만.
                                              --delete-branch 는 로컬 브랜치와, 기본 브랜치에 병합이 확인된 경우 원격 브랜치까지 삭제
-  list                                       태스크 목록 (TITLE 은 notes.md 첫 줄). 끝에 index 도 실행
-  index                                      tasks/INDEX.md 재생성 (new · done · list 끝에 자동 실행)
+  hold <TASK-ID> [--reason <사유>] [--discard-untracked] [--force]
+                                             보류. worktree 제거 + notes.md 에 보류 기록·보존 브랜치 후 archive/ 로 이동.
+                                             --merged · --delete-branch 는 지원하지 않음 (재개를 위해 브랜치를 남긴다)
+  abandon <TASK-ID> [--reason <사유>] [--discard-untracked] [--delete-branch] [--force]
+                                             폐기. hold 와 같되 --delete-branch 로 로컬 브랜치만 삭제 가능 (원격 브랜치는 지우지 않음).
+                                             --merged 는 지원하지 않음
+  resume <TASK-ID> [<repo>[=<branch>]...]    archive/<ID> → tasks/<ID> 이동 + 재개 기록. repo 인자가 없으면
+                                             보존 브랜치로 worktree 재생성 (없으면 이동만)
+  list                                       tasks/ 목록 (TITLE 은 notes.md 첫 줄). 끝에 archive 요약 · index 실행
+  index                                      tasks/INDEX.md 재생성 (진행 중 · 보류 · 폐기 · 완료 섹션. new · done · list 끝에 자동 실행)
+  upgrade                                    플러그인 업데이트를 워크스페이스에 반영 (멱등). 레거시 완료 태스크를
+                                             done 경로로 archive/ 이전 + tasks/CLAUDE.md 표식 블록 최신화. 자동 실행 안 됨
 
-종료코드: 1 인자 오류 · 2 루트 없음 · 3 repo 미지정 · 4 done 차단 · 5 sync 미완료
+종료코드: 1 인자 오류 · 2 루트 없음 · 3 repo 미지정 · 4 done/hold/abandon 차단 · 5 sync 미완료
 EOF
   exit 1
 }
@@ -99,11 +117,11 @@ validate_slug() {
     || die 1 "슬러그 형식 오류: '$1' (영문 소문자·숫자·하이픈 kebab-case)"
 }
 
-# tasks/ 의 번호형 디렉토리 (<접두사><숫자>) 중 최대 번호 +1 을 3자리로. 접두사는 계승하되 둘 이상 섞이면 거부
+# tasks/ · archive/ 의 번호형 디렉토리 (<접두사><숫자>) 중 최대 번호 +1 을 3자리로. 접두사는 계승하되 둘 이상 섞이면 거부
 next_id() {
   local d base prefix num max=0 seen=0 first_prefix=""
 
-  for d in "${ROOT}"/tasks/*/; do
+  for d in "${ROOT}"/tasks/*/ "${ROOT}"/archive/*/; do
     [[ -d "${d}" ]] || continue
     base="$(basename "${d}")"
     [[ "${base}" =~ ^([A-Za-z._-]*)([0-9]+)$ ]] || continue
@@ -160,20 +178,77 @@ notes_add_repo() {
   mv -- "${tmp}" "${notes}"
 }
 
-# notes.md 에 '- 완료 일시:' 줄을 없을 때만 넣는다 — '- 생성 일시:' 줄 뒤, 없으면 제목 줄 뒤
-notes_mark_done() {
-  local notes=$1 tmp
+# notes.md 헤더에 '- <라벨>: <값>' 줄들을 순서대로 추가 (라벨이 이미 있으면 그 줄은 건너뜀, 보존).
+# '- 생성 일시:' 줄 뒤에 삽입, 없으면 끝에. 인자: notes label1 value1 [label2 value2 ...]
+# (awk -v 는 값에 개행이 섞이면 일부 awk 구현에서 깨져서 순수 bash 로 처리)
+notes_set_fields() {
+  local notes=$1 tmp line inserted=0 i
+  local labels=() values=()
+  shift
 
   [[ -f "${notes}" ]] || return 0
-  grep -q -- '^- 완료 일시:' "${notes}" && return 0
+
+  while [[ $# -ge 2 ]]; do
+    grep -q -- "^- $1:" "${notes}" || { labels+=("$1"); values+=("$2"); }
+    shift 2
+  done
+  [[ ${#labels[@]} -gt 0 ]] || return 0
 
   tmp="${notes}.tmp.$$"
-  awk -v line="- 완료 일시: $(date '+%Y-%m-%d %H:%M')" '
-    { print }
-    !done && /^- 생성 일시:/ { print line; done = 1 }
-    END { if (!done) print line }
-  ' "${notes}" > "${tmp}"
+  : > "${tmp}"
+  while IFS= read -r line || [[ -n "${line}" ]]; do
+    printf '%s\n' "${line}" >> "${tmp}"
+    if [[ "${inserted}" -eq 0 && "${line}" == "- 생성 일시:"* ]]; then
+      for ((i = 0; i < ${#labels[@]}; i++)); do
+        printf -- '- %s: %s\n' "${labels[i]}" "${values[i]}" >> "${tmp}"
+      done
+      inserted=1
+    fi
+  done < "${notes}"
+
+  if [[ "${inserted}" -eq 0 ]]; then
+    for ((i = 0; i < ${#labels[@]}; i++)); do
+      printf -- '- %s: %s\n' "${labels[i]}" "${values[i]}" >> "${tmp}"
+    done
+  fi
+
   mv -- "${tmp}" "${notes}"
+}
+
+# notes.md 헤더에서 '- <라벨>: ...' 줄들을 제거 (없으면 통과). 인자: notes label...
+notes_remove_fields() {
+  local notes=$1 tmp pattern=""
+  shift
+
+  [[ -f "${notes}" ]] || return 0
+
+  while [[ $# -ge 1 ]]; do
+    pattern="${pattern}${pattern:+|}^- $1:"
+    shift
+  done
+  [[ -n "${pattern}" ]] || return 0
+
+  tmp="${notes}.tmp.$$"
+  grep -vE -- "${pattern}" "${notes}" > "${tmp}" || true
+  mv -- "${tmp}" "${notes}"
+}
+
+# notes.md 의 '- 재개 기록:' 줄에 항목을 추가 (이미 있으면 '; ' 로 이어 붙임, 없으면 새로 만듦)
+notes_append_resume_record() {
+  local notes=$1 entry=$2 tmp
+
+  [[ -f "${notes}" ]] || return 0
+
+  if grep -q -- '^- 재개 기록:' "${notes}"; then
+    tmp="${notes}.tmp.$$"
+    awk -v add="${entry}" '
+      /^- 재개 기록:/ { sub(/[[:space:]]+$/, ""); $0 = $0 "; " add }
+      { print }
+    ' "${notes}" > "${tmp}"
+    mv -- "${tmp}" "${notes}"
+  else
+    notes_set_fields "${notes}" "재개 기록" "${entry}"
+  fi
 }
 
 # tasks/CLAUDE.md 가 없을 때만 템플릿에서 만든다 (사용자 수정 보존)
@@ -182,6 +257,100 @@ ensure_tasks_claude() {
   [[ -f "${TASKS_CLAUDE_TEMPLATE}" ]] || die 1 "템플릿이 없습니다: ${TASKS_CLAUDE_TEMPLATE}"
   cp -- "${TASKS_CLAUDE_TEMPLATE}" "${ROOT}/tasks/CLAUDE.md"
   log "🗺️  tasks/CLAUDE.md 생성"
+}
+
+# 파일 내용의 sha256 (끝 개행 차이는 무시 — $() 이 command substitution 에서 trailing newline 을 없애 준다)
+content_hash() {
+  printf '%s' "$(cat "$1")" | shasum -a 256 | awk '{print $1}'
+}
+
+# '<!-- taskspace:begin -->' ~ '<!-- taskspace:end -->' 사이 내용만 추출 (표식 없으면 아무것도 출력하지 않음)
+claude_marker_block() {
+  [[ -f "$1" ]] || return 0
+  awk '/<!-- taskspace:begin -->/{f=1; next} /<!-- taskspace:end -->/{f=0} f' "$1"
+}
+
+# file 의 표식 블록을 new_block(멀티라인 문자열) 으로 교체 (표식 밖은 그대로 보존). 순수 bash — awk -v 는
+# 값에 개행이 섞이면 일부 awk 구현(macOS 기본)에서 깨진다 (notes_set_fields 와 같은 이유)
+replace_marker_block() {
+  local file=$1 new_block=$2 tmp line skip=0
+
+  tmp="${file}.tmp.$$"
+  : > "${tmp}"
+  while IFS= read -r line || [[ -n "${line}" ]]; do
+    if [[ "${line}" == *"<!-- taskspace:begin -->"* ]]; then
+      printf '%s\n' "${line}" >> "${tmp}"
+      printf '%s\n' "${new_block}" >> "${tmp}"
+      skip=1
+      continue
+    fi
+    [[ "${line}" == *"<!-- taskspace:end -->"* ]] && skip=0
+    [[ "${skip}" -eq 1 ]] || printf '%s\n' "${line}" >> "${tmp}"
+  done < "${file}"
+  mv -- "${tmp}" "${file}"
+}
+
+# tasks/CLAUDE.md 의 표식 블록이 없거나 최신 템플릿과 다르면 0 (upgrade 가 필요하다는 뜻)
+claude_needs_marker_update() {
+  local file="${ROOT}/tasks/CLAUDE.md"
+
+  [[ -f "${file}" ]] || return 0
+  grep -q -- '<!-- taskspace:begin -->' "${file}" || return 0
+  [[ "$(claude_marker_block "${file}")" == "$(claude_marker_block "${TASKS_CLAUDE_TEMPLATE}")" ]] && return 1
+  return 0
+}
+
+# 레거시 이전 대상이 있거나 tasks/CLAUDE.md 가 최신 템플릿과 다르면 0 — list·new 끝의 안내용 싼 검사
+upgrade_needed() {
+  local d id n finished
+
+  for d in "${ROOT}"/tasks/*/; do
+    [[ -d "${d}" ]] || continue
+    id="$(basename "${d}")"
+    n="$(task_worktrees "${d}" | grep -c . || true)"
+    if [[ "${n}" -eq 0 ]]; then
+      finished="$(notes_field "${d}notes.md" '완료 일시')"
+      [[ -n "${finished}" ]] && return 0
+    fi
+  done
+
+  claude_needs_marker_update
+}
+
+# tasks/CLAUDE.md 를 표식 형식으로 최신화. 결과 한 줄을 stdout 으로 (요약용) — 항상 exit 0
+upgrade_tasks_claude() {
+  local file="${ROOT}/tasks/CLAUDE.md" hash tpl_block cur_block
+
+  if [[ ! -f "${file}" ]]; then
+    ensure_tasks_claude
+    printf '생성\n'
+    return 0
+  fi
+
+  tpl_block="$(claude_marker_block "${TASKS_CLAUDE_TEMPLATE}")"
+
+  if grep -q -- '<!-- taskspace:begin -->' "${file}"; then
+    cur_block="$(claude_marker_block "${file}")"
+    if [[ "${cur_block}" == "${tpl_block}" ]]; then
+      printf '최신 (변경 없음)\n'
+      return 0
+    fi
+    replace_marker_block "${file}" "${tpl_block}"
+    printf '표식 안쪽을 최신 템플릿으로 교체 (표식 밖 사용자 영역은 보존)\n'
+    return 0
+  fi
+
+  hash="$(content_hash "${file}")"
+  case " ${CLAUDE_LEGACY_HASHES} " in
+    *" ${hash} "*)
+      cp -- "${TASKS_CLAUDE_TEMPLATE}" "${file}"
+      printf '표식 도입 전 원본이라 표식 형식으로 통째 교체\n'
+      return 0
+      ;;
+  esac
+
+  printf '표식이 없고 알려진 구버전과도 달라 사용자 수정으로 보고 그대로 둠 — %s 를 참고해 <!-- taskspace:begin -->…<!-- taskspace:end --> 로 감싸 넣으세요\n' \
+    "${TASKS_CLAUDE_TEMPLATE}"
 }
 
 # worktree 안 스크래치 .prompts/ — bare 의 info/exclude 에 등록해 repo 의 .gitignore 를 건드리지 않는다
@@ -210,30 +379,79 @@ render_notes() {
   fi
 }
 
-# tasks/INDEX.md 를 notes.md 만으로 다시 쓴다 (머신 로컬 상태는 넣지 않는다)
+# notes.md 의 '- 상태:' (없으면 '- 완료 일시:' 존재 시 완료) — archive/<ID> 판정용
+archive_status() {
+  local notes=$1 status
+
+  status="$(notes_field "${notes}" '상태')"
+  if [[ -z "${status}" ]]; then
+    [[ -n "$(notes_field "${notes}" '완료 일시')" ]] && status="완료"
+  fi
+  printf '%s\n' "${status:-완료}"
+}
+
+# archive/ 의 한 상태 섹션 (보류·폐기·완료) 출력. 인자: 섹션명 종료일시라벨
+write_index_archive_section() {
+  local section=$1 date_label=$2 d id notes title created finished reason rows=""
+
+  for d in "${ROOT}"/archive/*/; do
+    [[ -d "${d}" ]] || continue
+    notes="${d}notes.md"
+    [[ "$(archive_status "${notes}")" == "${section}" ]] || continue
+
+    id="$(basename "${d}")"
+    title="$(notes_title "${notes}" "${id}")"
+    created="$(notes_field "${notes}" '생성 일시')"
+    finished="$(notes_field "${notes}" "${date_label}")"
+    reason="$(notes_field "${notes}" '사유')"
+    rows="${rows}$(printf '| [%s](../archive/%s/notes.md) | %s | %s | %s | %s | %s |' \
+      "${id}" "${id}" "${title//|/\\|}" "$(notes_field "${notes}" '관련 repo')" \
+      "${created%% *}" "${finished%% *}" "${reason//|/\\|}")
+"
+  done
+
+  # 빈 섹션은 헤더만 남은 표 대신 '없음' 한 줄
+  printf '## %s\n\n' "${section}"
+  if [[ -n "${rows}" ]]; then
+    printf '| ID | 제목 | repo (브랜치) | 생성 | 종료 | 사유 |\n|---|---|---|---|---|---|\n%s' "${rows}"
+  else
+    printf '없음\n'
+  fi
+  printf '\n'
+}
+
+# tasks/INDEX.md 를 notes.md 만으로 다시 쓴다 (머신 로컬 상태는 넣지 않는다).
+# 섹션: 진행 중(tasks/) · 보류 · 폐기 · 완료(archive/, notes.md 의 '- 상태:' 로 분류)
 write_index() {
-  local index="${ROOT}/tasks/INDEX.md" tmp d id notes title created finished status
+  local index="${ROOT}/tasks/INDEX.md" tmp d id notes title created rows=""
 
   tmp="${index}.tmp.$$"
   {
     printf '# 태스크 색인\n\n'
     # shellcheck disable=SC2016
     printf '<!-- 생성 파일 — `taskspace.sh index` 가 다시 씀. 직접 편집 금지. 제목은 각 notes.md 첫 줄에서 고친다 -->\n\n'
-    printf '| ID | 제목 | 상태 | repo (브랜치) | 생성 | 완료 |\n|---|---|---|---|---|---|\n'
 
     for d in "${ROOT}"/tasks/*/; do
       [[ -d "${d}" ]] || continue
       id="$(basename "${d}")"
       notes="${d}notes.md"
-      created="$(notes_field "${notes}" '생성 일시')"
-      finished="$(notes_field "${notes}" '완료 일시')"
       title="$(notes_title "${notes}" "${id}")"
-      status="진행 중"
-      [[ -n "${finished}" ]] && status="완료"
-      printf '| [%s](%s/notes.md) | %s | %s | %s | %s | %s |\n' \
-        "${id}" "${id}" "${title//|/\\|}" "${status}" \
-        "$(notes_field "${notes}" '관련 repo')" "${created%% *}" "${finished%% *}"
+      created="$(notes_field "${notes}" '생성 일시')"
+      rows="${rows}$(printf '| [%s](%s/notes.md) | %s | %s | %s |' \
+        "${id}" "${id}" "${title//|/\\|}" "$(notes_field "${notes}" '관련 repo')" "${created%% *}")
+"
     done
+    printf '## 진행 중\n\n'
+    if [[ -n "${rows}" ]]; then
+      printf '| ID | 제목 | repo (브랜치) | 생성 |\n|---|---|---|---|\n%s' "${rows}"
+    else
+      printf '없음\n'
+    fi
+    printf '\n'
+
+    write_index_archive_section '보류' '보류 일시'
+    write_index_archive_section '폐기' '폐기 일시'
+    write_index_archive_section '완료' '완료 일시'
   } > "${tmp}"
   mv -- "${tmp}" "${index}"
 }
@@ -610,6 +828,9 @@ cmd_new() {
   task_dir="${ROOT}/tasks/${id}"
   notes="${task_dir}/notes.md"
 
+  [[ -d "${ROOT}/archive/${id}" ]] \
+    && die 1 "archive 에 있는 태스크입니다 (완료·보류·폐기) — resume ${id} 로 재개하세요"
+
   if [[ ${#specs[@]} -eq 0 ]]; then
     cmd_repos
     die 3 "repo 를 지정하세요: new ${id} [--slug <슬러그>] [--title <제목>] <repo>[=<branch>]..."
@@ -698,6 +919,9 @@ cmd_new() {
   done
 
   write_index
+  if upgrade_needed; then
+    log "ℹ️  워크스페이스가 현재 스킬 버전보다 오래됐습니다 — 'upgrade' 로 반영"
+  fi
   log "✅ 태스크 준비: ${task_dir}"
   printf '%s\n' "${task_dir}"
   return "${rc}"
@@ -901,23 +1125,50 @@ is_locked() {
     END { exit found ? 0 : 1 }'
 }
 
-cmd_done() {
+cmd_done()    { run_finish "done"    "$@"; }
+cmd_hold()    { run_finish "hold"    "$@"; }
+cmd_abandon() { run_finish "abandon" "$@"; }
+
+# done · hold · abandon 공통 구현. mode: done | hold | abandon
+# 안전 검사(1단계) 통과 시에만 worktree 를 제거(2단계)하고, 태스크에 worktree 가 하나도
+# 안 남으면 notes.md 에 상태를 기록한 뒤 tasks/<ID> → archive/<ID> 로 옮긴다.
+run_finish() {
+  local mode=$1 id task_dir archive_dir notes reason=""
+  local merged=0 discard=0 delete_branch=0 force=0
+
+  shift
   [[ $# -ge 1 ]] || usage
   require_root
 
-  local id=$1 task_dir arg merged=0 discard=0 delete_branch=0 force=0
+  id=$1
   shift
   validate_id "${id}"
   task_dir="${ROOT}/tasks/${id}"
-  [[ -d "${task_dir}" ]] || die 1 "태스크가 없습니다: ${task_dir}"
+  archive_dir="${ROOT}/archive/${id}"
+  notes="${task_dir}/notes.md"
 
-  for arg in "$@"; do
-    case "${arg}" in
-      --merged) merged=1 ;;
-      --discard-untracked) discard=1 ;;
-      --delete-branch) delete_branch=1 ;;
-      --force) force=1 ;;
-      *) die 1 "알 수 없는 옵션: ${arg}" ;;
+  if [[ ! -d "${task_dir}" ]]; then
+    if [[ -d "${archive_dir}" ]]; then
+      die 1 "이미 archive 에 있습니다 (상태: $(archive_status "${archive_dir}/notes.md")). 재개는 resume ${id}"
+    fi
+    die 1 "태스크가 없습니다: ${task_dir}"
+  fi
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --merged)
+        [[ "${mode}" == "done" ]] || die 1 "${mode} 은 --merged 를 지원하지 않습니다"
+        merged=1; shift ;;
+      --discard-untracked) discard=1; shift ;;
+      --delete-branch)
+        [[ "${mode}" != "hold" ]] || die 1 "hold 는 --delete-branch 를 지원하지 않습니다 — 브랜치를 지우면 재개할 수 없습니다"
+        delete_branch=1; shift ;;
+      --force) force=1; shift ;;
+      --reason)
+        [[ "${mode}" != "done" ]] || die 1 "done 은 --reason 을 지원하지 않습니다"
+        [[ $# -ge 2 ]] || die 1 "--reason 에 값이 없습니다"
+        reason=$2; shift 2 ;;
+      *) die 1 "알 수 없는 옵션: $1" ;;
     esac
   done
 
@@ -925,10 +1176,11 @@ cmd_done() {
     "${task_dir}/"*) die 4 "[cwd] 현재 디렉토리가 태스크 안입니다. 밖으로 나간 뒤 실행하세요: cd ${ROOT}" ;;
   esac
 
-  local names name wt bare blocks=0 skipped="" files
+  local names name wt bare blocks=0 skipped="" files dirty_hint=""
+  [[ "${mode}" == "done" ]] || dirty_hint=" — WIP 커밋 후 push 하세요"
 
   names="$(task_worktrees "${task_dir}")"
-  [[ -n "${names}" ]] || log "ℹ️  제거할 worktree 가 없습니다 (이미 archived)"
+  [[ -n "${names}" ]] || log "ℹ️  제거할 worktree 가 없습니다 (레거시 — 기록·이동만 진행)"
 
   # 1단계: 전부 검사. 하나라도 걸리면 아무것도 지우지 않는다.
   for name in ${names}; do
@@ -950,13 +1202,17 @@ cmd_done() {
     fi
 
     if has_tracked_changes "${wt}" && [[ "${force}" -eq 0 ]]; then
-      log "⛔ [dirty] [${name}] 추적 파일에 미커밋 변경:"
+      log "⛔ [dirty] [${name}] 추적 파일에 미커밋 변경${dirty_hint}:"
       git -C "${wt}" status --porcelain | grep -vE '^(\?\?|!!) ' >&2
       blocks=$((blocks + 1))
     fi
 
     if ! git -C "${wt}" branch -r --contains HEAD | grep -q . && [[ "${merged}" -eq 0 && "${force}" -eq 0 ]]; then
-      log "⛔ [unpushed] [${name}] HEAD 가 어느 원격 브랜치에도 없음 (push 안 됨, 또는 squash 머지 후 원격 브랜치 삭제). PR 병합이 확인되면 --merged"
+      if [[ "${mode}" == "done" ]]; then
+        log "⛔ [unpushed] [${name}] HEAD 가 어느 원격 브랜치에도 없음 (push 안 됨, 또는 squash 머지 후 원격 브랜치 삭제). PR 병합이 확인되면 --merged"
+      else
+        log "⛔ [unpushed] [${name}] HEAD 가 원격에 없음 — push 하지 않으면 이 머신의 .bares/ 에만 남습니다. push 후 재실행하세요 (무시하려면 --force)"
+      fi
       blocks=$((blocks + 1))
     fi
 
@@ -969,6 +1225,23 @@ cmd_done() {
   done
 
   [[ "${blocks}" -eq 0 ]] || die 4 "차단 ${blocks}건 — 아무것도 지우지 않았습니다"
+
+  # hold·abandon 은 worktree 제거 전에 재개용 브랜치 정보를 남긴다
+  if [[ "${mode}" == "hold" || "${mode}" == "abandon" ]]; then
+    local preserved="" hash
+    for name in ${names}; do
+      case " ${skipped} " in *" ${name} "*) continue ;; esac
+      wt="${task_dir}/${name}"
+      br="$(git -C "${wt}" symbolic-ref --short HEAD 2>/dev/null || true)"
+      hash="$(git -C "${wt}" rev-parse --short HEAD 2>/dev/null || true)"
+      [[ -n "${br}" ]] || continue
+      preserved="${preserved}${preserved:+, }${name} ${br}${hash:+@${hash}}"
+    done
+    if [[ -n "${preserved}" ]]; then
+      notes_set_fields "${notes}" "보존 브랜치" "${preserved}"
+      log "🔖 보존 브랜치 기록: ${preserved}"
+    fi
+  fi
 
   # 2단계: 제거
   local rc=0 br remove_flags removed=0 is_merged def
@@ -999,12 +1272,15 @@ cmd_done() {
 
     [[ "${delete_branch}" -eq 1 && -n "${br}" ]] || continue
 
-    # 원격에 사본이 하나도 없는 브랜치는 지우면 작업이 사라진다 — --merged (사용자가 병합 확인) 일 때만 예외
+    # 원격에 사본이 하나도 없는 브랜치는 지우면 작업이 사라진다 — done 에서 --merged (병합 확인) 일 때만 예외
     if ! git -C "${bare}" branch -r --contains "${br}" | grep -q . && [[ "${merged}" -eq 0 ]]; then
       log "ℹ️  [${name}] 브랜치 유지: ${br} (원격에 사본 없음 — 병합 확인 후 --merged 와 함께)"
       continue
     fi
     git -C "${bare}" branch -D "${br}" >/dev/null && log "🧹 [${name}] 로컬 브랜치 삭제: ${br}"
+
+    # abandon 은 원격 브랜치를 절대 지우지 않는다 (로컬만 정리)
+    [[ "${mode}" == "done" ]] || continue
 
     # 원격 브랜치는 병합이 확인됐을 때만 지운다. 병합 = 기본 브랜치 origin/<def> 가 브랜치 끝 커밋을 포함.
     # 다른 feature 브랜치가 포함하는 것 (stacked branch) 은 병합이 아니다 — 그 브랜치의 base 를 지우게 된다
@@ -1027,13 +1303,42 @@ cmd_done() {
     fi
   done
 
-  # 이번 실행에서 지웠고 아무것도 안 남았을 때만 완료로 기록 (재실행·[locked] 잔류 시엔 찍지 않는다)
-  if [[ "${removed}" -gt 0 ]] && [[ -z "$(task_worktrees "${task_dir}")" ]]; then
-    notes_mark_done "${task_dir}/notes.md"
-    log "📄 notes.md 에 완료 일시 기록 (보존): ${task_dir}/notes.md"
-  else
-    log "📄 notes.md 보존: ${task_dir}/notes.md"
+  # 태스크에 worktree 가 하나도 안 남았을 때만 상태 기록 → archive/ 로 이동 ([locked] 로 남은 게 있으면 보류)
+  if [[ -n "$(task_worktrees "${task_dir}")" ]]; then
+    log "📄 notes.md 보존 (일부 repo 가 남아 기록·이동을 보류합니다: ${skipped}): ${notes}"
+    write_index
+    log "📇 tasks/INDEX.md 갱신"
+    return "${rc}"
   fi
+
+  local now
+  now="$(date '+%Y-%m-%d %H:%M')"
+  case "${mode}" in
+    done)
+      notes_set_fields "${notes}" "상태" "완료" "완료 일시" "${now}"
+      ;;
+    hold)
+      if [[ -n "${reason}" ]]; then
+        notes_set_fields "${notes}" "상태" "보류" "보류 일시" "${now}" "사유" "${reason}"
+      else
+        notes_set_fields "${notes}" "상태" "보류" "보류 일시" "${now}"
+      fi
+      ;;
+    abandon)
+      if [[ -n "${reason}" ]]; then
+        notes_set_fields "${notes}" "상태" "폐기" "폐기 일시" "${now}" "사유" "${reason}"
+      else
+        notes_set_fields "${notes}" "상태" "폐기" "폐기 일시" "${now}"
+      fi
+      ;;
+  esac
+  log "📄 notes.md 갱신: ${notes}"
+
+  mkdir -p "${ROOT}/archive"
+  [[ ! -e "${archive_dir}" ]] || die 1 "archive/${id} 가 이미 있습니다"
+  mv -- "${task_dir}" "${archive_dir}"
+  log "📦 이동: tasks/${id} → archive/${id}"
+
   write_index
   log "📇 tasks/INDEX.md 갱신"
   return "${rc}"
@@ -1044,7 +1349,7 @@ cmd_done() {
 cmd_list() {
   require_root
 
-  local d id n created status
+  local d id n created status st hold_n=0 abandon_n=0 done_n=0
 
   printf '%-20s %-12s %-16s %s\n' "TASK" "STATUS" "CREATED" "TITLE"
 
@@ -1055,9 +1360,26 @@ cmd_list() {
     created="$(grep -m1 '생성 일시' "${d}notes.md" 2>/dev/null || true)"
     created="${created#*: }"
     status="active(${n})"
-    [[ "${n}" -eq 0 ]] && status="archived"
+
+    [[ "${n}" -eq 0 ]] && status="idle"
+
     printf '%-20s %-12s %-16s %s\n' "${id}" "${status}" "${created:--}" "$(notes_title "${d}notes.md" "${id}")"
   done
+
+  for d in "${ROOT}"/archive/*/; do
+    [[ -d "${d}" ]] || continue
+    st="$(archive_status "${d}notes.md")"
+    case "${st}" in
+      보류) hold_n=$((hold_n + 1)) ;;
+      폐기) abandon_n=$((abandon_n + 1)) ;;
+      *)   done_n=$((done_n + 1)) ;;
+    esac
+  done
+  printf 'archive: 보류 %s · 폐기 %s · 완료 %s — tasks/INDEX.md 참고\n' "${hold_n}" "${abandon_n}" "${done_n}"
+
+  if upgrade_needed; then
+    log "ℹ️  워크스페이스가 현재 스킬 버전보다 오래됐습니다 — 'upgrade' 로 반영"
+  fi
 
   write_index
 }
@@ -1066,6 +1388,117 @@ cmd_index() {
   require_root
   write_index
   log "📇 tasks/INDEX.md 갱신"
+}
+
+# ---------------------------------------------------------------- resume
+
+cmd_resume() {
+  [[ $# -ge 1 ]] || usage
+  require_root
+
+  local id=$1 archive_dir task_dir notes prev_status prev_when prev_reason prev_branches
+  local specs=() rest entry repo br now
+  shift
+  validate_id "${id}"
+  archive_dir="${ROOT}/archive/${id}"
+  task_dir="${ROOT}/tasks/${id}"
+  notes="${archive_dir}/notes.md"
+
+  [[ -d "${archive_dir}" ]] || die 1 "archive 에 태스크가 없습니다: ${archive_dir}"
+  [[ ! -d "${task_dir}" ]] || die 1 "이미 tasks/ 에 있는 태스크입니다: ${task_dir}"
+
+  prev_status="$(archive_status "${notes}")"
+  case "${prev_status}" in
+    보류) prev_when="$(notes_field "${notes}" '보류 일시')" ;;
+    폐기) prev_when="$(notes_field "${notes}" '폐기 일시')" ;;
+    *)   prev_when="$(notes_field "${notes}" '완료 일시')" ;;
+  esac
+  prev_reason="$(notes_field "${notes}" '사유')"
+  prev_branches="$(notes_field "${notes}" '보존 브랜치')"
+
+  notes_remove_fields "${notes}" "상태" "완료 일시" "보류 일시" "폐기 일시" "사유" "보존 브랜치"
+  now="$(date '+%Y-%m-%d %H:%M')"
+  notes_append_resume_record "${notes}" "${now} (${prev_status} ${prev_when}${prev_reason:+, 사유: ${prev_reason}})"
+
+  mv -- "${archive_dir}" "${task_dir}"
+  log "📦 이동: archive/${id} → tasks/${id}"
+
+  if [[ $# -gt 0 ]]; then
+    specs=("$@")
+  elif [[ -n "${prev_branches}" ]]; then
+    rest="${prev_branches}"
+    while [[ -n "${rest}" ]]; do
+      if [[ "${rest}" == *", "* ]]; then
+        entry="${rest%%, *}"
+        rest="${rest#*, }"
+      else
+        entry="${rest}"
+        rest=""
+      fi
+      repo="${entry%% *}"
+      br="${entry#* }"
+      br="${br%%@*}"
+      [[ -n "${repo}" && -n "${br}" ]] && specs+=("${repo}=${br}")
+    done
+  fi
+
+  if [[ ${#specs[@]} -gt 0 ]]; then
+    log "🌿 보존 브랜치로 worktree 재생성"
+    cmd_new "${id}" "${specs[@]}" || true
+  else
+    log "ℹ️  repo 정보가 없어 worktree 를 만들지 않았습니다 — new ${id} <repo> 로 추가하세요"
+  fi
+
+  write_index
+  log "📇 tasks/INDEX.md 갱신"
+  log "🔄 기본 브랜치가 전진했을 수 있으니 sync ${id} 를 실행하세요"
+}
+
+# ---------------------------------------------------------------- upgrade
+
+# 플러그인 업데이트를 워크스페이스에 반영 (멱등). 자동 실행은 하지 않는다 — 사용자가 upgrade 를 요청하거나
+# list/new 가 안내했을 때만. 1) worktree 없이 완료 일시만 있는 레거시 태스크를 done 경로로 archive/ 이전
+# 2) tasks/CLAUDE.md 표식 블록을 최신 템플릿으로 (표식 밖 사용자 영역은 보존)
+cmd_upgrade() {
+  require_root
+
+  local d id n finished moved=0 skipped_cwd="" idle_list="" claude_result
+
+  for d in "${ROOT}"/tasks/*/; do
+    [[ -d "${d}" ]] || continue
+    id="$(basename "${d}")"
+    n="$(task_worktrees "${d}" | grep -c . || true)"
+    [[ "${n}" -eq 0 ]] || continue
+
+    finished="$(notes_field "${d}notes.md" '완료 일시')"
+    if [[ -z "${finished}" ]]; then
+      idle_list="${idle_list}${idle_list:+, }${id}"
+      continue
+    fi
+
+    case "$(pwd)/" in
+      "${d}"*)
+        log "ℹ️  [${id}] 현재 디렉토리 안이라 건너뜀 — 밖으로 나간 뒤 upgrade 를 다시 실행하세요"
+        skipped_cwd="${skipped_cwd}${skipped_cwd:+, }${id}"
+        continue
+        ;;
+    esac
+
+    log "📦 [${id}] 레거시 이전 (done 경로 재사용)"
+    if cmd_done "${id}"; then
+      moved=$((moved + 1))
+    else
+      log "⚠️  [${id}] 이전 실패 — 위 로그를 확인하세요"
+    fi
+  done
+
+  claude_result="$(upgrade_tasks_claude)"
+  log "🗺️  tasks/CLAUDE.md: ${claude_result}"
+
+  write_index
+  log "📇 tasks/INDEX.md 갱신"
+
+  log "✅ upgrade 요약: 레거시 이전 ${moved}건${skipped_cwd:+ · cwd 로 건너뜀: ${skipped_cwd}}${idle_list:+ · 수동 처리 필요(완료 일시 없는 idle): ${idle_list}} · CLAUDE.md: ${claude_result}"
 }
 
 # ---------------------------------------------------------------- main
@@ -1084,8 +1517,12 @@ case "${cmd}" in
   migrate) cmd_migrate "$@" ;;
   sync)  cmd_sync "$@" ;;
   done)  cmd_done "$@" ;;
+  hold)  cmd_hold "$@" ;;
+  abandon) cmd_abandon "$@" ;;
+  resume) cmd_resume "$@" ;;
   list)  cmd_list ;;
   index) cmd_index ;;
+  upgrade) cmd_upgrade ;;
   -h|--help|help) usage ;;
   *) log "알 수 없는 서브커맨드: ${cmd}"; usage ;;
 esac
