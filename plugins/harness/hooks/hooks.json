@@ -1,0 +1,17 @@
+{
+  "description": "하네스 자가 점검 신호 — 세션 시작 시 골격 갱신·승격 대기 학습·깨진 지도 포인터를 감지해 점검 제안을 모델 컨텍스트로 전달",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "command -v node >/dev/null 2>&1 && node \"${CLAUDE_PLUGIN_ROOT}/skills/harness/scripts/harness-signal.mjs\" || true",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}

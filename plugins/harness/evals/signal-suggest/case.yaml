@@ -1,0 +1,7 @@
+schema_version: "1.0"
+name: signal-suggest
+description: 마커가 구버전일 때 SessionStart 훅 신호로 무관한 작업 끝에 /harness 점검을 제안하되 스킬을 스스로 실행하지 않는지 본다 (참고용)
+tags: [signal, informational]
+runs: 1
+context:
+  scaffold_script: scaffold.sh

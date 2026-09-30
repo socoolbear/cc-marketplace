@@ -1,0 +1,7 @@
+schema_version: "1.0"
+name: maintain-report-only
+description: 하네스가 셋업된 프로젝트에서 점검만 요청했을 때 파일을 수정하지 않고 깨진 지도 포인터를 보고하는지 본다
+tags: [maintain]
+runs: 1
+context:
+  scaffold_script: scaffold.sh

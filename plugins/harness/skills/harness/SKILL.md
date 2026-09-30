@@ -1,60 +1,79 @@
 ---
 name: harness
-description: "프로젝트에 에이전트용 지속 지식 문서 (AGENTS.md 지도 + harness/ 의 ARCHITECTURE·ADR·GLOSSARY·LESSONS) 와 선택적 레이어 검사 강제를 구축·유지·점검한다. 프로젝트 상태를 자동 감지해 setup (0→1 구축) / maintain (플러그인 버전 동기화 + 문서 낡음 점검) / reflect (세션 학습을 팀 문서로 승격) 로 분기하므로, 어떤 모드가 필요한지 몰라도 이 스킬 하나로 시작한다. 하네스 셋업·구축·적용·업데이트·동기화·감사·점검, 학습 승격 (reflect), 도메인 용어집 (glossary), ADR·아키텍처 결정 기록, 아키텍처 불변 조건, 레이어 경계 강제, 문서 낡음·드리프트, AGENTS.md 정리 요청 시 사용한다."
+description: "프로젝트에 에이전트용 지속 지식 문서 (AGENTS.md 지도 + harness/ 의 ARCHITECTURE·ADR·GLOSSARY·LESSONS) 와 선택적 레이어 검사 강제를 구축하고 유지한다. 상태를 감지해 setup (최초 구축) 또는 maintain (낡음 점검 + 세션 학습 승격) 으로 분기한다. 하네스 셋업·점검·업데이트, 학습 승격 (reflect), 용어집, ADR, 아키텍처 불변 조건, 레이어 경계 강제, AGENTS.md 정리 요청, 또는 세션 시작 시 '하네스 자가 점검 신호' 를 받고 사용자가 점검을 수락했을 때 사용한다."
 ---
 
-# Harness — 단일 진입점 라우터
+# Harness
 
-프로젝트 상태를 감지해 세 모드 중 하나로 분기한다. 라우터는 **감지·분기만** 하고 모드의 행동을 바꾸지 않는다.
+에이전트가 매 세션 다시 알아내지 않도록 **코드에서 재도출할 수 없는 지식**(함정·이유·관례·이력·용어)을 repo 문서로 유지한다. 이 파일은 규약과 분기를 정하고, 모드별 행동은 `modes/` 가 정한다.
 
-## 자료 (필요한 시점에 읽는다)
+| 파일 | 역할 |
+|---|---|
+| [`modes/setup.md`](modes/setup.md) | 최초 구축 |
+| [`modes/maintain.md`](modes/maintain.md) | 낡음 점검 + 골격 갱신 + 학습 승격 |
+| [`references/document-formats.md`](references/document-formats.md) | 산출 문서 골격·등재 기준 (쓰는 시점에 읽는다) |
+| [`references/enforcement.md`](references/enforcement.md) | 레이어 검사기·훅·CI 설계 요건 (강제를 다룰 때만 읽는다) |
 
-| 파일 | 무엇의 정답인가 |
-|------|-----------------|
-| [`CONTRACTS.md`](CONTRACTS.md) | 설계 원칙, 대상 레이아웃, `.harness.json` 스키마, 보호 규칙 |
-| [`modes/setup.md`](modes/setup.md) | 0 → 1 구축 절차 |
-| [`modes/maintain.md`](modes/maintain.md) | 버전 동기화 + 문서 낡음 점검 절차 |
-| [`modes/reflect.md`](modes/reflect.md) | 세션 학습 → 문서 승격 절차 |
-| [`references/document-formats.md`](references/document-formats.md) | 대상 문서 5종 + 브리지의 표준 골격, 등재 기준 |
-| [`references/mechanical-enforcement.md`](references/mechanical-enforcement.md) | 레이어 검사기 설계 요건, hook 출력 프로토콜, CI |
+## 원칙
 
-모드 파일은 자기가 실제로 쓰는 시점에 위 references 를 읽는다 — 분기 시점에 한꺼번에 읽지 않는다.
+1. **재도출 가능하면 쓰지 않는다** — 디렉토리 구조·의존성 목록·현황 서술은 코드가 정답이다.
+2. **한 줄 테스트** — "이 줄을 지우면 에이전트가 실수하는가?" 아니면 지운다.
+3. **유지 주체는 작업 에이전트와 사람이다** — 불변 조건을 바꾸는 커밋이 같은 커밋에서 문서를 고친다. 하네스는 안전망이다.
+4. **강제가 필요한 규칙은 문서가 아니라 훅·CI 로** — 문서는 권고다.
+5. **repo 에는 재도출 가능한 상태를 기록하지 않는다** — 강제 활성 여부, 셋업 일자 등은 감지한다.
+6. **일회성 계획·진행 상태는 소관이 아니다** — 플랜 모드·태스크·git 이 맡는다.
 
-## Phase 0: 상태 감지 (읽기 전용)
-
-앵커 = 현재 작업 디렉토리 (모노레포 서브패키지 가능 — CONTRACTS 3절). 다음을 **읽기만** 한다:
-
-1. **마커**: `harness/.harness.json` 존재 여부 + `version` 필드 vs `../../.claude-plugin/plugin.json` 의 `version`
-2. **셋업 흔적**: `AGENTS.md`, `harness/` 문서 존재 여부 (부분 손상 판정용)
-3. **학습 소스** (reflect 보조): `~/.claude/projects/<앵커 절대경로의 / 를 - 로 치환>/memory/` 의 `MEMORY.md` 가 가리키는 파일 중, frontmatter `metadata.type` 이 `feedback` 또는 `project` 이고 mtime 이 `.harness.json` 의 `lastReflect` 이후인 것
-
-## Phase 1: 분기
-
-사용자가 모드를 명시했으면 그 모드로 (아래 규칙 무시). 아니면 위→아래 첫 매칭:
+## 대상 레이아웃
 
 ```
-1) 마커 존재
-   → maintain. 비파괴이므로 한 줄 통지 후 바로 진행:
-     버전 일치  → "하네스 v{버전} 최신 상태입니다 — 문서 낡음 점검을 진행합니다."
-     버전 불일치 → "하네스 v{설치}→v{플러그인} 동기화와 낡음 점검을 진행합니다."
-     (쓰기 단계의 승인은 maintain 내부의 AskUserQuestion 이 담당)
-
-2) 마커 부재 + 셋업 흔적 부재
-   → setup. 문서 생성·AGENTS.md 작성이 수반되므로 AskUserQuestion 으로 구축 범위를 요약해 확인 후 진행
-
-3) 그 외 (부분 손상 — 마커는 있는데 harness/ 문서 누락, AGENTS.md 만 존재 등)
-   → 감지 모호. 상태 요약과 함께 AskUserQuestion 으로 사용자가 모드 선택
+{앵커}/                     # setup 을 실행한 디렉토리 (모노레포 서브패키지 가능)
+  AGENTS.md                 # 지도 ≤40줄
+  CLAUDE.md                 # "@AGENTS.md" 연결 파일 (부재 시만 생성)
+  harness/
+    .harness.json           # 마커
+    ARCHITECTURE.md  ADR.md  GLOSSARY.md  LESSONS.md
+  .claude/settings.json     # (선택) 레이어 검사 훅 — 팀 공유
+  scripts/…                 # (선택) 검사기 + 훅 어댑터
 ```
 
-**reflect 보조**: Phase 0-3 에서 신규 학습이 감지되고 셋업이 완료된 상태면, 위 통지·질문에 한 줄을 덧붙인다 — "세션 학습 N건이 누적되어 있습니다 — reflect 로 문서 승격도 가능합니다." (사용자가 선택할 때만 reflect 진행)
+강제 활성 = settings 에 레이어 검사 훅 항목이 있음 (검사기 파일명은 도구 체인마다 다르므로 기준이 아니다).
 
-## Phase 2: 위임
+## 마커 `harness/.harness.json`
 
-선택된 모드 파일을 읽어 그대로 실행한다.
+```json
+{ "version": "<설치 당시 plugin.json version>", "lastReflect": "<ISO 8601 시각>" }
+```
 
-## 안티패턴
+- `version` — setup 이 쓰고 maintain 이 골격을 갱신했을 때만 올린다.
+- `lastReflect` — 학습 승격을 실행했을 때만 갱신한다. v3 이하는 `YYYY-MM-DD` 였다 — 읽을 때 그날의 끝으로 해석한다.
+- 그 외 필드는 만들지 않는다.
 
-| 안티패턴 | 대신 |
-|----------|------|
-| 비파괴 분기 (규칙 1) 에서도 매번 질문 | 한 줄 통지 후 진행 — 질문은 파괴적 (2)·모호 (3) 분기만 |
-| 라우터에서 모드의 행동을 미리 수행 | 감지·분기만. 쓰기는 각 모드가 자기 승인 절차로 |
+**버전 규칙**: 산출 문서 골격 (document-formats) 을 바꾸는 릴리스는 major 를 올린다. 세션 시작 신호는 major 차이만 골격 갱신으로 알린다.
+
+## 보호 규칙 (모든 모드 공통)
+
+- 문서의 **본문 데이터**(ADR 항목, GLOSSARY 행, LESSONS 항목, 사용자가 추가한 섹션) 는 수정·삭제하지 않는다. 모드가 만지는 것은 골격과 마커뿐이다.
+- 쓰기는 사용자 승인 후에만 한다. setup 도 구축 범위를 먼저 확인받는다 (사용자가 기본값 진행을 미리 허락했으면 생략).
+- `ARCHITECTURE.md`·`ADR.md` 는 모드가 직접 고치지 않는다 — 권고만 하고 작업 에이전트·사람이 반영한다. GLOSSARY 행 삭제는 사람만 한다.
+- 기존 `CLAUDE.md` 는 수정하지 않는다. 검사기 스크립트는 실행만 한다.
+- `docs/legacy-*/`, `_archive/` 는 읽지도 고치지도 않는다.
+
+## 분기
+
+사용자가 모드를 명시하면 따른다 ("reflect"·"학습 승격" → maintain 의 학습 단계만). 아니면 앵커 (현재 디렉토리) 를 읽기만 하고 판단한다:
+
+| 상태 | 모드 |
+|---|---|
+| 마커 있음 | maintain — 한 줄 알리고 바로 진단 (진단은 읽기 전용) |
+| 마커·AGENTS.md·`harness/` 모두 없음 | setup — 구축 범위를 요약해 확인 후 진행 |
+| 일부만 있음 (마커 없이 문서만, 마커만 있고 문서 누락 등) | 상태를 요약하고 사용자에게 모드를 묻는다 |
+
+세션 시작 신호로 들어왔으면 신호에 적힌 항목부터 다룬다.
+
+## 세션 시작 신호
+
+플러그인 `SessionStart` 훅 ([`scripts/harness-signal.mjs`](scripts/harness-signal.mjs)) 이 마커가 있는 프로젝트에서만 결정적 신호를 감지해 모델 컨텍스트에 넣는다: 골격 major 차이, 승격 대기 학습 건수, 깨진 지도 포인터. 같은 신호는 7일에 한 번만 다시 알린다 (상태는 `${CLAUDE_PLUGIN_DATA}` 에만 둔다).
+
+신호를 받으면 **사용자의 요청을 먼저 끝내고** 응답 끝에 한 줄로 점검을 제안한다. 수락 전에는 실행하지 않는다.
+
+한계: 세션을 앵커가 아닌 곳 (예: 모노레포 루트) 에서 열면 신호가 나오지 않는다. memory 위치는 기본 경로만 따른다 (`autoMemoryDirectory` 설정·200자 초과 경로는 미지원).

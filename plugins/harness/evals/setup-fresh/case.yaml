@@ -1,0 +1,7 @@
+schema_version: "1.0"
+name: setup-fresh
+description: 하네스 문서가 없는 작은 node 프로젝트에 setup 모드를 돌려 산출물 7종이 생기는지 본다
+tags: [setup]
+runs: 1
+context:
+  scaffold_script: scaffold.sh
