@@ -1,6 +1,6 @@
 ---
 name: taskspace
-description: bare 저장소 (`.bares/`) 로 여러 repo 를 중앙 등록해 두고, 이슈 단위 TASK-ID 로 `tasks/<TASK-ID>/` 아래에 repo 별 worktree 와 영구 보존 notes.md 를 격리해 관리하는 taskspace 워크스페이스 전용 스킬. "taskspace", "TASK-ID 로 작업 시작", "bare 저장소 등록", "tasks/ 아래에 worktree", "taskspace 워크스페이스 최초 세팅", "태스크 워크스페이스 정리 (done)", "태스크 보류 (hold)", "태스크 폐기 (abandon)", "보류·폐기한 태스크 재개 (resume)", "태스크 worktree 에 최신 main 반영 (sync)", "taskspace 목록", "태스크 색인 (index)", "지난 태스크 찾기", "끝난 태스크를 archive/ 로 옮기기", "스킬 업데이트 반영 (upgrade)", "워크스페이스를 새 버전 구조로", "기존 체크아웃의 gitignore 된 로컬 파일을 .local/ 로 가져오기 (migrate)", ".env·키·참조 소스처럼 gitignore 된 필수 파일 공유" 같은 요청에 사용한다. `.bares/` 구조가 아닌 일반 우산 워크스페이스에 그때그때 worktree 만 깔아 달라는 요청은 이 스킬이 아니라 `worktree-setup` 이다.
+description: bare 저장소 (`.bares/`) 로 여러 repo 를 중앙 등록해 두고, 이슈 단위 TASK-ID 로 `tasks/<TASK-ID>/` 아래에 repo 별 worktree 와 영구 보존 notes.md 를 격리해 관리하는 taskspace 워크스페이스 전용 스킬. "taskspace", "TASK-ID 로 작업 시작", "bare 저장소 등록", "tasks/ 아래에 worktree", "taskspace 워크스페이스 최초 세팅", "태스크 워크스페이스 정리 (done)", "태스크 보류 (hold)", "태스크 폐기 (abandon)", "보류·폐기한 태스크 재개 (resume)", "태스크 worktree 에 최신 main 반영 (sync)", "taskspace 목록", "태스크 색인 (index)", "지난 태스크 찾기", "끝난 태스크를 archive/ 로 옮기기", "스킬 업데이트 반영 (upgrade)", "팀 이동·업무 방식 변경으로 새 워크스페이스 만들기·태스크 이관", "워크스페이스를 새 버전 구조로", "기존 체크아웃의 gitignore 된 로컬 파일을 .local/ 로 가져오기 (migrate)", ".env·키·참조 소스처럼 gitignore 된 필수 파일 공유" 같은 요청에 사용한다. `.bares/` 구조가 아닌 일반 우산 워크스페이스에 그때그때 worktree 만 깔아 달라는 요청은 이 스킬이 아니라 `worktree-setup` 이다.
 ---
 
 # taskspace — bare 저장소 + tasks/<TASK-ID>/ 격리 작업 환경
@@ -276,3 +276,23 @@ $TS upgrade
 3. `tasks/INDEX.md` 를 다시 쓴다.
 
 실행 후 무엇을 옮겼는지, `tasks/CLAUDE.md` 를 어떻게 처리했는지, 수동으로 처리해야 할 항목(완료 일시 없는 idle 태스크, 사용자 수정 CLAUDE.md 등)을 보고하고, **워크스페이스 repo 에 미커밋 변경이 남아 있다는 사실**을 알린다 — 커밋은 사용자가 지시할 때만 한다.
+
+## 10. 팀·업무 방식이 바뀔 때 — 새 워크스페이스 권고
+
+사용자가 팀 이동·조직 변경·업무 방식 변경을 말하면, 기존 워크스페이스에 섞지 말고 **새 워크스페이스를 만들라고 권한다**. 지도 `tasks/CLAUDE.md`·ID 체계·`next` 번호가 워크스페이스 단위라, 섞으면 목록과 번호가 꼬인다. 이 스킬에 팀 구분 기능은 없다 — 워크스페이스 하나가 업무 방식 하나다. 이관은 기존 명령으로 한다.
+
+1. 기존 워크스페이스: 이어갈 태스크를 `hold <ID> --reason <사유>` 로 보류한다 (push 가 강제되고 `- 보존 브랜치:` 가 기록된다). 나머지 진행 중 태스크는 `done`/`abandon` 으로 정리한다.
+2. 새 워크스페이스: `init <새 루트> <url>...` — 겹치는 repo 는 기존 `repos.txt` 에서 고른다.
+3. 필요한 로컬 파일을 복사한다 (내용은 열지 않는다).
+   ```bash
+   mkdir -p <새 루트>/.local && cp -pR <기존 루트>/.local/<repo> <새 루트>/.local/
+   ```
+4. 이어갈 태스크를 옮겨 재개한다. `init` 은 `archive/` 를 만들지 않으므로 **`mkdir -p` 를 먼저 한다** — 없으면 `cp -R` 이 `<ID>` 를 `archive` 라는 이름으로 복사한다.
+   ```bash
+   mkdir -p <새 루트>/archive && cp -R <기존 루트>/archive/<ID> <새 루트>/archive/
+   cd <새 루트> && $TS resume <ID> && $TS sync <ID>
+   ```
+   새 워크스페이스에는 로컬 브랜치가 없어도 `resume` 이 `origin/<브랜치>` 를 추적하는 worktree 를 만들고 `.local/` 심링크도 건다.
+5. 기존 워크스페이스의 `list` 가 비었는지 확인한다. 기존 워크스페이스 디렉토리 보관과 원격 repo 아카이브는 **사용자 몫** 이다 — 스킬은 안내만 한다.
+
+끝난 태스크 기록은 옮기지 않는다 — 기존 워크스페이스 repo 에 남는다. 번호형 태스크(`012`)를 이관한 뒤 Jira 키(`PAY-123`) 같은 다른 형식을 쓰면 `next` 가 접두사 혼재로 거부하므로 ID 를 직접 지정한다.
