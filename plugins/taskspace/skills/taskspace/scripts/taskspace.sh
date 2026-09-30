@@ -620,7 +620,7 @@ cmd_add() {
 # ---------------------------------------------------------------- init
 
 cmd_init() {
-  local dir parent
+  local dir parent top
   dir="$(pwd)"
 
   if [[ $# -gt 0 ]] && ! looks_like_url "$1"; then
@@ -642,6 +642,9 @@ cmd_init() {
 
   if [[ -d "${dir}/.git" ]]; then
     log "🔄 이미 git repo: ${dir}"
+  elif top="$(git -C "${dir}" rev-parse --show-toplevel 2>/dev/null)"; then
+    # 여러 워크스페이스를 묶는 상위 repo 안이면 하위 repo 를 만들지 않는다 (만들면 상위에 gitlink 로만 잡힌다)
+    log "🔄 상위 git repo 안 — git init 생략 (상위 repo 가 추적): ${top}"
   else
     git init --quiet -- "${dir}"
     log "🌱 git init: ${dir}"

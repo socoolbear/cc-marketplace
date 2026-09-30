@@ -10,7 +10,7 @@ description: bare 저장소 (`.bares/`) 로 여러 repo 를 중앙 등록해 두
 
 ## 1. 구조와 전제
 
-`.bares/` 에 여러 repo 를 bare 저장소로 중앙 등록해 두고, 이슈 하나(TASK-ID)마다 `tasks/<TASK-ID>/` 아래에 관련 repo 의 worktree 를 한 벌 모아 둔다. 태스크가 끝나면(완료·보류·폐기) `archive/<TASK-ID>/` 로 옮겨 진행 중 목록에서 빠진다 — worktree 는 없고 notes.md·CLAUDE.md 등 추적 파일만 남는다. **워크스페이스 루트 자체가 git repo** 다 — `.gitignore`·`repos.txt`·`tasks/CLAUDE.md`·`tasks/INDEX.md`·`tasks/*/notes.md`·`tasks/*/CLAUDE.md`·`archive/*/notes.md`·`archive/*/CLAUDE.md` 만 추적하고, `.bares/`·`.local/`·`shared/`·각 worktree 는 ignore 한다.
+`.bares/` 에 여러 repo 를 bare 저장소로 중앙 등록해 두고, 이슈 하나(TASK-ID)마다 `tasks/<TASK-ID>/` 아래에 관련 repo 의 worktree 를 한 벌 모아 둔다. 태스크가 끝나면(완료·보류·폐기) `archive/<TASK-ID>/` 로 옮겨 진행 중 목록에서 빠진다 — worktree 는 없고 notes.md·CLAUDE.md 등 추적 파일만 남는다. **워크스페이스 루트 자체가 git repo** 다 (여러 워크스페이스를 묶는 상위 repo 안에 만들면 그 상위 repo 가 대신 추적한다 — 10절) — `.gitignore`·`repos.txt`·`tasks/CLAUDE.md`·`tasks/INDEX.md`·`tasks/*/notes.md`·`tasks/*/CLAUDE.md`·`archive/*/notes.md`·`archive/*/CLAUDE.md` 만 추적하고, `.bares/`·`.local/`·`shared/`·각 worktree 는 ignore 한다.
 
 ```
 <워크스페이스 루트>/            ← git repo (notes 추적용)
@@ -47,7 +47,7 @@ description: bare 저장소 (`.bares/`) 로 여러 repo 를 중앙 등록해 두
    ```bash
    $TS init <dir> <git-url>[=<name>]...
    ```
-   디렉토리·`.bares/`·`tasks/` 생성, `git init` (이미 repo 면 통과), `.gitignore` 추가, 지도 `tasks/CLAUDE.md` 생성(있으면 보존), repo 등록까지 한 번에 끝난다. 여러 번 실행해도 안전하다(멱등).
+   디렉토리·`.bares/`·`tasks/` 생성, `git init` (이미 repo 이거나 상위 git repo 안이면 생략), `.gitignore` 추가, 지도 `tasks/CLAUDE.md` 생성(있으면 보존), repo 등록까지 한 번에 끝난다. 여러 번 실행해도 안전하다(멱등).
 4. `$TS repos` 로 등록 결과를 보고한다.
 5. **워크스페이스 repo 의 첫 커밋은 사용자가 지시할 때만 한다.** `init` 은 커밋하지 않는다 — `.gitignore`·notes 를 추적하는 repo 라는 사실과 원격 연결은 사용자 몫이라고 안내한다.
 
@@ -294,5 +294,7 @@ $TS upgrade
    ```
    새 워크스페이스에는 로컬 브랜치가 없어도 `resume` 이 `origin/<브랜치>` 를 추적하는 worktree 를 만들고 `.local/` 심링크도 건다.
 5. 기존 워크스페이스의 `list` 가 비었는지 확인한다. 기존 워크스페이스 디렉토리 보관과 원격 repo 아카이브는 **사용자 몫** 이다 — 스킬은 안내만 한다.
+
+워크스페이스들을 한 상위 디렉토리(예: `<상위>/<팀A>/`, `<상위>/<팀B>/`)에 모아 상위 디렉토리 하나를 git repo 로 관리해도 된다. 상위가 이미 repo 면 `init` 은 `git init` 을 생략하고, 각 워크스페이스의 `.gitignore` 는 그 디렉토리 기준으로 그대로 적용된다. 기존 워크스페이스를 상위 repo 로 옮길 때는 하위 `.git` 을 없애야 한다 (남아 있으면 상위 repo 에 내용 없는 gitlink 로만 잡힌다). 이때 `tasks/*/*/` 규칙에 걸리지만 추적 중이던 파일은 `git ls-files` 목록으로 `git add -f` 해야 빠지지 않는다.
 
 끝난 태스크 기록은 옮기지 않는다 — 기존 워크스페이스 repo 에 남는다. 번호형 태스크(`012`)를 이관한 뒤 Jira 키(`PAY-123`) 같은 다른 형식을 쓰면 `next` 가 접두사 혼재로 거부하므로 ID 를 직접 지정한다.
