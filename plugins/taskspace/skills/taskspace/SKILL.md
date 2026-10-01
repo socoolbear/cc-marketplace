@@ -140,11 +140,13 @@ ID 를 지정받지 않았으면 `next` 로 자동 배정한다 (`001` 부터, �
 
 ### 4-4. 세션 위치와 CLAUDE.md
 
-세션은 **주로 만질 repo 의 worktree** `tasks/<TASK-ID>/<repo>/` 에서 `claude --add-dir ..` 로 연다 — 훅·`settings.json` 은 cwd 의 `.claude/` 만 실리기 때문이다. `--add-dir ..` 는 `notes.md`·형제 repo 접근 승인 프롬프트를 없앤다 (`tasks/<TASK-ID>/` 에는 `.claude/` 가 없어 훅·설정 오염이 없다). `tasks/<TASK-ID>/` 에서 열면 repo 의 훅·설정을 잃는다고 사용자에게 알린다.
+세션은 **태스크 루트** `tasks/<TASK-ID>/` 에서 연다 — 태스크는 대개 여러 repo 에 걸치고, 태스크 CLAUDE.md 의 repo 표가 처음부터 실리며, 특정 repo 에 치우치지 않는다. 대가는 repo 의 `.claude/settings.json`(훅)·`.mcp.json` 이 실리지 않는 것과 경로 없는 `git` 이 워크스페이스 repo 를 친다는 것 — 지도 `tasks/CLAUDE.md` 의 "cwd 가 태스크 루트일 때" 목록이 이를 다룬다. (`.claude/skills/` 는 하위 디렉토리 파일을 다룰 때 자동으로 실린다.)
+
+repo 가 하나뿐이거나, 주로 만질 repo 에 훅·`.mcp.json` 이 있으면 그 worktree `tasks/<TASK-ID>/<repo>/` 에서 `claude --add-dir ..` 로 연다 — `--add-dir ..` 는 `notes.md`·형제 repo 접근 승인 프롬프트를 없앤다.
 
 기록 위치는 지도 `tasks/CLAUDE.md`(템플릿 `references/tasks-claude-template.md`)가 알려 준다 — `init`/`new` 가 없으면 만든다.
 
-태스크 CLAUDE.md(`tasks/<TASK-ID>/CLAUDE.md`)는 **repo 가 둘 이상일 때만** 쓴다. 형제 repo 의 CLAUDE.md 는 조상도 자손도 아니라 실리지 않으므로, 4-2 에서 찾은 repo 별 규칙 문서 경로 표를 여기 둔다. 지도와 겹치는 경계는 넣지 않는다 (이중 로드). `@notes.md` 임포트는 하지 않는다 — 모든 세션의 컨텍스트를 갉아먹는다. repo 를 나중에 추가할 때는 `new <TASK-ID> <repo>` 만 치면 된다 (슬러그는 notes.md 에서 계승된다) — 추가 후 표를 갱신한다.
+태스크 CLAUDE.md(`tasks/<TASK-ID>/CLAUDE.md`)는 **repo 가 둘 이상일 때만** 쓴다. repo 의 CLAUDE.md 는 태스크 루트 세션에서는 그 디렉토리 파일을 읽을 때에야 실리고, worktree 세션에서 형제 repo 의 것은 아예 실리지 않으므로, 4-2 에서 찾은 repo 별 규칙 문서 경로 표를 여기 둔다. 지도와 겹치는 경계는 넣지 않는다 (이중 로드). `@notes.md` 임포트는 하지 않는다 — 모든 세션의 컨텍스트를 갉아먹는다. repo 를 나중에 추가할 때는 `new <TASK-ID> <repo>` 만 치면 된다 (슬러그는 notes.md 에서 계승된다) — 추가 후 표를 갱신한다.
 
 1.3.0 이전 태스크의 CLAUDE.md 는 그대로 둬도 되나, 지도와 겹치는 경계 목록은 지운다.
 
@@ -156,7 +158,7 @@ ID 를 지정받지 않았으면 `next` 로 자동 배정한다 (`001` 부터, �
 - repo 별 경로 · 브랜치 · 기준 커밋
 - 연결된 심링크 목록 (`.local/<repo>/` 가 비어 있으면 2-1·2-2 절 안내)
 - 각 worktree 의 `.prompts/` (스크래치, done 때 삭제)
-- 다음 세션: `cd tasks/<TASK-ID>/<repo> && claude --add-dir ..` (주로 만질 repo)
+- 다음 세션: `cd tasks/<TASK-ID> && claude` (repo 가 하나면 `cd tasks/<TASK-ID>/<repo> && claude --add-dir ..`)
 - 의존성이 설치돼 있지 않다는 사실
 
 ## 5. done — 태스크 정리
