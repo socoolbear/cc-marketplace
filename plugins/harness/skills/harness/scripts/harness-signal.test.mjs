@@ -168,17 +168,42 @@ test('modified 가 기준 이전이어도 본문을 고쳐 mtime 이 뒤면 집�
   assert.ok(contextOf(runSignal(fixture)).includes(learningsLine(1)));
 });
 
-test('lastReflect 없음 → 마커 mtime 기준 (modified 없으면 파일 mtime)', () => {
+test('lastReflect·승격 시각 모두 없음 → 전체 집계, 깨진 승격 시각 파일은 무시', () => {
   const fixture = createFixture({ marker: { version: '4.0.0' } });
-  const markerFile = path.join(fixture.project, 'harness', '.harness.json');
-  const base = Date.now() / 1000;
-  const dir = writeMemory(fixture, fixture.project, { 'older.md': oldStyle(), 'newer.md': oldStyle() });
+  const dir = writeMemory(fixture, fixture.project, { 'a.md': oldStyle(), 'b.md': oldStyle() });
 
-  fs.utimesSync(markerFile, base - 3600, base - 3600);
-  fs.utimesSync(path.join(dir, 'older.md'), base - 7200, base - 7200);
-  fs.utimesSync(path.join(dir, 'newer.md'), base - 60, base - 60);
+  setMtime(dir, ['a.md', 'b.md'], '2001-01-01T00:00:00Z');
+  fs.writeFileSync(path.join(dir, '.harness-reflect.json'), '{broken');
+
+  assert.ok(contextOf(runSignal(fixture)).includes(learningsLine(2)));
+});
+
+test('memory 디렉토리의 머신별 승격 시각이 마커 lastReflect 보다 우선', () => {
+  const fixture = createFixture({ marker: { version: '4.0.0', lastReflect: '2020-01-01' } });
+  const dir = writeMemory(fixture, fixture.project, { 'a.md': oldStyle() });
+
+  fs.writeFileSync(path.join(dir, '.harness-reflect.json'), JSON.stringify({ '.': '2999-01-01T00:00:00Z' }));
+
+  assert.equal(runSignal(fixture), '');
+
+  fs.writeFileSync(path.join(dir, '.harness-reflect.json'), JSON.stringify({ other: '2999-01-01T00:00:00Z' }));
 
   assert.ok(contextOf(runSignal(fixture)).includes(learningsLine(1)));
+});
+
+test('모노레포 서브패키지 앵커는 toplevel 기준 상대 경로로 승격 시각을 찾음', { skip: !hasGit }, () => {
+  const fixture = createFixture({ marker: null });
+  const main = makeTemp('mono');
+  const pkg = path.join(main, 'pkg');
+
+  git(main, 'init', '-q');
+  writeMarker(pkg, { version: '4.0.0', lastReflect: '2020-01-01' });
+
+  const dir = writeMemory(fixture, main, { 'a.md': oldStyle() });
+
+  fs.writeFileSync(path.join(dir, '.harness-reflect.json'), JSON.stringify({ pkg: '2999-01-01T00:00:00Z' }));
+
+  assert.equal(runSignal(fixture, { anchor: pkg }), '');
 });
 
 test('MEMORY.md 의 상위 경로·절대 경로 링크는 무시', () => {

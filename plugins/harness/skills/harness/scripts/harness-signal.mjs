@@ -9,6 +9,8 @@ import { fileURLToPath } from 'node:url';
 
 const THROTTLE_MS = 7 * 24 * 60 * 60 * 1000;
 const POINTER_CAP = 5;
+// 머신별 마지막 승격 시각. memory 디렉토리마다 두고 앵커 (toplevel 기준 상대 경로) 별로 기록한다
+export const REFLECT_STATE = '.harness-reflect.json';
 
 export const toSlug = (p) => p.replace(/[^A-Za-z0-9]/g, '-');
 
@@ -76,7 +78,8 @@ export function findMemoryDirs(anchor, configDir) {
   return [...new Set(dirs)].filter((dir) => fs.existsSync(dir));
 }
 
-export function parseBaseline(marker, markerMtimeMs) {
+// 승격 기록이 전혀 없으면 0 (전체 수집). 마커 mtime 은 pull 로 바뀌어 기준이 될 수 없다
+export function parseBaseline(marker) {
   const value = marker.lastReflect;
   const dateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value ?? ''));
 
@@ -88,7 +91,7 @@ export function parseBaseline(marker, markerMtimeMs) {
 
   const parsed = Date.parse(value);
 
-  return Number.isNaN(parsed) ? markerMtimeMs : parsed;
+  return Number.isNaN(parsed) ? 0 : parsed;
 }
 
 export function parseFrontmatter(text) {
@@ -118,11 +121,26 @@ export function listMemoryFiles(memoryDir) {
     .filter((f) => fs.existsSync(f));
 }
 
-export function countLearnings(memoryDirs, baseline) {
+export function reflectKey(anchor) {
+  const toplevel = runGit(anchor, ['rev-parse', '--show-toplevel']);
+  const root = toplevel && realpathOrNull(toplevel);
+
+  return (root && path.relative(root, anchor)) || '.';
+}
+
+export function readDirBaseline(dir, key, fallback) {
+  const parsed = Date.parse(readJson(path.join(dir, REFLECT_STATE))?.[key]);
+
+  return Number.isNaN(parsed) ? fallback : parsed;
+}
+
+export function countLearnings(memoryDirs, baselineOf) {
   const counted = new Set();
   const visited = new Set();
 
   for (const dir of memoryDirs) {
+    const baseline = baselineOf(dir);
+
     for (const file of listMemoryFiles(dir)) {
       const real = realpathOrNull(file);
 
@@ -225,8 +243,9 @@ export function main() {
     : null;
 
   const configDir = process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude');
-  const baseline = parseBaseline(marker, fs.statSync(markerFile).mtimeMs);
-  const learnings = countLearnings(findMemoryDirs(anchor, configDir), baseline);
+  const fallback = parseBaseline(marker);
+  const key = reflectKey(anchor);
+  const learnings = countLearnings(findMemoryDirs(anchor, configDir), (dir) => readDirBaseline(dir, key, fallback));
   const pointers = findBrokenPointers(anchor);
   const context = buildContext({ skeleton, learnings, pointers });
 

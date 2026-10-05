@@ -13,6 +13,7 @@ description: "프로젝트에 에이전트용 지속 지식 문서 (AGENTS.md �
 | [`modes/maintain.md`](modes/maintain.md) | 낡음 점검 + 골격 갱신 + 학습 승격 |
 | [`references/document-formats.md`](references/document-formats.md) | 산출 문서 골격·등재 기준 (쓰는 시점에 읽는다) |
 | [`references/enforcement.md`](references/enforcement.md) | 레이어 검사기·훅·CI 설계 요건 (강제를 다룰 때만 읽는다) |
+| [`references/changelog.md`](references/changelog.md) | 설치된 프로젝트에 영향이 있는 변경 이력 (maintain 이 마커 이후 항목을 알린다) |
 
 ## 원칙
 
@@ -41,14 +42,16 @@ description: "프로젝트에 에이전트용 지속 지식 문서 (AGENTS.md �
 ## 마커 `harness/.harness.json`
 
 ```json
-{ "version": "<설치 당시 plugin.json version>", "lastReflect": "<ISO 8601 시각>" }
+{ "version": "<설치 당시 plugin.json version>" }
 ```
 
-- `version` — setup 이 쓰고 maintain 이 골격을 갱신했을 때만 올린다.
-- `lastReflect` — 학습 승격을 실행했을 때만 갱신한다. v3 이하는 `YYYY-MM-DD` 였다 — 읽을 때 그날의 끝으로 해석한다.
+- `version` — setup 이 쓰고, maintain 이 올리는 조건은 [`modes/maintain.md`](modes/maintain.md) 4단계가 정한다.
+- `lastReflect` — 4.1 이하가 쓰던 필드. 더 쓰지 않고, 머신별 승격 시각이 없을 때의 기준으로만 읽는다 (`YYYY-MM-DD` 는 그날의 끝).
 - 그 외 필드는 만들지 않는다.
 
-**버전 규칙**: 산출 문서 골격 (document-formats) 을 바꾸는 릴리스는 major 를 올린다. 세션 시작 신호는 major 차이만 골격 갱신으로 알린다.
+**머신별 승격 시각** — memory 가 머신별이므로 마지막 승격 시각도 repo 가 아니라 각 memory 디렉토리의 `.harness-reflect.json` 에 둔다: `{ "<키>": "<ISO 8601 시각>" }`. 키는 앵커에서 `git rev-parse --show-prefix` 의 끝 `/` 를 뗀 값이고, 빈 값이거나 git 이 아니면 `.` 이다. 승격 시각도 `lastReflect` 도 없으면 전체를 수집한다.
+
+**버전 규칙**: 산출 문서 골격 (document-formats) 을 바꾸는 릴리스는 major 를 올린다. 세션 시작 신호는 major 차이만 골격 갱신으로 알리고, minor 이하 변경은 maintain 이 changelog 로 알린다. 설치된 프로젝트에 영향이 있는 릴리스는 changelog 에 항목을 추가한다.
 
 ## 보호 규칙 (모든 모드 공통)
 
