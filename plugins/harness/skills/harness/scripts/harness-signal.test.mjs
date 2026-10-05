@@ -92,6 +92,12 @@ const newStyle = (modified, type = 'project') =>
   `---\nname: x\nmetadata:\n  type: ${type}\n  modified: ${modified}\n---\nbody\n`;
 const learningsLine = (n) => `승격 대기 학습 ${n}건`;
 
+function setMtime(dir, names, iso) {
+  const seconds = Date.parse(iso) / 1000;
+
+  for (const name of names) fs.utimesSync(path.join(dir, name), seconds, seconds);
+}
+
 test('마커 없음 → 무출력', () => {
   const fixture = createFixture({ marker: null });
 
@@ -134,7 +140,9 @@ test('lastReflect 날짜만 + 같은 날 modified → 0건', () => {
   const fixture = createFixture({ marker: { version: '4.0.0', lastReflect: '2026-05-10' } });
   const sameDay = new Date(2026, 4, 10, 12, 0, 0).toISOString();
 
-  writeMemory(fixture, fixture.project, { 'a.md': newStyle(sameDay) });
+  const dir = writeMemory(fixture, fixture.project, { 'a.md': newStyle(sameDay) });
+
+  setMtime(dir, ['a.md'], sameDay);
 
   assert.equal(runSignal(fixture), '');
 });
@@ -142,10 +150,20 @@ test('lastReflect 날짜만 + 같은 날 modified → 0건', () => {
 test('ISO 기준 시각보다 뒤인 것만 집계', () => {
   const fixture = createFixture({ marker: { version: '4.0.0', lastReflect: '2026-05-10T12:00:00Z' } });
 
-  writeMemory(fixture, fixture.project, {
+  const dir = writeMemory(fixture, fixture.project, {
     'before.md': newStyle('2026-05-10T11:00:00Z'),
     'after.md': newStyle('2026-05-10T13:00:00Z'),
   });
+
+  setMtime(dir, ['before.md', 'after.md'], '2026-05-10T11:00:00Z');
+
+  assert.ok(contextOf(runSignal(fixture)).includes(learningsLine(1)));
+});
+
+test('modified 가 기준 이전이어도 본문을 고쳐 mtime 이 뒤면 집계', () => {
+  const fixture = createFixture({ marker: { version: '4.0.0', lastReflect: '2026-05-10T12:00:00Z' } });
+
+  writeMemory(fixture, fixture.project, { 'edited.md': newStyle('2026-05-10T11:00:00Z') });
 
   assert.ok(contextOf(runSignal(fixture)).includes(learningsLine(1)));
 });

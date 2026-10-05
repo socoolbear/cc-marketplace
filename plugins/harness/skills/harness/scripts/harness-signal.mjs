@@ -132,8 +132,10 @@ export function countLearnings(memoryDirs, baseline) {
 
       try {
         const { type, modified } = parseFrontmatter(fs.readFileSync(real, 'utf8'));
+        // modified 를 갱신하지 않고 본문만 고치는 경우가 있어 mtime 과 늦은 쪽을 쓴다
         const parsed = Date.parse(modified);
-        const ts = Number.isNaN(parsed) ? fs.statSync(real).mtimeMs : parsed;
+        const mtime = fs.statSync(real).mtimeMs;
+        const ts = Number.isNaN(parsed) ? mtime : Math.max(parsed, mtime);
 
         if ((type === 'feedback' || type === 'project') && ts > baseline) counted.add(real);
       } catch {

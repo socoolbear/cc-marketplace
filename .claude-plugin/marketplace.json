@@ -12,7 +12,7 @@
       "name": "harness",
       "source": "./plugins/harness",
       "description": "경량 하네스 플러그인 — 에이전트용 지속 지식 문서 (AGENTS.md 지도 + harness/ 의 ARCHITECTURE·ADR·GLOSSARY·LESSONS) 와 선택적 레이어 검사 강제 (팀 공유 hook + CI) 를 단일 진입점으로 관리. 상태를 자동 감지해 setup (최초 구축) / maintain (낡음 점검 + 세션 학습 승격) 으로 분기하고, 세션 시작 훅이 점검할 거리를 감지하면 스스로 점검을 제안",
-      "version": "4.0.0",
+      "version": "4.1.0",
       "author": {
         "name": "socoolbear"
       },
