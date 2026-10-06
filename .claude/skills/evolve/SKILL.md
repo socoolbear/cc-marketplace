@@ -77,7 +77,7 @@ description: "이 마켓플레이스의 플러그인을 외부 신호 (공식 �
 | 공식 기능과 겹치는가 ([`references/sources.md`](references/sources.md) 공식 기능). 결정 기록에 같은 항목이 기각·보류로 있으면 제외 | deprecate |
 | 결정 기록의 보류 건 중 재검토 조건이 충족됐는가 | 그 보류 건 |
 | 결정 기록이 있는 플러그인에서, 마지막 회차 이후 동작을 바꾼 커밋이 있는데 eval 이 없고 기록에 생략 사유도 없는가 (기록이 없으면 이 점검은 건너뛴다) | 반영 (eval) |
-| 마지막 커밋 (`git log -1 --format=%cs -- plugins/<n> docs/evolution/<n>.md` — 기각만 하고 끝난 회차도 기준이 되도록 기록 파일 포함) 이후 Claude Code CHANGELOG 에 추가된 줄 중 플러그인·스킬·명령 이름이 들어간 줄이 있는가. CHANGELOG 에는 날짜가 없으므로 기간은 커밋 이력으로 구한다 (`gh api 'repos/anthropics/claude-code/commits?path=CHANGELOG.md&until=<날짜>&per_page=1'` 로 그 시점 직전 커밋을 구해 현재와 diff). `gh` 가 없으면 확인 불가. 이름이 일반 단어 (`resume`·`extract`·`sessions` 등) 면 줄을 읽고 실제로 관련 있을 때만 올린다 | evolve 권장 |
+| 마지막 커밋 (`git log -1 --format=%cs -- plugins/<n> docs/evolution/<n>.md` — 기각만 하고 끝난 회차도 기준이 되도록 기록 파일 포함) 이후 Claude Code CHANGELOG 에 추가된 줄 중 플러그인·스킬·명령 이름이 들어간 줄이 있는가. CHANGELOG 에는 날짜가 없으므로 기간은 git 이력으로 구한다: `git clone --filter=blob:none --no-checkout --shallow-since=<가장 이른 기준일 - 30일> https://github.com/anthropics/claude-code` (기준일 당일로 자르면 기준 커밋이 빠진다) 후 `git log -1 --format=%H --until=<날짜> -- CHANGELOG.md` 로 기준 커밋을 찾아 `git diff <커밋> HEAD -- CHANGELOG.md` 의 추가 줄을 본다 (GitHub API 는 클라우드 루틴에서 막힌다). 이름이 일반 단어 (`resume`·`extract`·`sessions` 등) 면 줄을 읽고 실제로 관련 있을 때만 올린다 | evolve 권장 |
 | repo 검증 명령 실패 (JSON·버전 일치·링크) | 모순 해결 |
 
 보고는 위 표의 순서 (deprecate → 보류 재검토 → eval → CHANGELOG → 검증 실패) 로 상위 5건을 표로: `플러그인 | 후보 판정 | 근거 | 다음 행동 (evolve <n>)`. 후보가 없으면 "후보 없음" 한 줄.
