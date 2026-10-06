@@ -29,6 +29,10 @@ socoolbear 의 개인용 Claude Code 플러그인 마켓플레이스. 플러그�
 
 `claude-notify` 플러그인에서 이 repo 가 직접 고칠 파일은 `hooks/hooks.json` 과 `commands/*.md` 뿐이다.
 
+## 진화
+
+플러그인 개선·deprecate·정기 점검은 repo 전용 스킬 `/evolve` (`.claude/skills/evolve/`) 로 한다. 판정 이력은 `docs/evolution/<플러그인>.md` — 플러그인을 고치기 전에 읽는다.
+
 ## 문서 유지 규칙
 
 - 플러그인의 모드·산출물 구조를 바꾸는 변경은 같은 커밋에서 해당 플러그인의 규약 문서와 README 표를 갱신
