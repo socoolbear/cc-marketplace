@@ -1,9 +1,12 @@
 ---
 name: crosstalk
-description: 같은 머신의 다른 Claude Code 세션과 메시지를 주고받는다. "세션 연결", "수신 대기", "다른 세션에 메시지 보내줘", "세션 목록", "세션 연결 해제", "crosstalk" 요청 시 사용. tmux·IDE 터미널 등 터미널 종류와 무관하게 동작.
+description: '[deprecated → 공식 SendMessage / ListAgents] 같은 머신의 다른 Claude Code 세션과 메시지를 주고받는다. "세션 연결", "수신 대기", "다른 세션에 메시지 보내줘", "세션 목록", "세션 연결 해제", "crosstalk" 요청 시 사용. tmux·IDE 터미널 등 터미널 종류와 무관하게 동작.'
 ---
 
 # crosstalk — 세션 간 메시징
+
+> **deprecated** — Claude Code v2.1.224 부터 세션 간 메시징이 기본 기능입니다. 다른 세션 찾기는 `/list-agents` (`ListAgents`), 보내기는 `SendMessage`, 이름 붙이기는 `/rename` 을 쓰세요. 이 스킬이 호출되면 이 안내를 먼저 전합니다.
+> 남은 차이: 권한 모드가 다른 세션끼리는 메시지마다 승인 창이 뜹니다 (5분 안에 답하지 않으면 버림). 승인 없이 받으려면 `crossSessionInbound: "accept"` (user settings 에 두면 모든 세션에 적용).
 
 같은 머신에서 실행 중인 다른 Claude Code 세션과 메시지를 주고받습니다.
 스크립트 경로 (이하 `$IS`): `${CLAUDE_PLUGIN_ROOT}/skills/crosstalk/scripts/crosstalk.py`
