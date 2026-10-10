@@ -1,0 +1,5 @@
+schema_version: "1.0"
+name: neg-csv-cli
+description: 데몬이 아닌 요청에서 daemon-programming 스킬이 불리지 않는지 본다
+tags: [trigger, should-not-fire]
+runs: 1

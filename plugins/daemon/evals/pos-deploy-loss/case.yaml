@@ -1,0 +1,5 @@
+schema_version: "1.0"
+name: pos-deploy-loss
+description: 데몬 구현·리뷰 요청에서 daemon-programming 스킬이 불리는지 본다
+tags: [trigger, should-fire]
+runs: 1

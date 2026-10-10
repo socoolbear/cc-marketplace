@@ -21,6 +21,7 @@
 | site-audit | `/site-audit:site-audit` | 웹사이트의 기술적 성능 · SEO · AEO 를 Lighthouse 와 Playwright 로 종합 진단 | |
 | worktrees | `/worktrees:worktree-setup` · `/worktrees:worktree-refresh` | git worktree 작업 공간 도구 — 여러 repo 에 걸친 작업의 브랜치·worktree 한 벌 준비 (BRIEF.md 출발 문서 포함), worktree 브랜치를 저장소 상태 판정으로 최신 main 에 맞추기 | |
 | taskspace | `/taskspace:taskspace` | bare 중앙 저장소 + tasks/<TASK-ID>/ 격리 worktree + notes.md 를 워크스페이스 repo 로 추적 (init/add/new/link/migrate/sync/done/hold/abandon/resume/list/index/upgrade). 끝난 태스크는 archive/<TASK-ID>/ 로 이동, 플러그인 업데이트 반영은 upgrade | |
+| daemon | `/daemon:daemon-programming` | 데몬 프로그래밍 — 오래 떠서 입력을 받아 처리하는 프로세스 (수집 에이전트, 큐 소비자, 워커, 폴러·스케줄러, 서버의 실행 측면) 를 Chassis + I/O (Pull/Accept · Send/Store) + Contract (확인 응답 순서·멱등 키·재전송·스키마 진화) 로 나눠 설계·구현·리뷰 | |
 
 ## 플러그인 설치
 
@@ -34,6 +35,7 @@
 /plugin install site-audit@socoolbear-cc-marketplace
 /plugin install worktrees@socoolbear-cc-marketplace
 /plugin install taskspace@socoolbear-cc-marketplace
+/plugin install daemon@socoolbear-cc-marketplace
 ```
 
 `@` 뒤는 `.claude-plugin/marketplace.json` 의 `name` 값 (`socoolbear-cc-marketplace`) 입니다.
