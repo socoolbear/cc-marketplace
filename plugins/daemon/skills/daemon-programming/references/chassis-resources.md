@@ -6,13 +6,8 @@ Resource Limits 는 프로세스 안의 상한, Steady State 는 프로세스 �
 
 - 모든 버퍼·큐·동시성에 상한과 가득 찼을 때 정책 (block = Source 일시 정지 / drop) 을 명시한다. 상세: `io.md` §3
 - 외부 개체 수 (고객, 테넌트, 키) 에 비례해 늘어나는 메모리 상태를 두지 않는다
-- 런타임에 메모리 상한을 알린다 (`chassis-lifecycle.md` §4)
 
-| 런타임 | 설정 |
-|---|---|
-| Go | `GOMEMLIMIT`. Go 1.25 부터 `GOMAXPROCS` 가 컨테이너 CPU 제한을 인식 |
-| Node | `--max-old-space-size-percentage` 또는 `--max-old-space-size` |
-| JVM | `MaxRAMPercentage` |
+런타임별 설정 (Go `GOMEMLIMIT`·`GOMAXPROCS`, Node `--max-old-space-size[-percentage]`, JVM `MaxRAMPercentage`) 과 버전 조건은 `chassis-lifecycle.md` §4.
 
 - 주기적 GC 호출로 누수를 가리지 않는다. 원인을 찾고 (tracemalloc, pprof) 장시간 부하 시험 (soak) 으로 메모리가 평탄한 것을 증명한다 (`verification.md`)
 - fd 수와 연결 수에 상한을 두고 지표로 내보낸다 (`chassis-observability.md`)

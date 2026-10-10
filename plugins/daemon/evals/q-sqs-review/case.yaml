@@ -1,0 +1,5 @@
+schema_version: "1.0"
+name: q-sqs-review
+description: daemon-programming 스킬이 구현·리뷰 결과의 핵심 안전 규칙을 개선하는지 본다
+tags: [quality]
+runs: 1

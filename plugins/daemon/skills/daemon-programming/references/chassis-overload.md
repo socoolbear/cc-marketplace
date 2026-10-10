@@ -7,11 +7,10 @@
 - 모든 원격 호출 (같은 호스트의 IPC 포함) 에 연결 timeout 과 요청 timeout 을 둔다
 - 값은 추측이 아니라 허용 가능한 오탐 timeout 비율에서 정한다 (예: 하위 서비스 p99.9 지연) ([AWS](https://builder.aws.com/content/3EumjoZascWd1oZiEgL8ORlv3qE/timeouts-retries-and-backoff-with-jitter))
 - Accept 형: 남은 deadline 을 하위 호출로 전파하고, 클라이언트가 이미 포기한 요청은 처리하지 않고 버린다 ([SRE](https://sre.google/sre-book/addressing-cascading-failures/))
-- crash-only 논문도 timeout 기반 통신과 요청 TTL 을 요구한다 ([Candea & Fox](http://www.usenix.org/events/hotos03/tech/full_papers/candea/candea.pdf))
 
 ## 2. 재시도 예산
 
-- 여러 계층에서 재시도하면 곱해진다 (5계층 × 3회 = 243배). **재시도는 한 계층에서만** 한다
+- 여러 계층에서 재시도하면 곱해진다 (AWS 예: 5계층 × 시도 3회 = 243배). **재시도는 거절한 계층의 바로 위 (그 계층을 직접 부른 쪽) 한 곳에서만** 한다
 - 재시도량에 상한을 둔다: 토큰 버킷 또는 요청 대비 비율 (예: 10% 이하)
 - 하위 서비스가 "과부하, 재시도 말 것" 을 알리면 재시도하지 않는다 ([SRE](https://sre.google/sre-book/handling-overload/))
 - 지수 백오프에 지터를 더한다. 주기 타이머에도 지터를 둔다
@@ -20,7 +19,7 @@
 
 ## 3. 부하 차단·승인 제어
 
-Accept 형 기준이다. Pull 형의 대응물은 Backpressure (Source 일시 정지) 이며 `io.md` §3 에 있다.
+Accept 형 기준이다. Pull 형의 대응물은 Backpressure (Source 일시 정지) 이며 `io.md` §1 (브로커별 Backpressure 수단) 과 SKILL.md 처리 루프에 있다. 디스크 버퍼가 찼을 때의 정책은 `io.md` §3.
 
 - 포화 **전에** 싸게 거절한다. 포화된 뒤에는 거절 자체가 비싸다 ([AWS](https://builder.aws.com/content/3Eun1EEyX6p2e3VYNyRLSJzLuMV/using-load-shedding-to-avoid-overload))
 - 헬스 체크와 진행 중인 작업을 끝내는 요청을 우선한다

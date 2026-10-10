@@ -5,7 +5,7 @@
 ## 1. 분산 락
 
 - **한계** ([Kleppmann](https://martin.kleppmann.com/2016/02/08/how-to-do-distributed-locking.html)): GC·멈춤 사이 TTL 이 만료되면 둘이 동시에 락을 쥔다
-  - 효율 목적 (중복 실행해도 결과는 같고 낭비만 막음): 단일 Redis `SET key token NX PX ttl` + **원자적 해제**. Redis OSS 8.4+ 는 `DELEX key IFEQ <token>` (해제), `SET key <token> IFEQ <token> PX ttl` (TTL 연장), 그 이전은 Lua ([DELEX](https://redis.io/docs/latest/commands/delex/), [8.4 commands](https://redis.io/docs/latest/commands/redis-8-4-commands/)). Redis Cloud·Software 지원 여부는 문서마다 다르다
+  - 효율 목적 (중복 실행해도 결과는 같고 낭비만 막음): 단일 Redis `SET key token NX PX ttl` + **원자적 해제**. Redis OSS 8.4+ 는 `DELEX key IFEQ <token>` (해제), `SET key <token> IFEQ <token> PX ttl` (TTL 연장), Valkey 8.1+ 는 `SET … IFEQ` (연장), 9.0+ 는 `DELIFEQ key <token>` (해제), 그 밖은 Lua ([DELEX](https://redis.io/docs/latest/commands/delex/), [8.4 commands](https://redis.io/docs/latest/commands/redis-8-4-commands/), [DELIFEQ](https://valkey.io/commands/delifeq/))
     ```lua
     if redis.call("get", KEYS[1]) == ARGV[1] then return redis.call("del", KEYS[1]) else return 0 end
     ```
@@ -23,5 +23,9 @@
 ## 3. PostgreSQL advisory lock
 
 - 이미 PG 를 쓰는 데몬이면 `pg_try_advisory_lock` 이 가장 쉬운 단일 실행 수단이다 ([advisory locks](https://www.postgresql.org/docs/current/explicit-locking.html#ADVISORY-LOCKS))
-- 세션 수준 락은 PgBouncer transaction pooling 에서 깨질 수 있다 (주의). 트랜잭션 수준 `pg_try_advisory_xact_lock` 이나 직접 연결을 쓴다
+- 세션 수준 락은 앱 커넥션 풀 (pgx pool, HikariCP) 에서도 깨진다. 같은 세션의 재획득은 항상 성공 (중첩 카운트) 하고, 다른 커넥션에서 unlock 하면 false+경고로 락이 남고, 커넥션이 끊기면 락이 조용히 풀린다 ([functions-admin](https://www.postgresql.org/docs/current/functions-admin.html))
+- 규칙: **전용 커넥션 하나를 고정**해 획득·감시·해제를 모두 그 커넥션에서 한다. 커넥션이 끊기면 락 상실로 보고 작업을 중단한다
+  - 락 커넥션은 작업 내내 idle 이라 서버 `idle_session_timeout` 에 끊기면 락이 풀린다 → 그 role 에서 끄고, 락 커넥션으로 주기적 확인 쿼리를 보낸다 (주기 = 겹침 허용 시간) ([client](https://www.postgresql.org/docs/current/runtime-config-client.html))
+  - 보유 호스트가 죽거나 반쯤 열린 연결이면 서버 TCP keepalive 가 끊김을 잡을 때까지 락이 남는다 (`tcp_keepalives_idle` 기본 0 = OS 기본값) → `tcp_keepalives_*`·`tcp_user_timeout` 을 짧게 ([connection](https://www.postgresql.org/docs/current/runtime-config-connection.html))
+- 트랜잭션 수준 `pg_try_advisory_xact_lock` 은 작업 내내 트랜잭션을 열어야 해서 긴 작업이면 idle in transaction·vacuum 지연이 생기고, `idle_in_transaction_session_timeout` 에 걸리면 락을 잃는다. 짧은 작업에만 쓴다. 긴 작업은 PgBouncer 를 거치지 않는 직접 연결의 세션 락 (위 규칙) 이나 lease 행 + fencing 을 쓴다
 - §1 과 같은 한계: 효율 목적에는 충분하지만 정확성에는 fencing·멱등이 필요하다

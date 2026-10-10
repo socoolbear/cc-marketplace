@@ -21,7 +21,7 @@ Prometheus 지침: 단계마다 in / in-progress / 마지막 처리 시각 / out
 | 경보 | 식 (예) |
 |---|---|
 | 정체 | `oldest_unprocessed_age_seconds > SLO` |
-| 멈춤 | `time() - last_success_timestamp_seconds > 3 * 주기` |
+| 멈춤 | `time() - last_success_timestamp_seconds > 3 * 주기` — 주기 실행 (폴러·스케줄러) 이나 heartbeat 항목을 흘리는 파이프라인에만 건다. 입력이 끊길 수 있는 소비자는 가장 오래된 미처리 항목 나이로 대신한다 ([Prometheus](https://prometheus.io/docs/practices/instrumentation/)) |
 | 사라짐 | `up{job="x"} == 0` **와** `absent(up{job="x"})` 둘 다 |
 | 유실 위험 | `increase(dlq_total[10m]) > 0`, `increase(dropped_total[10m]) > 0` |
 | 재시도 급증 | 재시도율 (`rate(retry_total[5m]) / rate(processed_total[5m])`) 이 평소 대비 급증. 재시도 예산은 `chassis-overload.md` §2 |
@@ -29,7 +29,7 @@ Prometheus 지침: 단계마다 in / in-progress / 마지막 처리 시각 / out
 | 경보 경로 생존 | 항상 울리는 Watchdog 경보 → 끊기면 외부 dead man's switch 가 알림 ([Watchdog runbook](https://runbooks.prometheus-operator.dev/runbooks/general/watchdog/)) |
 
 - 사라짐: 대상이 목록에 남아 있는데 프로세스만 죽으면 scrape 가 실패해 `up == 0` 이 된다. 이때 `absent(up{job="x"})` 는 거짓이라 못 잡는다. 서비스 디스커버리에서 대상 자체가 빠진 경우만 `absent` 가 잡는다 ([jobs·instances](https://prometheus.io/docs/concepts/jobs_instances/), [absent](https://prometheus.io/docs/prometheus/latest/querying/functions/#absent))
-- 고정 임계값 (가장 오래된 항목의 나이 등) 외에 처리 성공률·지연은 SLO 기반 multi-window multi-burn-rate 경보 (예: 1h/6h 창) 로 건다. 짧은 창은 빠른 감지, 긴 창은 오탐 억제 ([Alerting on SLOs](https://sre.google/workbook/alerting-on-slos/))
+- 고정 임계값 (가장 오래된 항목의 나이 등) 외에 처리 성공률·지연은 SLO 기반 multi-window multi-burn-rate 경보로 건다. 경보마다 긴 창과 짧은 창 (긴 창의 1/12) 이 둘 다 임계 burn rate 를 넘을 때만 울린다. 30일 SLO 창 기준 권장값 (배수는 SLO 목표와 무관, 오류율 임계 = 배수 × (1−SLO)): page 1h/5m@14.4, page 6h/30m@6, ticket 3d/6h@1 ([Alerting on SLOs](https://sre.google/workbook/alerting-on-slos/))
 - 경보는 상태 변화 (정상→이상, 이상→복구) 에 보내고 같은 원인은 묶는다 (Alertmanager grouping·inhibition·silence). 단 Alertmanager 는 firing 경보를 `repeat_interval` (기본 4h) 마다 다시 보낸다. 복구 알림은 `send_resolved` 가 필요하고 기본값이 수신기마다 다르다 (webhook 은 true, email·Slack 은 false). 묶음 기본값은 `group_wait` 30s, `group_interval` 5m ([설정](https://prometheus.io/docs/alerting/latest/configuration/))
 
 ## 3. 로그
@@ -42,10 +42,10 @@ Prometheus 지침: 단계마다 in / in-progress / 마지막 처리 시각 / out
 
 OpenTelemetry messaging 시맨틱 규약 ([messaging spans](https://opentelemetry.io/docs/specs/semconv/messaging/messaging-spans/)):
 
-- 생산자는 생성 시점의 trace context 를 메시지 헤더에 주입한다. 소비자는 그것을 parent 가 아니라 **span link** 로 건다. 배치 처리는 link 만 쓴다
-- span kind: 발행 (Create) = `PRODUCER`, 처리 (Process) = `CONSUMER`
-- 속성: `messaging.system` 필수, `messaging.operation.type`·`messaging.destination.name` 조건부 필수
-- 규약 상태가 Development 다. 쓰려면 `OTEL_SEMCONV_STABILITY_OPT_IN=messaging` 으로 옵트인한다
+- 생산자는 생성 시점의 trace context 를 메시지 헤더에 주입한다. 소비자는 creation context 에 **span link** 를 건다. 단일 메시지면 parent 로 써도 되지만 (MAY), 배치 처리는 link 만 쓴다
+- span kind: Create = `PRODUCER`, Send = `PRODUCER` (그 context 를 creation context 로 쓸 때, 아니면 `CLIENT`), Receive = `CLIENT`, Process = `CONSUMER` ([messaging-spans](https://opentelemetry.io/docs/specs/semconv/messaging/messaging-spans/))
+- 속성: `messaging.system`·`messaging.operation.name` 필수, `messaging.operation.type` (해당 시)·`messaging.destination.name` (단일 메시지거나 배치 전체가 같은 값일 때) 조건부 필수
+- 규약 상태가 Development 다. `OTEL_SEMCONV_STABILITY_OPT_IN` (`messaging` = 새 규약만, `messaging/dup` = 둘 다) 은 기존 계측이 옛 규약에서 새 규약으로 넘어갈 때의 이행 장치다. 쓰는 계측 라이브러리가 지원하는지 확인한다
 - DLQ 로 보낼 때 `traceparent` 헤더를 보존한다 (`chassis-failure.md` §1). 재투입 후에도 원 trace 와 이어진다
 
 ## 5. 관리 포트

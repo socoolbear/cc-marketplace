@@ -24,7 +24,7 @@
 | 동시성 | 파티션마다 goroutine. `BlockRebalanceOnPoll` + 레코드를 넘긴 뒤 `AllowRebalance` | 따라 할 것. 리밸런스가 처리 도중에 끼어들지 않는다 |
 | revoke | quit 신호 → 진행 중 배치가 끝날 때까지 `done` 대기 | 따라 할 것 |
 | 커밋 | `DisableAutoCommit`. 배치 병렬 처리 후 **처음 실패한 offset 앞까지만** `CommitRecords` | 방향은 맞다. 그러나 건너뛴 레코드를 seek back 하지 않아 다음 배치 커밋이 넘어가면 사실상 유실 (franz-go 동작 기준 추정) |
-| 재시도 | 재시도 가능한 실패는 12시간 커밋 보류 후 DLQ, 파싱 불가는 즉시 커밋 | 분류 자체는 Failure Handling 에 맞다 |
+| 재시도 | 재시도 가능한 실패는 수집 (`IngestedAt`) 후 12시간 이내면 커밋하지 않고 건너뜀 — seek back 이 없어 재시작·리밸런스 때만 다시 받는다 (코드 주석 "It will be consumed again" 과 실제 동작이 다르다). 12시간이 넘으면 DLQ. 파싱 불가는 즉시 커밋 | 분류 자체는 Failure Handling 에 맞다. 그러나 커밋 보류만으로는 Kafka 재시도가 되지 않는다 |
 | 멱등 | Kafka key = 조직+거래 ID, ClickHouse `ReplacingMergeTree`, 조회 `FINAL` | Sink 쪽 멱등 (eventual + 조회 보정) |
 | 종료 | ctx cancel → 파티션 goroutine 대기 → close. **종료 타임아웃 없음**, health 엔드포인트 없음, fetch 에러에 `panic` | 피할 것 (Lifecycle · Observability) |
 
