@@ -52,7 +52,7 @@ Input 방향은 **누가 처리 속도를 정하고 Position 을 갖는가** 로
   - RENEW 한 레코드는 다음 poll 이 다시 돌려준다 → (topic, partition, offset) 키의 처리 중 집합으로 걸러 새로 시작하지 않는다. javadoc 예제처럼 offset 만 키로 쓰면 파티션끼리 겹친다
   - 연장 주기는 `acquisitionLockTimeoutMs()` 의 절반
 - RELEASE
-  - RELEASE 는 지연 없이 다시 전달 가능 상태가 되고 전달 횟수를 쓴다
+  - RELEASE 는 지연 없이 다시 전달 가능 상태가 되고, 다음 획득 때 전달 횟수가 1 오른다 (이미 한도면 RELEASE 즉시 archive). 재전달 지연 설정은 없다 ([SharePartition](https://github.com/apache/kafka/blob/4.3.0/core/src/main/java/kafka/server/share/SharePartition.java))
   - SinkDown 에 RELEASE 를 반복하면 기본 한도 5회를 금방 다 써서 archive (폐기) 된다 → 쥔 레코드를 RENEW 하며 프로세스 안에서 백오프하고, 장애가 길면 RELEASE 후 `close()` 로 소비를 멈춘다 (§1 SinkDown 절)
   - 메시지 단위 Transient (Sink 는 건강한데 그 메시지만 실패) 는 RENEW 하며 프로세스 안에서 백오프하고, N 회 뒤 DLQ 토픽에 쓴 다음 reject 한다
   - RELEASE 는 (a) 다른 소비자가 처리하면 성공할 실패, (b) 장기 장애로 소비를 멈출 때 쥔 레코드 반환에만 쓴다

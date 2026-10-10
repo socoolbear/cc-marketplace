@@ -111,7 +111,7 @@
       "name": "daemon",
       "source": "./plugins/daemon",
       "description": "데몬 프로그래밍 플러그인. daemon-programming: 오래 떠서 입력을 받아 처리하는 프로세스 (수집 에이전트, 큐 소비자, 워커, 폴러·스케줄러, 수집 서버·API 서버의 실행 측면) 를 Chassis (Lifecycle·Recovery·Resource Limits·Overload Protection·Failure Handling·Observability·Configuration·Admin Processes·Coordination) + I/O (Pull/Accept 입력, Send/Store 출력) + Contract (전달 보장·확인 응답 순서·멱등 키·재전송·스키마 진화) 로 나눠 설계·구현·리뷰",
-      "version": "1.1.0",
+      "version": "1.2.0",
       "author": {
         "name": "socoolbear"
       },

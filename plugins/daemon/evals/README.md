@@ -29,4 +29,5 @@ claude plugin eval plugins/daemon --trust-plugin --tag quality --ablation with-w
 
 - 모델 출력이 확률적이라 `runs: 1` 결과는 흔들릴 수 있다. description 을 고친 뒤에는 `--runs 3` 으로 다시 본다.
 - 스킬을 켠 쪽은 references 를 읽고 답이 길어져 300s 기본 시간 제한에 걸릴 수 있다 (시간 초과 run 은 0점).
+- LLM 채점이 틀릴 수 있다. 실패 항목은 답변 원문 (`results/*/aggregate-result.json` 의 `evidence`) 을 읽고 확인한다 — 2026-10 측정에서 종료·drain 기준이 요건을 다 갖춘 답을 FAIL 로 판정한 사례가 있었다.
 - 빈 작업 디렉토리에서 돈다. 실제 프로젝트 코드가 있으면 발동률이 달라질 수 있다.
