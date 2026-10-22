@@ -140,12 +140,17 @@ next_id() {
   printf '%s%03d\n' "${first_prefix}" "$((max + 1))"
 }
 
-# notes.md 의 '- <라벨>: <값>' 줄에서 값 (없으면 빈 문자열)
+# notes.md 헤더 (첫 '## ' 제목 전까지). 헤더 필드는 여기서만 찾는다 — 본문의 '- 상태: …' 같은 줄과 섞이지 않게
+notes_header() {
+  awk '/^## /{ exit } { print }' "$1"
+}
+
+# notes.md 헤더의 '- <라벨>: <값>' 줄에서 값 (없으면 빈 문자열)
 notes_field() {
   local notes=$1 label=$2 line
 
   [[ -f "${notes}" ]] || return 0
-  line="$(grep -m1 -- "^- ${label}:" "${notes}" || true)"
+  line="$(notes_header "${notes}" | grep -m1 -- "^- ${label}:" || true)"
   line="${line#*:}"
   line="${line# }"
   printf '%s\n' "${line}"
@@ -167,29 +172,31 @@ notes_add_repo() {
   local notes=$1 name=$2 br=$3 tmp
 
   [[ -f "${notes}" ]] || return 0
-  grep -q -- '^- 관련 repo:' "${notes}" || return 0
-  grep -m1 -- '^- 관련 repo:' "${notes}" | grep -qF -- " ${name} (" && return 0
+  notes_header "${notes}" | grep -q -- '^- 관련 repo:' || return 0
+  notes_header "${notes}" | grep -m1 -- '^- 관련 repo:' | grep -qF -- " ${name} (" && return 0
 
   tmp="${notes}.tmp.$$"
   awk -v item="${name} (${br})" '
+    /^## / { done = 1 }
     !done && /^- 관련 repo:/ { sub(/[[:space:]]+$/, ""); $0 = $0 ($0 ~ /:$/ ? " " : ", ") item; done = 1 }
     { print }
   ' "${notes}" > "${tmp}"
   mv -- "${tmp}" "${notes}"
 }
 
-# notes.md 헤더에 '- <라벨>: <값>' 줄들을 순서대로 추가 (라벨이 이미 있으면 그 줄은 건너뜀, 보존).
-# '- 생성 일시:' 줄 뒤에 삽입, 없으면 끝에. 인자: notes label1 value1 [label2 value2 ...]
+# notes.md 헤더에 '- <라벨>: <값>' 줄들을 순서대로 추가 (헤더에 라벨이 이미 있으면 그 줄은 건너뜀, 보존).
+# '- 생성 일시:' 줄 뒤에 삽입, 없으면 첫 '## ' 제목 앞에, 그것도 없으면 끝에. 인자: notes label1 value1 [label2 value2 ...]
 # (awk -v 는 값에 개행이 섞이면 일부 awk 구현에서 깨져서 순수 bash 로 처리)
 notes_set_fields() {
-  local notes=$1 tmp line inserted=0 i
+  local notes=$1 header tmp line inserted=0 i
   local labels=() values=()
   shift
 
   [[ -f "${notes}" ]] || return 0
 
+  header="$(notes_header "${notes}")"
   while [[ $# -ge 2 ]]; do
-    grep -q -- "^- $1:" "${notes}" || { labels+=("$1"); values+=("$2"); }
+    grep -q -- "^- $1:" <<< "${header}" || { labels+=("$1"); values+=("$2"); }
     shift 2
   done
   [[ ${#labels[@]} -gt 0 ]] || return 0
@@ -197,6 +204,12 @@ notes_set_fields() {
   tmp="${notes}.tmp.$$"
   : > "${tmp}"
   while IFS= read -r line || [[ -n "${line}" ]]; do
+    if [[ "${inserted}" -eq 0 && "${line}" == "## "* ]]; then
+      for ((i = 0; i < ${#labels[@]}; i++)); do
+        printf -- '- %s: %s\n' "${labels[i]}" "${values[i]}" >> "${tmp}"
+      done
+      inserted=1
+    fi
     printf '%s\n' "${line}" >> "${tmp}"
     if [[ "${inserted}" -eq 0 && "${line}" == "- 생성 일시:"* ]]; then
       for ((i = 0; i < ${#labels[@]}; i++)); do
@@ -229,20 +242,24 @@ notes_remove_fields() {
   [[ -n "${pattern}" ]] || return 0
 
   tmp="${notes}.tmp.$$"
-  grep -vE -- "${pattern}" "${notes}" > "${tmp}" || true
+  awk -v pat="${pattern}" '
+    /^## / { body = 1 }
+    body || $0 !~ pat
+  ' "${notes}" > "${tmp}"
   mv -- "${tmp}" "${notes}"
 }
 
-# notes.md 의 '- 재개 기록:' 줄에 항목을 추가 (이미 있으면 '; ' 로 이어 붙임, 없으면 새로 만듦)
+# notes.md 헤더의 '- 재개 기록:' 줄에 항목을 추가 (이미 있으면 '; ' 로 이어 붙임, 없으면 새로 만듦)
 notes_append_resume_record() {
   local notes=$1 entry=$2 tmp
 
   [[ -f "${notes}" ]] || return 0
 
-  if grep -q -- '^- 재개 기록:' "${notes}"; then
+  if notes_header "${notes}" | grep -q -- '^- 재개 기록:'; then
     tmp="${notes}.tmp.$$"
     awk -v add="${entry}" '
-      /^- 재개 기록:/ { sub(/[[:space:]]+$/, ""); $0 = $0 "; " add }
+      /^## / { body = 1 }
+      !body && /^- 재개 기록:/ { sub(/[[:space:]]+$/, ""); $0 = $0 "; " add }
       { print }
     ' "${notes}" > "${tmp}"
     mv -- "${tmp}" "${notes}"
