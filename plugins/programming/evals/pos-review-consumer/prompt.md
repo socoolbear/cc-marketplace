@@ -1,7 +1,7 @@
 ---
 max_turns: 4
 timeout_seconds: 240
-allowed_tools: [Skill, Read, Glob, Grep]
+allowed_tools: [Skill]
 ---
 
 이 컨슈머 코드 리뷰해줘.

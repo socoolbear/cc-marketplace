@@ -1,0 +1,5 @@
+schema_version: "1.0"
+name: q-hard-k8s-worker-termination
+description: 스킬 없는 답변이 놓치는 운영 실수를 구현 과제로 재서 스킬 효과를 본다
+tags: [hard]
+runs: 1

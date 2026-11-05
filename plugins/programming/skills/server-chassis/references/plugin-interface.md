@@ -40,7 +40,7 @@ interface Plugin:
 
 | 사건 | 같은 프로세스 | 별도 프로세스 |
 |---|---|---|
-| 예외·오류 | 호스트 경계에서 잡아 분류. 분류가 없으면 Poison 으로 보지 말고 Fatal | 같음 |
+| 예외·오류 | 호스트 경계에서 잡아 분류. 분류가 없으면 Poison 으로 보지 말고 Fatal. 같은 항목에서 반복되면 외부 시도 수로 세어 N회 뒤 DLQ (`io.md` §1) | 같음 |
 | panic·segfault | 언어 복구가 가능하면 기록하고 끝낸다. 메모리 상태를 믿을 수 없으면 프로세스 종료 (Telegraf 는 input panic 을 기록 후 종료, [agent.go](https://raw.githubusercontent.com/influxdata/telegraf/master/agent/agent.go)) | 호스트는 산다. 지연 재시작 + 횟수 상한 (`execd` `restart_delay`·`stop_on_error`. go-plugin 은 자동 재시작이 없다) |
 | 시간 초과 | 호출 기한. 취소를 무시하면 같은 프로세스에서는 끊을 수 없다 → 신뢰 못 하면 별도 프로세스 | 프로세스 종료 |
 | 시작 실패 | 필수 플러그인이면 시작 중단. 선택이면 정책 (Telegraf `startup_error_behavior`: error·retry·ignore·probe) + 지표. Sink 플러그인은 `ignore` 불가 | 같음 |

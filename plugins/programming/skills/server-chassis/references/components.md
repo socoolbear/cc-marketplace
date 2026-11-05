@@ -83,21 +83,19 @@ k8s 에서 상태 디렉토리는 PV 가 있어야 재시작 뒤 남는다. 소�
 
 ## 7. 적용표
 
-새 서버는 코드를 쓰기 전에 카탈로그의 모든 행을 판정한다. 판정이 불필요면 이유를 한 줄 적는다. 예 (호스트 수집 에이전트 + k8s 수집 서버):
+새 서버는 코드를 쓰기 전에 카탈로그의 모든 행을 판정한다. 칸마다 `판정: 방식. 이유` 로 쓴다. 판정은 직접 / 위임 / 불필요 셋뿐이다. 예 (호스트 수집 에이전트 + k8s 수집 서버, 일부 행):
 
 | 컴포넌트 | 에이전트 (systemd) | 수집 서버 (k8s) | 상태 |
 |---|---|---|---|
-| Daemonize | 위임: unit | 위임: Deployment | v1 |
-| Live Config | 직접: SIGHUP + 롤백 | 위임: 롤링 재시작 | v1 |
-| CLI Component | 직접 | 직접 (`check-config`, `status`) | v1 |
-| Utility | 직접: `recover` | 직접: `dlq requeue` | v1 |
-| Backlog | stdout → journald | stdout | v1 |
-| Emergency Notification | 위임: `OnFailure=` + heartbeat | 위임: Alertmanager | v1 |
-| Recovery | 직접: 상시 디스크 버퍼 | 요청 단위라 Position 없음. 불필요 (세션 재개가 있으면 직접) | v1 |
-| GC | 위임: `MemoryHigh=` + 확정분 정리 | 위임: limit + DLQ TTL | v1 |
-| Plugin Interface | 직접: 컴파일 시 등록 | 불필요: 파서가 하나 | v2 |
-| Protocol Handler | 불필요: 파일 입력 | 직접 | v1 |
-| Transfer | 직접: 응용 ack + mTLS | 불필요 | v1 |
-| Storage | 불필요 | 직접 | v1 |
+| Daemonize | 위임: unit. 재시작을 감독자가 맡는다 | 위임: Deployment. 같은 이유 | v1 |
+| Live Config | 직접: SIGHUP + 롤백. 재시작하면 tail 이 끊긴다 | 위임: 롤링 재시작. 상태가 없어 재시작이 싸다 | v1 |
+| CLI Component | 직접: `status`, `reload`. 호스트에서 조작해야 한다 | 직접: `check-config`. 배포 전 검증에 쓴다 | v1 |
+| Utility | 직접: `recover`. 로컬 버퍼는 사람이 고칠 수단이 필요하다 | 직접: `dlq requeue`. DLQ 재투입 경로가 필요하다 | v1 |
+| Backlog | 위임: stdout → journald. 회전을 맡길 수 있다 | 위임: stdout. 수집은 플랫폼 몫이다 | v1 |
+| Emergency Notification | 위임: `OnFailure=` + heartbeat. 죽은 본체는 알릴 수 없다 | 위임: Alertmanager. 같은 이유 | v1 |
+| Recovery | 직접: 상시 디스크 버퍼. 서버 장애에도 잃으면 안 된다 | 불필요: 요청 단위라 Position 이 없다 (세션 재개가 있으면 직접) | v1 |
+| GC | 직접: 확정분 정리. 버퍼는 우리가 만든 것이다 | 위임: limit + DLQ TTL. 쌓는 곳이 플랫폼·DB 다 | v1 |
+| Plugin Interface | 직접: 컴파일 시 등록. 파서가 둘 이상이다 | 불필요: 파서가 하나다 | v2 |
+| Transfer | 직접: 응용 ack + mTLS. TCP 전송 성공은 저장 확정이 아니다 | 불필요: 다른 서버로 보내지 않는다 | v1 |
 
 상태 열은 이번 버전과 다음 버전을 나눈다. 구현을 미룬 컴포넌트는 그동안의 위험을 같은 표에 적는다.

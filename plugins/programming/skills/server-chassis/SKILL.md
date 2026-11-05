@@ -29,7 +29,7 @@ description: 서버 프로세스 (XMPP·SNMP·WebSocket·MQTT·자체 TCP 같은
 
 ## 컴포넌트 카탈로그
 
-새 서버는 코드를 쓰기 전에 모든 행을 **직접 구현 / 플랫폼 위임 / 불필요** 로 판정한다 (적용표·수명 규약·조립 순서: `references/components.md`). 형태: 코드 / 프로세스 (본체와 별개) / 플랫폼 / 정책.
+새 서버는 코드를 쓰기 전에 모든 행을 **직접 구현 / 플랫폼 위임 / 불필요** 중 하나로 판정하고 행마다 이유를 쓴다 (적용표·수명 규약·조립 순서: `references/components.md`). 형태 열 (코드 / 프로세스 / 플랫폼 / 정책) 은 판정이 아니다. 정책 행도 셋 중 하나로 판정한다.
 
 | 컴포넌트 | 책임 | 지금 기본값 | 형태 | 상세 |
 |---|---|---|---|---|
@@ -77,7 +77,7 @@ description: 서버 프로세스 (XMPP·SNMP·WebSocket·MQTT·자체 TCP 같은
 
 - 포그라운드로 뜬다. fork·setsid·PID 파일·자체 재시작 루프 없이 수명은 감독자에게 맡긴다. 로그는 stdout/stderr. 컨테이너에서 앱이 PID 1 이면 신호 핸들러를 직접 달거나 `tini`/`--init` 을 쓰고, 셸 래퍼·`npm start` 대신 exec form 으로 앱을 직접 띄운다 (신호가 앱까지 닿지 않을 수 있다)
 - 시작할 때 의존 서비스의 기동 순서에 기대지 않는다. 연결은 백오프로 재시도하고, 복구할 수 없는 시작 오류 (Configuration, 불변식, 필수 플러그인, Position 손상, 상태 잠금 실패) 만 즉시 exit ≠ 0. 새 인스턴스에는 부하를 천천히 올리고 빈 캐시로도 버티게 한다
-- 종료는 `(k8s 밖 LB 뒤면 먼저 readiness false. k8s 는 terminating 엔드포인트를 자동 ready=false) → (Accept 형: 엔드포인트 제거가 퍼질 때까지 수 초 더 수신 — preStop sleep) → 입력 중단 → 진행 중 작업 마무리 (drain) → 확인 응답 → 출력 닫기 → exit 0` 순서. 전체가 감독자의 유예 시간 (k8s `terminationGracePeriodSeconds`, systemd `TimeoutStopSec`) 안에 끝나야 하고, 넘치면 남은 것은 버리고 나간다 (Recovery 가 재시작 뒤 다시 처리한다)
+- 종료는 `(k8s 밖 LB 뒤면 먼저 readiness false. k8s 는 terminating 엔드포인트가 자동 ready=false) → (Accept 형: 엔드포인트 제거가 퍼질 때까지 수 초 더 수신 — preStop sleep) → (SIGTERM 뒤 readiness 실패로 serving=false) → 입력 중단 → 진행 중 작업 마무리 (drain) → 확인 응답 → 출력 닫기 → exit 0` 순서. 전체가 감독자의 유예 시간 (k8s `terminationGracePeriodSeconds`, systemd `TimeoutStopSec`) 안에 끝나야 하고, 넘치면 남은 것은 버리고 나간다 (Recovery 가 재시작 뒤 다시 처리한다)
 - 유예 시간은 sidecar 종료와 나눠 쓰고, 노드가 꺼질 때는 더 짧아지거나 유예 없이 죽을 수 있다. 롤링 배포 중에는 구버전과 신버전이 같은 Source 를 함께 소비한다 → 출력 형식과 멱등 키 계산식은 공존해도 깨지지 않아야 한다 (Contract 5)
 
 ### Recovery — 시작 = 복구 (crash-only) (`references/chassis-lifecycle.md` §7)
@@ -109,20 +109,19 @@ description: 서버 프로세스 (XMPP·SNMP·WebSocket·MQTT·자체 TCP 같은
 | 분류 | 예 | 동작 | Position |
 |---|---|---|---|
 | Transient (일시) | Sink 는 건강한데 그 항목만 실패 (락 충돌·특정 항목 타임아웃) | 재시도 예산 안에서 지수 백오프+지터 재시도 (한 층에서만), N 회 뒤 Poison | 유지 |
-| Sink 전체 장애 (SinkDown) | 재시도할 만한 오류 (연결 실패·타임아웃·429·503) 가 났고 쓰기 경로 확인 (canary 쓰기) 도 실패 | 수신을 멈추고 백오프 (degraded, 429·503 은 `Retry-After` 를 하한으로). 메시지별 시도 수도 브로커 전달 횟수도 쓰지 않는다 (연장 상한까지) | 유지 |
+| Sink 전체 장애 (SinkDown) | 재시도할 만한 오류 (연결 실패·타임아웃·429·502·503·504) 가 났고 쓰기 경로 확인 (canary 쓰기) 도 실패 | 수신을 멈추고 백오프 (degraded, 429·503 은 `Retry-After` 를 하한으로). 메시지별 시도 수도 브로커 전달 횟수도 쓰지 않는다 (연장 상한까지) | 유지 |
 | Poison (독성) | 역직렬화 실패, 스키마 위반, 호환되지 않는 메시지 버전, N 회 재시도 실패 | 원본·에러·시도 수·Source Position·`traceparent` 와 함께 DLQ, 다음 항목 진행 | 전진 |
 | Fatal (복구 불가) | 설정 오류, 불변식 위반, uncaught exception | exit ≠ 0 → 감독자 재시작 (종료 코드별 재시작 제외는 systemd 만. k8s Deployment 는 재시작 반복 경보로 잡는다 — `references/chassis-failure.md` §2) | 유지 (재시작 후 재처리) |
 | 종료 중 실패 | 종료 (context 취소) 로 생긴 실패 | 시도 수·DLQ 를 건드리지 않고 NACK·미커밋 | 유지 |
 
 - `catch` 해서 로그만 찍고 정상 반환하면 확인 응답이 나가 **조용히 유실**된다. DLQ 를 못 두는 환경이면 "알림 후 포기" 를 명시하고 그 손실을 감수하는 이유를 적는다. 평소에 타지 않는 fallback 경로를 새로 만들지 않는다. 호출자 재시도, 미리 밀어 둔 데이터, 상시 가동 failover 를 쓴다. degraded 상태 (Source pause + Position 유지 + 백오프) 는 이 원칙에 맞는다
 
-**SinkDown 판정**: Retryable 은 연결 실패·타임아웃·429·503·락 충돌이다. 기본은 업계 관행대로 Retryable 을 메시지 탓으로 세지 않고 미루는 것이다 (Vector·Logstash 출력, Kafka Connect `RetriableException`) — 장애 동안 정상 메시지가 DLQ 로 가지 않는다. 다만 이것만으로는 그 메시지만의 Retryable (락 충돌·그 메시지만 타임아웃) 이 파티션을 영원히 막는다. 그래서 세기 전에 **쓰기 경로 확인 (canary 쓰기)** 으로 범위를 가린다 — 실패한 쓰기와 같은 경로·샤드·테넌트·자격 증명의 작은 실제 쓰기다 (샤드×인스턴스마다 heartbeat 행 upsert). canary 도 실패하면 SinkDown 이다. 성공하면 범위가 그 메시지뿐이다: 429·503 은 `Retry-After` 만큼 그 메시지만 미루고 시도 수를 세지 않으며 (키·테넌트별 한도), 그 밖은 Transient 로 세어 N 회 뒤 DLQ 로 보낸다. 부작용 없는 쓰기가 없는 Sink (결제·메일 API) 는 검증·dry-run 호출을 쓰고, 그것도 없으면 기본으로 돌아가 `references/io.md` §1 처리 루프의 `e.overload` 분기처럼 다룬다 (메시지 단위 Source 는 반환하지 않고 연장하며 든다. 머리 정체는 '가장 오래된 미처리 항목 나이' 경보로 잡는다). ping·`SELECT 1` 같은 연결 확인으로는 안 된다 — 과부하·read-only·디스크 가득 참에서는 연결은 살아 있고 쓰기만 실패한다. circuit breaker 처럼 상태로 판정하거나 half-open 확인을 실제 메시지로 하면, 머리의 실패 메시지가 회로를 영영 닫지 못해 소비자 전체가 멈춘다.
+**SinkDown 판정**: Retryable 은 연결 실패·타임아웃·429·502·503·504·락 충돌이다. 기본은 업계 관행대로 Retryable 을 메시지 탓으로 세지 않고 미루는 것이다 (Vector·Logstash 출력, Kafka Connect `RetriableException`) — 장애 동안 정상 메시지가 DLQ 로 가지 않는다. 다만 이것만으로는 그 메시지만의 Retryable (락 충돌·그 메시지만 타임아웃) 이 파티션을 영원히 막는다. 그래서 세기 전에 **쓰기 경로 확인 (canary 쓰기)** 으로 범위를 가린다 — 실패한 쓰기와 같은 경로·샤드·테넌트·자격 증명의 작은 실제 쓰기다 (샤드×인스턴스마다 heartbeat 행 upsert). canary 도 실패하면 SinkDown 이다. 성공하면 범위가 그 메시지뿐이다: 429·503 은 `Retry-After` 만큼 그 메시지만 미루고 시도 수를 세지 않으며 (키·테넌트별 한도), 그 밖은 Transient 로 세어 N 회 뒤 DLQ 로 보낸다. 부작용 없는 쓰기가 없는 Sink (결제·메일 API) 는 검증·dry-run 호출을 쓰고, 그것도 없으면 기본으로 돌아가 `references/io.md` §1 처리 루프의 `e.overload` 분기처럼 다룬다 (메시지 단위 Source 는 반환하지 않고 연장하며 든다. 머리 정체는 '가장 오래된 미처리 항목 나이' 경보로 잡는다). ping·`SELECT 1` 같은 연결 확인으로는 안 된다 — 과부하·read-only·디스크 가득 참에서는 연결은 살아 있고 쓰기만 실패한다. circuit breaker 처럼 상태로 판정하거나 half-open 확인을 실제 메시지로 하면, 머리의 실패 메시지가 회로를 영영 닫지 못해 소비자 전체가 멈춘다.
 
 ### Observability — 건강은 바깥에서 본다 (`references/chassis-observability.md` §1·§4·§5)
 
 - liveness = 프로세스 내부가 진행 중인가 (메인 루프 heartbeat) 만. 의존 서비스 장애를 liveness 에 넣지 않는다. readiness = 지금 일을 받을 수 있나. 그 인스턴스만의 문제 (워밍업, 로컬 포화, draining) 에 쓴다. Sink 같은 공유 의존 장애로 끄면 모든 파드가 빠져 엔드포인트가 0 이 된다. 트래픽을 받지 않는 워커에 의미 없는 readiness 를 두지 않는다
 - 필수 지표: 처리량·오류율·처리 시간 (RED), 큐·버퍼 사용률·포화 (USE), **가장 오래된 미처리 항목의 나이**, Source lag, 마지막 성공 시각, DLQ 적재 수, 재시도 수·재시도율, 현재 상태 (`<app>_state{state}`), 메모리·fd 수
-- 큐를 건너 trace context 를 메시지 헤더로 넘긴다 (OTel messaging). 관리 포트를 업무 포트와 분리한다: `/healthz`·`/readyz`·`/metrics` (읽기 전용), pprof·heap dump 는 내부 접근만
 - 기능을 일부러 꺼 둔 채 뜨는 경우 (예: 소비자 연결 실패를 무시하고 API 만 기동) 는 반드시 지표로 드러낸다. "파드는 건강한데 소비자는 죽어 있는" 상태를 만들지 않는다
 
 ### Backlog — 서버 자신의 로그 (`references/chassis-observability.md` §3)
@@ -151,7 +150,6 @@ description: 서버 프로세스 (XMPP·SNMP·WebSocket·MQTT·자체 TCP 같은
 ### Coordination (선택) — 하나만 돌아야 하는 일 (`references/chassis-coordination.md`)
 
 - 스케줄러·마감 작업처럼 단일 실행이 필요할 때만 둔다. 리더 선출·분산 락은 둘이 동시에 리더가 되는 순간을 막지 못한다 → 쓰기 대상이 세대 번호 (fencing token) 를 검사하거나, 작업 자체를 멱등으로 만든다
-- Redis 락이면 `SET NX PX` + **원자적 해제** (compare-and-delete, 명령은 상세 참조) + 작업이 TTL 을 넘을 수 있으면 연장. PG 를 이미 쓰면 advisory lock (전용 커넥션 고정)
 
 ## I/O — 역할별
 
@@ -170,12 +168,12 @@ Accept 형은 실행 모델 (pre-fork·thread pool·event loop·경량 동시성
 
 ### Processing·Output
 
-- 파싱·변환은 가능한 한 순수 함수로 둔다. 시계·sleep·네트워크는 인터페이스 뒤로 숨겨 주입한다 (Verification 에서 가짜로 바꾼다). 이벤트 시각 (발생) 과 처리 시각 (수신) 은 둘 다 남긴다
+- 파싱·변환은 가능한 한 순수 함수로 둔다. 시계·sleep·네트워크는 인터페이스 뒤로 숨겨 주입한다 (Verification 에서 가짜로 바꾼다).
 - **Plugin Interface**: 구현체가 둘 이상일 때만 둔다. 기본은 컴파일 시 등록이고, 제3자 코드면 별도 프로세스다. 플러그인은 오류를 분류해 돌려주고 확인 응답을 소유하지 않는다. 실패 정책 (멈춤·건너뜀) 을 플러그인마다 정한다 → `references/plugin-interface.md`
 - **Task Handler (Concurrency·Throughput)**: 병렬 단위 (파티션·키·레코드) 는 순서 요구로 고른다. 동시성 = 목표 처리량 × 건당 처리 시간이고, 하류 한도가 상한이다: `최대 인스턴스 수 (HPA max + 배포 surge + 종료 유예 중인 파드) × 인스턴스당 연결 풀 ≤ 하류 허용치`. CPU 작업은 이벤트 루프 밖에서 돌린다 → `references/io.md` §6
 - **Send**: 다른 서버나 외부 API 로 보낸다. 받는 쪽이 "저장 확정" 을 응답할 때까지 상한 있는 버퍼에 들고 재전송한다. 구현 컴포넌트는 Transfer: TCP·TLS 만으로는 전달을 모르므로 응용 계층 ack 를 둔다. 크기 상한·분할, 압축 → 암호화 순서, mTLS, 재접속 폭주, 호스트 양보 → `references/transfer.md`
 - **Store**: 저장소에 쓴다. 멱등 키나 트랜잭션 체크포인트로 중복을 흡수한다. 구현 컴포넌트는 Storage (Port 뒤에 두되 매체별 보장을 감추지 않는다)
-- 배치로 쓰면 flush 조건은 **건수·바이트·최대 대기 시간 중 먼저 닿는 것**. 타이머는 flush 를 직접 부르지 말고 메인 루프에 신호만 보내 에러가 한 곳으로 모이게 한다
+- 배치로 쓰면 flush 조건은 **건수·바이트·최대 대기 시간 중 먼저 닿는 것** (배치 키 Sink 는 Position 경계로 자른다. 유휴 flush 는 경계를 먼저 저장한다). 타이머는 flush 를 직접 부르지 말고 메인 루프에 신호만 보내 에러가 한 곳으로 모이게 한다
 
 ### 유형 = 입력 방향 × Source × Output
 
@@ -185,7 +183,7 @@ Accept 형은 실행 모델 (pre-fork·thread pool·event loop·경량 동시성
 | 수집 에이전트 (파일 tailer) | Pull | 로컬 파일 | Send | 로테이트 누락, inode 재사용, Backpressure 중 유실 | §2 |
 | store-and-forward | Pull | 내부 생성 데이터 → 디스크 버퍼 | Send | 버퍼 가득, fsync 간격만큼 유실 | §3 |
 | 폴러·스케줄러 | Pull | 타이머 | Store / Send | 중복 실행, 놓친 회차, 겹친 실행 | §4 |
-| 수집 서버·API 서버 | Accept | 연결·요청 | Store (+ 응답) | 엔드포인트 제거 경쟁, 장기 연결 drain, 과부하 | §5·§7 |
+| 수집 서버·프로토콜 서버 | Accept | 연결·요청 | Store (+ 응답) | 엔드포인트 제거 경쟁, 장기 연결 drain, 과부하 | §5·§7 |
 | 프로토콜 서버 (양방향·단방향) | Accept | 연결·데이터그램 | Send / Store | 부분 수신, 느린 수신자, 끊김 미감지, 재접속 폭주 | `references/protocol.md` |
 
 ## Contract — 구간과 구간 사이
@@ -204,7 +202,7 @@ Sink 별 멱등 방식은 셋 중 하나를 고른다 (표: `references/contract
 2. **결정적 키 + Sink 중복 거부**: UNIQUE + `ON CONFLICT DO NOTHING`, ClickHouse `insert_deduplication_token`, S3 `If-None-Match: *`, HTTP `Idempotency-Key`
 3. **결정적 배치 경계**: 재처리해도 같은 경계로 잘리게 (`partition + startOffset..endOffset`) 하고 그 경계를 배치 키로
 
-"이미 있음" 응답 (데이터 INSERT 의 `ON CONFLICT DO NOTHING` 0 rows, 412, dedup skip) 은 **성공** 으로 다룬다. offset 조건부 upsert·lease UPDATE 의 0 rows 는 소유권 문제다 (위 1번, `references/io.md` §1). 단, 같은 키에 저장된 실패 응답까지 돌려주는 Sink (Stripe v1 의 500) 는 재시도가 재실행이 아니다.
+"이미 있음" 응답 (데이터 INSERT 의 `ON CONFLICT DO NOTHING` 0 rows, 412, dedup skip) 은 **성공** 으로 다룬다. offset 조건부 upsert·lease UPDATE 의 0 rows 는 소유권 문제다 (위 1번, `references/io.md` §1).
 
 ## Verification — 증명하기 전엔 완료가 아니다
 
@@ -225,7 +223,7 @@ Sink 별 멱등 방식은 셋 중 하나를 고른다 (표: `references/contract
 
 **형태 제안 (구현 전)**: 2단계의 형태 (Input 방향·유형, 실행 모델 (`references/io.md` §7), 병렬 단위·순서 요구, 런타임) 를 요청과 기존 코드로 정할 수 없고, 답에 따라 구조가 크게 달라지면 코드를 쓰기 전에 사용자에게 제안하고 확인받는다. 후보 2~3개에 trade-off 와 추천안을 붙인다. 런타임이 없는 새 프로젝트면 런타임 후보도 함께 낸다 (런타임이 실행 모델을 정한다). 정해지면 묻지 않고 설계 메모에만 남긴다.
 
-1. **컴포넌트 적용표를 만든다**: 카탈로그의 모든 행을 직접 구현 / 플랫폼 위임 / 불필요로 판정하고 상태 (이번 버전 / 다음 버전) 를 적는다 (`references/components.md` §7)
+1. **컴포넌트 적용표를 만든다**: 카탈로그의 모든 행을 직접 구현 / 플랫폼 위임 / 불필요로 판정하고 이유와 상태 (이번 버전 / 다음 버전) 를 적는다 (`references/components.md` §7)
 2. **I/O 를 정한다**: Input 방향 (Pull / Accept), 통신 형태와 프로토콜, Source, Output (Send / Store), Sink, 실행 환경 (Kubernetes 기본 / systemd / 둘 다). 유형표에서 해당 행의 상세를 읽는다. 목표 처리량·순서 요구로 병렬 단위·동시성을 정한다 (`references/io.md` §6)
 3. **Contract 를 구간마다 정한다**: 전달 보장, 멱등 방식, Dedup Window 와 최대 재처리 지연 비교, 메시지 스키마 버전과 호환 규칙, Schema Registry 호환 모드와 그에 따른 배포 순서
 4. **Lifecycle 상태 기계를 그린다**
@@ -236,7 +234,7 @@ Sink 별 멱등 방식은 셋 중 하나를 고른다 (표: `references/contract
       └──────────────▶ exit≠0 ◀┘                              └▶ 남은 것 버리고 exit
    ```
 
-   - starting: Configuration 검증 (실패면 exit), 의존 연결 (백오프 재시도). recovering: Position 복원, 손상 항목 격리 (Position 이 손상되면 exit≠0, 연결 실패는 백오프). draining: SIGTERM 이후 Lifecycle 종료 순서. 이 셋은 readiness false, ready 는 true
+   - starting: Configuration 검증 (실패면 exit). recovering: 로컬 Position 복원, 손상 항목 격리 (Position 이 손상되면 exit≠0). 의존 연결을 기다리며 여기 머물지 않고 백오프로 재시도하며 degraded 로 간다 (이 경우 recovering → degraded). 원격 Position 은 연결된 뒤 ready 전에 복원한다. draining: SIGTERM 이후 Lifecycle 종료 순서. 이 셋은 readiness false, ready 는 true
    - degraded: Sink 장애로 Source 읽기를 멈추고 Position 을 유지한 채 백오프 재시도. Pull 형은 readiness true 유지 가능하고, Accept 형도 공유 의존 (Sink) 장애로 끄지 않고 503 + Retry-After 로 싸게 거절한다 (HTTP 가 아니면 `references/protocol.md` §4)
 
 5. **신호와 종료 예산을 정한다**
@@ -266,12 +264,10 @@ Sink 별 멱등 방식은 셋 중 하나를 고른다 (표: `references/contract
 9. **컴포넌트 경계**: 플랫폼이 주는 것을 다시 만들지 않았는가, 구현체가 하나뿐인 층이 있는가, 플러그인이 확인 응답을 쥐거나 오류를 삼키는가, 재적재 실패에 옛 설정이 유지되는가, 경보가 본체 밖에서 나는가
 10. **Protocol Handler**: read 경계를 메시지 경계로 가정하는가, 프레임 상한이 받기 전에 걸리는가, 느린 수신자가 전달 경로를 막는가, 응용 heartbeat 가 있는가
 
-사례: `references/case-studies.md`.
-
 ## 답변 범위
 
-요청한 범위만 답한다. references 는 과제의 Source·런타임·컴포넌트에 해당하는 절만 읽는다 (보통 1~2개). 새 서버 전체를 설계·구현하라는 요청이면 컴포넌트 적용표를 먼저 낸다. 카탈로그의 행을 하나도 빼지 않고 행마다 판정을 한 줄로 쓴다 (불필요도 이유와 함께. 프로세스가 둘 이상이면 프로세스별로). 구현은 표에서 고른 것만 한다. 일부만 요청받으면 (예: 처리 루프·확인 응답·종료) 요청한 부분을 쓰고, 요청하지 않은 컴포넌트 (경보·관리 포트·배포 매니페스트·검증 시험) 는 구현하지 않고 '운영 전 확인' 몇 줄로 남긴다. 리뷰는 심각도 높은 것부터 쓰고, 문제없는 항목을 나열하지 않는다.
+요청한 범위만 답한다. references 는 과제의 Source·런타임·컴포넌트에 해당하는 절만 읽는다 (보통 1~2개). 새 서버 전체를 설계·구현하라는 요청이면 컴포넌트 적용표를 먼저 낸다. 카탈로그의 행을 하나도 빼지 않고 행마다 판정과 이유를 한 줄로 쓴다 (프로세스가 둘 이상이면 프로세스별로). 구현은 표에서 고른 것만 한다. 일부만 요청받으면 (예: 처리 루프·확인 응답·종료) 요청한 부분을 쓰고, 요청하지 않은 컴포넌트 (경보·관리 포트·배포 매니페스트·검증 시험) 는 구현하지 않고 '운영 전 확인' 몇 줄로 남긴다. 리뷰는 심각도 높은 것부터 쓰고, 문제없는 항목을 나열하지 않는다.
 
 ## references
 
-컴포넌트별 상세는 카탈로그의 상세 열 (모두 `references/` 아래). 그 밖에 `components.md` (컴포넌트 규약), `contract.md` (Sink 별 멱등·재전송·outbox·스키마 진화·durable execution), `verification.md` (시험 표), `case-studies.md` (실제 코드·문서의 좋은 점·함정, 옛 방식과 지금 기본값).
+컴포넌트별 상세는 카탈로그의 상세 열 (모두 `references/` 아래). 그 밖에 `components.md` (컴포넌트 규약), `contract.md` (Sink 별 멱등·재전송·outbox·스키마 진화), `verification.md` (시험 표), `case-studies.md` (사례, 옛 방식).

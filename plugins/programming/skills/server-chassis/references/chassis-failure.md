@@ -7,7 +7,7 @@
 - 재시도 토픽 (지연 단계별, Source 파티션을 막지 않음, 순서 포기) vs 제자리 재시도 (순서 유지, 파티션이 막힘) 중 하나를 고른다
 - DLQ 헤더: 에러, 시도 수, Source topic/partition/offset, 최초 실패 시각, `traceparent` (OTel trace context, `chassis-observability.md` §4), 원본 bytes
 - 종료 (context 취소) 로 생긴 실패는 메시지 탓이 아니다. DLQ 로 보내지 말고 NACK·미커밋
-- 재시도 가능한 오류 (연결 실패·타임아웃·429·503·락 충돌) 는 SKILL.md 의 SinkDown 판정을 먼저 거친다. SinkDown 이면 메시지별 시도 수·브로커 전달 횟수를 쓰지 않는다 (`io.md` §1 SinkDown 절). canary 쓰기가 성공하면 범위가 그 메시지뿐이다 — 429·503 은 `Retry-After` 만큼 미루되 시도 수를 세지 않고, 그 밖만 Transient 로 세어 N 회 뒤 DLQ 로 보낸다
+- 재시도 가능한 오류 (연결 실패·타임아웃·429·502·503·504·락 충돌) 는 SKILL.md 의 SinkDown 판정을 먼저 거친다. SinkDown 이면 메시지별 시도 수·브로커 전달 횟수를 쓰지 않는다 (`io.md` §1 SinkDown 절). canary 쓰기가 성공하면 범위가 그 메시지뿐이다 — 429·503 은 `Retry-After` 만큼 미루되 시도 수를 세지 않고, 그 밖만 Transient 로 세어 N 회 뒤 DLQ 로 보낸다
 - DLQ 는 버리는 곳이 아니라 재처리 대기열이다. 재투입 명령은 Utility (`chassis-operations.md` §3)
 - 브로커별 재전달 조건·DLQ 지원은 `io.md` §1 브로커 비교. RabbitMQ 에서 독성 감지는 reject/requeue=false 가 필요하다 (`io.md` §1)
 - 호환 불가능한 스키마 버전은 Poison 으로 분류한다 (`contract.md` §5)
