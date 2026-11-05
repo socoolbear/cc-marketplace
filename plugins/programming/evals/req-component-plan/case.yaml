@@ -1,0 +1,5 @@
+schema_version: "1.0"
+name: req-component-plan
+description: 새 서버 설계 요청에 컴포넌트별 판정이 나오는지 본다 (요구사항 점검. 품질 지표 아님)
+tags: [requirement]
+runs: 1

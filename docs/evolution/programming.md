@@ -1,0 +1,50 @@
+# programming 진화 기록
+
+최신이 위. 형식은 `.claude/skills/evolve/SKILL.md` 의 "결정 기록" 절. 1.x 때 이름은 플러그인 `daemon`, 스킬 `daemon-programming`.
+
+## 2026-11-05 — CBD 컴포넌트 카탈로그, 이름 변경 (2.0.0)
+
+자료: 사용자 제공 2013년 사내 기술 문서 (로그 수집 에이전트 + 수집 서버, 35쪽), 공식 문서·RFC·소스 조사 (각 reference 에 링크), eval 결과.
+
+진단: 원칙 (crash-only, 멱등, 확인 응답 순서) 은 충실하고 자료보다 현대적이었다. 빠진 것은 조립 단위였다. 규칙 모음이라 "무슨 컴포넌트를 두고 무엇을 플랫폼에 맡기나" 를 답하지 못했고, Plugin Interface·Transfer·CLI Component 는 사실상 없었다.
+
+사용자 확정: 스킬 `server-chassis`, 플러그인 `programming` (이 아래로 관련 스킬을 모은다). 발동은 다양한 프로토콜과 양방향·단방향 통신이 필요한 서버 구축이고, 일반 HTTP 프레임워크 위 API 추가는 아니다. 워커·소비자·에이전트는 유지한다.
+
+| 판정 | 항목 | 근거 | 재검토 조건 |
+|---|---|---|---|
+| 정리 | 처리 루프 의사코드·메시지 단위 Source 규칙을 `io.md` §1 로 이동. SinkDown 판정은 SKILL.md 유지 | 서버 구현 전반 스킬에서 Kafka 의사코드가 본문 1/5. SinkDown 은 모든 Sink 에 적용 | 품질 eval 에서 Kafka 케이스 하락이 기준을 넘으면 |
+| 정리 | 트랜잭션 체크포인트 문단을 요약하고 `contract.md` 로 안내 | 중복 | — |
+| 정리 | Observability 를 Observability·Backlog·Emergency Notification 으로, Admin Processes 를 CLI Component·Utility 로 분리. Steady State 는 GC 소속 | 사용자 컴포넌트 단위 | — |
+| 제거 | "경보는 별도 구성 요소가 아니다" 문장 | 요구와 모순 | — |
+| 모순 해결 | `chassis-lifecycle.md` 가 약속한 Recovery 절이 없음 → §7 신설 | 문서 거짓 | — |
+| 모순 해결 | Backlog 용어 충돌: 자료 뜻은 서버 자신의 로그. 큐는 적체, 소켓은 accept backlog 로 고정 | 한 대상 한 이름 | — |
+| 반영 | 컴포넌트 카탈로그, 규약 (`components.md`), 적용표, 장애 대응표 | 자료의 컴포넌트 구조와 리뷰 코멘트 | — |
+| 반영 | Plugin Interface (`plugin-interface.md`), Transfer (`transfer.md`), Live Config·CLI·Utility (`chassis-operations.md`), GC·Backlog·Emergency Notification·Recovery 확장 | 대조 결과 없음 또는 원칙뿐 | — |
+| 반영 | Protocol Handler (`protocol.md`) | 사용자가 프로토콜·양방향 통신 서버를 발동 조건으로 지정 | — |
+| 반영 | 이름 변경, 2.0.0 | 호출 이름이 바뀌어 설치본 재설치 필요 | — |
+| 반영 (eval) | 발동 pos 7·neg 3, 품질 `q-protocol-server` (스킬을 읽지 않은 에이전트가 기준 작성), 요구사항 `req-component-plan` (순환 측정이라 품질 지표 아님) | 동작 변경 | — |
+| 기각 | fork 기반 Daemonize, 주기 cron 생존 체크, 주기 GC 호출, 장애 때만 쓰는 로컬 백업, TCP/UDP 자동 전환, 직접 조합한 암호화 | 현재 기준 후퇴. `case-studies.md` 에 그때 → 지금으로만 남김 | — |
+| 기각 | 복구 데이터 무조건 우선 | 적체 회복과 모순. 순서는 Sink 제약으로 고른다 | — |
+| 기각 | Lifecycle → Daemonize, Configuration → Live Config 이름 교체 | 종료 예산·롤링 재시작까지 덮는 이름이 아니다. 카탈로그에 병기 | — |
+| 기각 | Send·Store 를 Transfer·Storage 로 치환 | Send 는 외부 API 호출도 포함. 방식과 구현 컴포넌트로 구분 | — |
+| 기각 | 자료의 원격 제어 입력 | 설정 저장소 + 배포 경로가 대신하고 인증 없는 제어 면을 늘리지 않는다 | 재시작 없는 전체 호스트 변경이 실제 요구로 나오면 |
+| 기각 | 사건 시점 스냅샷을 Backlog 에 포함 | 자료의 스냅샷은 업무 데이터. 사례에만 | — |
+| 기각 | 웹 화면, DB 스키마, 하드웨어 구성, 업무 판정 로직 | 업무 영역, 플러그인 문제와 짝이 없음 | — |
+| 기각 | Chassis 모델 폐기 후 재작성 | 검증된 규칙 유실 위험 | — |
+| 보류 | Security 독립 컴포넌트 | Transfer·Backlog·Daemonize·Protocol Handler 에 나눠 담음 | 보안 요구가 이 네 곳에 안 들어가는 사례가 나오면 |
+| 보류 | 언어별 스캐폴드 스크립트 | 런타임이 다양. 문서 효과 먼저 측정 | 품질 eval 에서 적용표가 구현에 안 쓰이면 |
+
+eval (CLI 2.1.318, 3회 실행. 총비용 $50.93 으로 승인 예산 $20~25 를 넘겼다. 채점 모델을 기준선과 다르게 돌린 것과 발동 케이스 31개 × 3회가 주 원인):
+
+| 시험 | 결과 |
+|---|---|
+| 발동 | 31/31 통과. 양성 케이스에서 턴 한도 오류 15건이 났지만 스킬은 불렸다 |
+| 품질 (기준선과 같은 haiku 채점) | 기존 4 케이스 평균 0.98, 최저 `q-redis-deploy-loss` 0.92 (1.2.0 은 전부 1.00), 시간 초과 0. 통과. 새 `q-protocol-server` 1.00 |
+| 품질 (sonnet 채점, with-without) | 기존 4 케이스 평균 with 0.854 / without 0.833. `q-api-outage-dlq` 는 0.75 / 0.92 로 스킬 쪽이 낮다. `q-protocol-server` 는 1.00 / 1.00. 이 채점으로는 스킬 효과가 거의 보이지 않는다 |
+| 요구사항 (`req-component-plan`) | 0/3, 적용표 지시를 보강한 뒤에도 0/3. 판정 행은 키워드 검사로 8·10·9개. `정책` 판정·이유 없는 행이 원인으로 보이나 채점 사유가 저장되지 않아 미확정. 채점 기준은 원래 문구 유지 |
+
+미해결: 요구사항 실패, sonnet 기준의 스킬 효과 부재. 재검토 조건은 다음 회차에서 sonnet 채점 with-without 을 실행 횟수를 늘려 다시 볼 때.
+
+검증: 설계 적대적 검증 4라운드 (BLOCKER 0 에서 종료), 구현 적대적 검증 3라운드 (소실 규칙 없음 확인, 재적재 원자성·세션 재개 상태·비 HTTP 과부하·잠금 위치 수정. 3라운드는 수정한 곳으로 범위를 좁혀 BLOCKER 0). 품질 기준선은 변경 전 worktree 에서 현재 CLI 로 재측정했다 (기존 4 케이스 전부 1.00, 통과 기준을 측정 전에 평균 ≥ 0.90, 케이스 하한 0.80 으로 고정).
+
+SKILL.md 크기 목표 (이전 38,485바이트 이하) 는 Protocol Handler 와 리뷰 반영으로 334바이트 넘겨 38,819바이트다. 그대로 뒀다.
