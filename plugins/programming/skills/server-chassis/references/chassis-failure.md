@@ -42,6 +42,7 @@ graceful degradation (부하 때 요청당 일을 줄이기) 은 정기적으로
 | 위치 | 이슈 | 영향 | 대처 | 시험 |
 |---|---|---|---|---|
 | 에이전트 | 프로세스 사망 | 수집 공백 | 감독자 재시작 + Position 복원 | `kill -9` |
+| 소비자 | 특정 메시지가 프로세스를 죽임 | 레플리카가 돌아가며 재시작 | 재시작 반복 경보 → `dlq quarantine` (`chassis-operations.md` §3) | 죽는 메시지 주입 |
 | 에이전트 | 데몬이 죽은 사이 로그 로테이트 | 회전 파일 누락 | fingerprint 식별, 회전 파일 읽기 (`io.md` §2) | 정지 중 로테이트 |
 | 에이전트 | 메모리 증가 | 호스트 본업 영향 | `MemoryHigh=`, 원인 수정 (`chassis-resources.md` §3) | soak |
 | 에이전트 | 압축·암호화 CPU 과다 | 호스트 본업 영향 | 압축 수준 조정, `CPUWeight=` (`transfer.md` §3·§7) | 부하 |

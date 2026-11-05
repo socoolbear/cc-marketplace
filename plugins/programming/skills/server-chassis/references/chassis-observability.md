@@ -71,7 +71,7 @@ Prometheus·Alertmanager 가 있으면 아래 경보를 건다.
 | 사라짐 | `up{job="x"} == 0` **와** `absent(up{job="x"})` 둘 다 |
 | 유실 위험 | `increase(dlq_total[10m]) > 0`, `increase(dropped_total[10m]) > 0` |
 | 재시도 급증 | 재시도율 (`rate(retry_total[5m]) / rate(processed_total[5m])`) 이 평소 대비 급증. 재시도 예산은 `chassis-overload.md` §2 |
-| 재시작 반복 | `increase(kube_pod_container_status_restarts_total[30m]) > 3` |
+| 재시작 반복 | `sum by (namespace, container) (increase(kube_pod_container_status_restarts_total[30m])) > 3` (파드별로만 보면 범인 메시지가 옮겨 다닐 때 안 울린다) |
 | 경보 경로 생존 | 항상 울리는 Watchdog 경보 → 끊기면 외부 dead man's switch 가 알림 ([Watchdog runbook](https://runbooks.prometheus-operator.dev/runbooks/general/watchdog/)) |
 
 - 사라짐: 대상이 목록에 남아 있는데 프로세스만 죽으면 scrape 가 실패해 `up == 0` 이 된다. 이때 `absent(up{job="x"})` 는 거짓이라 못 잡는다. 서비스 디스커버리에서 대상 자체가 빠진 경우만 `absent` 가 잡는다 ([jobs·instances](https://prometheus.io/docs/concepts/jobs_instances/), [absent](https://prometheus.io/docs/prometheus/latest/querying/functions/#absent))

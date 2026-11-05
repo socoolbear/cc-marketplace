@@ -6,6 +6,7 @@
 | graceful shutdown | 처리 중 SIGTERM | 유예 시간 안에 exit 0, 진행 중 항목 손실 없음, 확인 응답 일치 |
 | 하류 장애 | [Toxiproxy](https://github.com/Shopify/toxiproxy) 로 장애 주입 (down 은 `enabled=false`, toxic 이 아니다. toxic: latency, timeout, reset_peer, bandwidth, slow_close, slicer, limit_data. v2.12.0 기준. main 에 미출시 packet_loss 가 있다) | 메모리 상한 안에서 Backpressure, 복구 후 자동 재개, 재시도 지표 증가. 장애 동안 DLQ 적재 0, 연장 상한 안의 장애면 브로커 전달 횟수 미소모 (SinkDown 이 메시지별 실패로 세어지지 않음). 연결 차단뿐 아니라 연결은 되는데 쓰기만 실패·429 도 주입한다 |
 | 독성 입력 | 깨진 입력을 섞어 넣기 | DLQ 로 가고 뒤 항목은 계속 처리 |
+| 프로세스를 죽이는 입력 | 처리 중 프로세스를 죽이는 메시지 주입 → 경보 → `dlq quarantine` | 재시작 반복 경보가 울리고, 격리 뒤 재개, 앞 구간 누락 0 |
 | 리밸런스 | 처리 중 인스턴스 추가·제거 | 중복은 흡수, 누락 0 |
 | 처리량 | 목표 유입률보다 높은 부하로 적체를 만든 뒤 부하를 목표 유입률로 되돌린다 | lag 이 줄어든다. 그동안 Sink 오류율·메모리·하류 연결 수가 유계 (`io.md` §6) |
 | 장시간 부하 (soak) | 수 시간 이상 부하 | RSS·fd·goroutine 평탄, 처리 시간 p99 안정 |

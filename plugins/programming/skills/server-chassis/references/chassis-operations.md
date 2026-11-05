@@ -44,7 +44,7 @@
 | `<app> log-level <level> [--for 10m]` | 로그 레벨 변경 | 제어 채널 |
 | `<app> pause`·`resume` | 입력 멈춤·재개 (실시간 상태 변경) | 제어 채널 |
 | `<app> recover` | 격리 항목 점검·재투입 (§3) | 상태 위치에 따라 |
-| `<app> dlq requeue`, `<app> replay` | 재투입, 되감기 (§3) | 상태 위치에 따라 |
+| `<app> dlq requeue`, `<app> dlq quarantine`, `<app> replay` | 재투입, 격리, 되감기 (§3) | 상태 위치에 따라 |
 | `<app> version` | 빌드·프로토콜 버전 | 일회성 |
 
 표면 규칙 ([clig.dev](https://clig.dev/)):
@@ -81,6 +81,7 @@ k8s 에서 로컬 상태는 같은 컨테이너의 `kubectl exec` 로 처리한�
 
 - **상태 체크** (`status`): 살아 있는지가 아니라 일하는지를 답한다. 컴포넌트별 `health()`, Lifecycle 상태, 가장 오래된 미처리 항목 나이, 버퍼 사용량, 격리 항목 수, 마지막 재적재 결과
 - **DLQ 재투입** (`dlq requeue`): 필터·건수 상한·`--dry-run` 을 둔다. 재투입 속도를 제한한다
+- **프로세스를 죽이는 메시지 격리** (`dlq quarantine <topic> <partition> <offset>`): 소비자 전부 정지 (활성 멤버가 있으면 offset 변경이 실패한다) → 커밋 위치 C 를 읽는다 → 범인 X 를 DLQ 로 복사한다. C < X 면 `[C, X)` 는 Sink 에 없을 수 있으므로 이 명령이 같은 빌드로 offset 순서대로 Sink 에 다시 쓴다 (실패하면 커밋하지 않는다. 토픽 끝으로 재투입하면 뒤 메시지보다 늦게 처리돼 순서가 뒤집힌다) → X+1 커밋 → 재개. 트랜잭션 체크포인트면 Sink 의 Position 도 올린다 (안 그러면 할당 때 seek 로 되돌아간다)
 - **되감기·재처리** (`replay`): 되감기 절차에는 멱등 상태 (Dedup Window) 초기화 여부를 같이 적는다 (`contract.md` §2). 파일 tailer 의 Position 처럼 로컬이면 위 표의 로컬 규칙을 따른다
 - **수동 복구** (`recover`): 격리된 손상 항목을 점검해 재투입하거나 버린다. Position 저장소가 손상돼 시작이 막히면 복구할 시작점을 사람이 정한다. 평소 복구는 시작 경로가 자동으로 한다 (`chassis-lifecycle.md` §7). 이 명령이 평소 경로가 되면 설계가 틀린 것이다
 - 운영 절차 (언제 무엇을 돌리나) 는 장애 대응표에 잇는다 (`chassis-failure.md` §4)
