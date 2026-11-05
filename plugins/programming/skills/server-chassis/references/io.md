@@ -56,7 +56,7 @@ SinkDown 판정은 SKILL.md 의 Failure Handling 에 있다.
 - SinkDown: 판정은 SKILL.md 의 SinkDown 판정이다 (canary 쓰기 실패). `Retry-After` 를 백오프 하한으로 수신을 멈추고 (share group 은 `pause()` 가 없고 RENEW 가 poll 때 나가므로 poll 은 계속하면서 `record_limit` 으로 받는 양을 줄인다), 쥔 메시지는 반환하지 말고 연장하며 들고 있다가 Sink 가 회복되면 이어서 처리한다. 반환하면 다시 받을 때 브로커 전달 횟수가 올라 긴 장애 동안 정상 메시지가 DLQ 로 간다. 연장 상한이 있으면 (SQS 는 최초 수신부터 12h) 그 전에 반환하고, 전달 한도는 장애 중 반환 횟수를 감안해 여유 있게 잡는다
 - Kafka share group 은 `share.acknowledgement.mode=explicit` 로 쓴다 (기본 implicit 은 다음 poll 이 직전 배치를 모두 확정한다)
 
-tries 는 프로세스 메모리라 리밸런스·재시작에 초기화된다 → 머리 메시지 정체는 '가장 오래된 미처리 항목 나이' 경보로 잡고, 필요하면 시도 수를 외부에 남긴다. 특정 메시지의 미분류 예외가 프로세스를 죽이면 크래시 루프가 된다 → 처리 호출 전에 외부에 표시하고 호출이 반환하면 지운다. 시작 때 남아 있는 표시만 crash 로 세어 N회 뒤 DLQ 로 보낸다 (Sink 장애 재시도는 반환하므로 세지 않고, 분류된 Fatal 은 표시를 지우고 raise 한다. share group 은 crash 도 전달 횟수로 세어 한도에서 archive = 폐기되므로 그 전에 보낸다). librdkafka 는 파티션 resume·seek 버그가 있는 구버전을 피한다 (최소 버전: 아래 Kafka 절).
+tries 는 프로세스 메모리라 리밸런스·재시작에 초기화된다 → 머리 메시지 정체는 '가장 오래된 미처리 항목 나이' 경보로 잡고, 필요하면 시도 수를 외부에 남긴다. 특정 메시지의 미분류 예외가 프로세스를 죽이면 크래시 루프가 된다 → 처리 호출 전에 소유자와 함께 외부에 표시하고 호출이 반환하면 지운다. 표시가 남은 메시지는 `on assigned` 때 혼자 다시 처리하고, 그때 또 죽을 때만 crash 로 세어 N회 뒤 DLQ 로 보낸다 (OOM·SIGKILL 처럼 메시지 탓이 아닌 종료는 혼자 다시 처리하면 통과한다. 다른 소유자가 살아 있는 표시, SIGTERM 뒤의 표시, Sink 장애 재시도는 세지 않고, 분류된 Fatal 은 표시를 지우고 raise 한다. share group 은 crash 도 전달 횟수로 세어 한도에서 archive = 폐기되므로 그 전에 보낸다). librdkafka 는 파티션 resume·seek 버그가 있는 구버전을 피한다 (최소 버전: 아래 Kafka 절).
 
 ### 브로커 비교
 
@@ -187,8 +187,8 @@ RETURNING jobs.*;
 | 항목 | 지금 기준 |
 |---|---|
 | 파일 식별 | **fingerprint (앞부분 N 바이트 해시)** 가 기본 추세. inode 는 재사용·device ID 변경으로 중복·누락 (Vector `checksum`, Filebeat 9.0+ `fingerprint`, OTel `fingerprint_size`). Vector `checksum` 은 `ignored_header_bytes` 다음 앞 `lines` 줄 (기본 1줄) 기준이라 첫 줄이 같은 파일끼리 충돌한다 → 고정 헤더가 있으면 `ignored_header_bytes`·`lines` 를 늘린다 ([file.rs](https://github.com/vectordotdev/vector/blob/master/src/sources/file.rs)) |
-| 로테이트 | rename 방식이 안전. copytruncate 는 복사와 truncate 사이 유실 가능 → 쓰면 ① 파일 크기 < 저장 offset 이면 truncate 로 보고 offset 을 0 으로 되돌린다 (inode·경로 식별에서는 확인 주기 사이에 저장 offset 을 넘게 다시 쓰이면 truncate 를 감지하지 못해 앞부분을 잃는다 → copytruncate 면 fingerprint 식별을 쓴다. fingerprint 는 파일 내용을 따라가 copytruncate 로테이트를 스스로 감지한다) ② 첫 로테이트 파일을 읽기 대상에 넣는 것은 fingerprint 식별일 때만 한다 (inode·경로 식별이면 복사본을 새 파일로 보고 전부 다시 읽는다. Filebeat 는 inode 식별이면 `rotation.external.strategy.copytruncate` + `suffix_regex`) ③ `delaycompress` 를 켠다 ([filestream](https://www.elastic.co/docs/reference/beats/filebeat/filebeat-input-filestream)) |
-| 회전된 파일 | 끝까지 읽은 뒤 넘어간다. Backpressure 로 멈춘 사이 회전 대기 시간 (Fluent Bit `Rotate_Wait` 기본 5s) 이 지나면 놓친다 |
+| 로테이트 | rename 방식이 안전. copytruncate 는 복사와 truncate 사이 유실 가능 → 쓰면 ① 파일 크기 < 저장 offset 이면 truncate 로 보고 offset 을 0 으로 되돌린다 (inode·경로 식별에서는 확인 주기 사이에 저장 offset 을 넘게 다시 쓰이면 truncate 를 감지하지 못해 앞부분을 잃는다 → copytruncate 면 fingerprint 식별을 쓴다. fingerprint 는 파일 내용을 따라가 copytruncate 로테이트를 스스로 감지한다. 앞부분이 같으면 못 감지하므로 크기 비교 ① 은 유지한다) ② 첫 로테이트 파일을 읽기 대상에 넣는 것은 fingerprint 식별일 때만 한다 (inode·경로 식별이면 복사본을 새 파일로 보고 전부 다시 읽는다. Filebeat 는 inode 식별이면 `rotation.external.strategy.copytruncate` + `suffix_regex`) ③ `delaycompress` 를 켠다 ([filestream](https://www.elastic.co/docs/reference/beats/filebeat/filebeat-input-filestream)) |
+| 회전된 파일 | fd 를 열어 둔 tailer 는 주기마다 경로의 파일과 fd 의 dev·inode 를 비교해 회전을 감지한다 (fingerprint 식별이어도 필요하다). 끝까지 읽은 뒤 넘어간다. Backpressure 로 멈춘 사이 회전 대기 시간 (Fluent Bit `Rotate_Wait` 기본 5s) 이 지나면 놓친다 |
 | 체크포인트 | 디스크 버퍼 기록 또는 저장 확정 응답 뒤에 Position 기록 (읽은 시점에 기록하면 전송 전 crash 에 유실된다). 파일이면 임시 파일 → `fsync` → `rename`. SQLite 면 WAL. 저장소를 안 정하면 메모리에만 있어 재시작 때 잃는다 (OTel `storage` 미지정) |
 | 처음 보는 파일 | 시작 Position 기본값이 도구마다 다르다 (OTel `end`, Vector `beginning`) → 명시 |
 | 오래된 상태 정리 | 정리 주기가 "무시 기준 + 확인 주기" 보다 길어야 한다 (Filebeat `clean_inactive` > `ignore_older` + `prospector.scanner.check_interval`). 9.2+ 는 어기면 **시작을 거부**한다 ([filestream](https://www.elastic.co/docs/reference/beats/filebeat/filebeat-input-filestream)) |
