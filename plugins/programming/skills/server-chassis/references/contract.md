@@ -7,6 +7,24 @@ at-least-once 데몬은 "Sink 쓰기 성공 → 확인 응답 전 crash" 구간�
 
 어느 쪽이든 **Dedup Window > 최대 재처리 지연** (DLQ 재투입·수동 replay 까지 포함) 이어야 한다.
 
+## 핵심 규칙
+
+서버 하나는 `Source → 서버`, `서버 → Sink` 두 구간에 걸친다. 에이전트 → 수집 서버 → DB 처럼 이어지면 모든 구간에 같은 계약이 적용된다.
+
+1. **전달 보장**: 기본은 **at-least-once + 멱등 Sink**. 중복은 반드시 온다. at-most-once 를 고르면 "유실돼도 되는 이유" 를 적는다
+2. **확인 응답 순서**: `읽기 → 처리 → Sink 쓰기 확정 → 확인 응답`. auto-commit·auto-ack 금지 (예외: librdkafka `enable.auto.offset.store=false` + 처리 끝난 offset 만 store 하는 주기 커밋 — `io.md` §1). 병렬 처리하면 **빈틈 없이 끝난 지점까지만** 확인 응답한다
+3. **멱등 키**: Source 에서 결정적으로 만든다 (`now()`·쓰기 시점 UUID 금지). Redis 같은 TTL 캐시는 앞단 필터일 뿐 근거가 아니다. **Dedup Window > 최대 재처리 지연** (DLQ 재투입·수동 replay 포함) 을 확인한다
+4. **재전송**: 보내는 쪽은 상한 있는 버퍼 + 백오프로 재전송한다. 받는 쪽은 "저장 확정" 을 응답하고, 보내는 쪽은 그 응답을 받은 뒤에만 Position 을 넘긴다 (종단 간 확인 응답)
+5. **스키마 진화와 버전 공존**: 메시지에 스키마 버전을 싣고 호환 규칙을 정한다. 모르는 필드는 버리지 말고 통과시키고 (Avro 는 reader schema 로 decode 하면 사라진다), 호환되지 않는 버전은 Poison 으로 다룬다. Schema Registry 를 쓰면 호환 모드가 배포 순서를 정한다 (기본 `BACKWARD` 는 소비자 먼저) → `contract.md` §5
+
+Sink 별 멱등 방식은 셋 중 하나를 고른다 (표: `contract.md` §1·§2, 재전송: §3, outbox·inbox: §4).
+
+1. **트랜잭션 체크포인트**: Sink 가 트랜잭션 DB 면 데이터와 Position 을 같은 트랜잭션에 쓰고, 시작할 때, consumer group 이면 파티션 할당 콜백마다 Sink 에 저장된 Position 으로 seek 한다. offset 은 조건부 upsert 로 쓰고 0 rows 면 소유권 문제로 다룬다 (상세·SQL: `contract.md` §2 3번). 이 조건이 있을 때 가장 강하다
+2. **결정적 키 + Sink 중복 거부**: UNIQUE + `ON CONFLICT DO NOTHING`, ClickHouse `insert_deduplication_token`, S3 `If-None-Match: *`, HTTP `Idempotency-Key`
+3. **결정적 배치 경계**: 재처리해도 같은 경계로 잘리게 (`partition + startOffset..endOffset`) 하고 그 경계를 배치 키로
+
+"이미 있음" 응답 (데이터 INSERT 의 `ON CONFLICT DO NOTHING` 0 rows, 412, dedup skip) 은 **성공** 으로 다룬다. offset 조건부 upsert·lease UPDATE 의 0 rows 는 소유권 문제다 (위 1번, `io.md` §1).
+
 ## 1. Sink 별 기법
 
 | Sink | 기법 | Dedup Window | 함정 |

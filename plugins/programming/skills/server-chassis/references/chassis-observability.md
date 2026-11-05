@@ -2,6 +2,25 @@
 
 헬스체크 프로브 (liveness·readiness·startupProbe) 는 플랫폼에 묶여 있어 `chassis-lifecycle.md` §1 에 있다. §1·§4·§5 가 Observability, §2 가 Emergency Notification, §3 이 Backlog 다.
 
+## 핵심 규칙
+
+### Observability — 건강은 바깥에서 본다
+
+- liveness = 프로세스 내부가 진행 중인가 (메인 루프 heartbeat) 만. 의존 서비스 장애를 liveness 에 넣지 않는다. readiness = 지금 일을 받을 수 있나. 그 인스턴스만의 문제 (워밍업, 로컬 포화, draining) 에 쓴다. Sink 같은 공유 의존 장애로 끄면 모든 파드가 빠져 엔드포인트가 0 이 된다. 트래픽을 받지 않는 워커에 의미 없는 readiness 를 두지 않는다
+- 필수 지표: 처리량·오류율·처리 시간 (RED), 큐·버퍼 사용률·포화 (USE), **가장 오래된 미처리 항목의 나이**, Source lag, 마지막 성공 시각, DLQ 적재 수, 재시도 수·재시도율, 현재 상태 (`<app>_state{state}`), 메모리·fd 수
+- 기능을 일부러 꺼 둔 채 뜨는 경우 (예: 소비자 연결 실패를 무시하고 API 만 기동) 는 반드시 지표로 드러낸다. "파드는 건강한데 소비자는 죽어 있는" 상태를 만들지 않는다
+
+### Backlog — 서버 자신의 로그
+
+- stdout 구조화 로그 (`role`, `state`, `component`, `source`, `partition`, `offset`, `key`, `attempt`, `trace_id`). 서버 본체 로그는 상시, 플러그인 로그는 사건 시점. 토큰·개인정보는 마스킹하고, 외부 입력은 CR·LF 를 무력화해 구조화 필드로 넣고 크기를 자른다. 잃으면 안 되는 기록은 로그가 아니라 Sink 다
+
+### Emergency Notification — 경보는 바깥이 낸다
+
+- 같은 프로세스도 자식 프로세스도 아니라 **완전히 별개인 주체**가 낸다. 죽은 프로세스는 자기 죽음을 알리지 못한다. 호스트는 systemd `OnFailure=` (기본 `RestartMode=normal` 은 재시작마다 돌아 폭주 제어 필수) + 외부 heartbeat, k8s 는 지표 + Alertmanager. 프로세스 안 마지막 알림은 보조다
+- 상태 변화에 보내고, 같은 원인은 묶고, 시간당 상한을 둔다. 처리 루프에서 직접 발송하지 않는다
+
+- 경보는 진행 지표 (가장 오래된 항목 나이, DLQ 증가, 재시도율, 재시작 반복) 에 건다. 사라짐은 `up == 0` 과 `absent` 를 함께 건다
+
 ## 1. 지표
 
 | 묶음 | 지표 | 왜 |

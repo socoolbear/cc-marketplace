@@ -1,4 +1,4 @@
-# daemon evals
+# programming evals
 
 `claude plugin eval` 스위트. `server-chassis` 스킬의 발동 (trigger) 과, 스킬이 답변 품질을 올리는지 (quality) 를 본다. 결과는 참고용이고 릴리스 게이트가 아니다.
 

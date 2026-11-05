@@ -2,6 +2,38 @@
 
 Lifecycle (시작·종료·신호) 을 플랫폼·런타임별로 다루고, Recovery 는 §7 이다. Live Config 는 `chassis-operations.md` §1. Resource Limits 가 쓰는 런타임별 메모리 상한은 §4 에 있다 (그 밖의 상한·Steady State 는 `chassis-resources.md`).
 
+## 핵심 규칙
+
+### Daemonize (Lifecycle) — 시작·종료 순서, 신호, 종료 예산
+
+- 포그라운드로 뜬다. fork·setsid·PID 파일·자체 재시작 루프 없이 수명은 감독자에게 맡긴다. 로그는 stdout/stderr. 컨테이너에서 앱이 PID 1 이면 신호 핸들러를 직접 달거나 `tini`/`--init` 을 쓰고, 셸 래퍼·`npm start` 대신 exec form 으로 앱을 직접 띄운다 (신호가 앱까지 닿지 않을 수 있다)
+- 시작할 때 의존 서비스의 기동 순서에 기대지 않는다. 연결은 백오프로 재시도하고, 복구할 수 없는 시작 오류 (Configuration, 불변식, 필수 플러그인, Position 손상, 상태 잠금 실패) 만 즉시 exit ≠ 0. 새 인스턴스에는 부하를 천천히 올리고 빈 캐시로도 버티게 한다
+- 종료는 `(k8s 밖 LB 뒤면 먼저 readiness false. k8s 는 terminating 엔드포인트가 자동 ready=false) → (Accept 형: 엔드포인트 제거가 퍼질 때까지 수 초 더 수신 — preStop sleep) → (SIGTERM 뒤 readiness 실패로 serving=false) → 입력 중단 → 진행 중 작업 마무리 (drain) → 확인 응답 → 출력 닫기 → exit 0` 순서. 전체가 감독자의 유예 시간 (k8s `terminationGracePeriodSeconds`, systemd `TimeoutStopSec`) 안에 끝나야 하고, 넘치면 남은 것은 버리고 나간다 (Recovery 가 재시작 뒤 다시 처리한다)
+- 유예 시간은 sidecar 종료와 나눠 쓰고, 노드가 꺼질 때는 더 짧아지거나 유예 없이 죽을 수 있다. 롤링 배포 중에는 구버전과 신버전이 같은 Source 를 함께 소비한다 → 출력 형식과 멱등 키 계산식은 공존해도 깨지지 않아야 한다 (Contract 5)
+
+### Recovery — 시작 = 복구 (crash-only)
+
+- 정상 종료와 `kill -9` 가 같은 결과가 되게 만든다. 복구 코드를 따로 두지 않고 시작할 때마다 복구 경로를 탄다
+- 잃으면 안 되는 상태는 프로세스 밖 (Source·Sink·전용 저장소) 에 둔다. 로컬에 둘 때는 장애 때만 쓰는 백업이 아니라 **상시 경로의 디스크 버퍼**로 둔다
+- recovering 은 Position 복원과 손상 항목 격리까지만 한다. 버퍼 드레인은 ready 뒤 평소 경로로 한다. 남은 항목과 새 항목의 순서는 Sink 의 순서 제약으로 고르고, 복구 전송에는 속도 상한을 둔다. 복구 시작·종료를 드러낸다
+
+### Lifecycle 상태 기계
+
+```
+starting ─▶ recovering ─▶ ready ⇄ degraded ─▶ draining ─▶ stopped
+   │ 설정 검증 실패        │ 복구 실패                     │ 예산 초과
+   └──────────────▶ exit≠0 ◀┘                              └▶ 남은 것 버리고 exit
+```
+
+- starting: Configuration 검증 (실패면 exit). recovering: 로컬 Position 복원, 손상 항목 격리 (Position 이 손상되면 exit≠0). 의존 연결을 기다리며 여기 머물지 않고 백오프로 재시도하며 degraded 로 간다 (이 경우 recovering → degraded). 원격 Position 은 연결된 뒤 ready 전에 복원한다. draining: SIGTERM 이후 Lifecycle 종료 순서. 이 셋은 readiness false, ready 는 true
+- degraded: Sink 장애로 Source 읽기를 멈추고 Position 을 유지한 채 백오프 재시도. Pull 형은 readiness true 유지 가능하고, Accept 형도 공유 의존 (Sink) 장애로 끄지 않고 503 + Retry-After 로 싸게 거절한다 (HTTP 가 아니면 `protocol.md` §4)
+
+### 신호와 종료 예산
+
+- SIGTERM / SIGINT → draining. SIGHUP → Configuration 재적재 (systemd `Type=notify-reload` 일 때만, 처리를 `READY=1` 전에 준비. k8s 는 롤링 재시작이 기본). SIGKILL·OOM·노드 장애 → 처리 불가이므로 Recovery 로 대비
+
+예산 (k8s): `preStop 시간 + 진행 중 배치 최대 처리 시간 + 확인 응답 + sidecar 종료 + 여유 < terminationGracePeriodSeconds`. **유예 시간 카운트다운은 preStop 전부터 시작하고, SIGTERM 은 preStop 이 끝난 뒤에 온다.** 노드 종료 때는 이보다 짧아질 수 있다. 런타임별 종료 관용구와 메모리 상한은 `chassis-lifecycle.md` §4
+
 ## 1. Kubernetes
 
 ### 종료 순서 ([pod lifecycle](https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/), [lifecycle hooks](https://kubernetes.io/docs/concepts/containers/container-lifecycle-hooks/))

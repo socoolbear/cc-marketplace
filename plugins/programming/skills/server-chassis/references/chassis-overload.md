@@ -2,6 +2,13 @@
 
 과부하는 재시도와 대기열을 타고 연쇄 장애로 번진다. Nygard (Release It!: timeout, circuit breaker, bulkhead, 부하 차단), Google SRE (handling overload, cascading failures), AWS Builders' Library 가 모두 이를 핵심 주제로 다룬다. 여기는 그 상세다.
 
+## 핵심 규칙
+
+- **Timeouts & Deadlines**: 모든 원격 호출 (같은 호스트의 프로세스 간 호출 포함) 에 연결·요청 타임아웃을 둔다. 값은 하류 지연 분포 (예: p99.9) 로 정한다. Accept 형은 남은 데드라인을 하류로 넘기고, 클라이언트가 이미 포기한 요청은 버린다
+- **재시도 예산**: 재시도는 거절한 계층의 바로 위 (그 계층을 직접 부른 쪽) 한 곳에서만 한다 (5계층 × 3회 = 243배). 토큰 버킷이나 비율 (예: 요청의 10% 이하) 로 상한을 두고, 하류가 "재시도 금지" 를 알리면 따른다. 재시도율을 지표로 낸다
+- **부하 차단 (load shedding)** (Accept 형): 포화된 뒤가 아니라 직전에 싸게 거절한다. 헬스체크와 진행 중 작업을 끝내는 요청을 먼저 받는다. 오래 기다린 요청은 버리고, 스레드 풀·소켓 backlog 같은 숨은 큐도 상한에 넣는다. Pull 형의 대응은 Backpressure (Source pause)
+- **Bulkheads·테넌트 격리**: 워크로드·테넌트별로 동시성 상한과 풀을 나눠 한 테넌트의 적체가 전체를 막지 않게 한다
+
 ## 1. Timeouts & Deadlines
 
 - 모든 원격 호출 (같은 호스트의 IPC 포함) 에 연결 timeout 과 요청 timeout 을 둔다

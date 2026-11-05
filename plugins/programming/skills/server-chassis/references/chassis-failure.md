@@ -1,13 +1,27 @@
 # Chassis — Failure Handling
 
-분류 (Transient / SinkDown / Poison / Fatal / 종료 중 실패) 와 기본 동작은 SKILL.md 에 있다. 여기는 그 상세다.
+분류 (Transient / SinkDown / Poison / Fatal / 종료 중 실패) 와 기본 동작은 아래 핵심 규칙에 있다. 그 뒤는 상세다.
+
+## 핵심 규칙
+
+| 분류 | 예 | 동작 | Position |
+|---|---|---|---|
+| Transient (일시) | Sink 는 건강한데 그 항목만 실패 (락 충돌·특정 항목 타임아웃) | 재시도 예산 안에서 지수 백오프+지터 재시도 (한 층에서만), N 회 뒤 Poison | 유지 |
+| Sink 전체 장애 (SinkDown) | 재시도할 만한 오류 (연결 실패·타임아웃·429·502·503·504) 가 났고 쓰기 경로 확인 (canary 쓰기) 도 실패 | 수신을 멈추고 백오프 (degraded, 429·503 은 `Retry-After` 를 하한으로). 메시지별 시도 수도 브로커 전달 횟수도 쓰지 않는다 (연장 상한까지) | 유지 |
+| Poison (독성) | 역직렬화 실패, 스키마 위반, 호환되지 않는 메시지 버전, N 회 재시도 실패 | 원본·에러·시도 수·Source Position·`traceparent` 와 함께 DLQ, 다음 항목 진행 | 전진 |
+| Fatal (복구 불가) | 설정 오류, 불변식 위반, uncaught exception | exit ≠ 0 → 감독자 재시작 (종료 코드별 재시작 제외는 systemd 만. k8s Deployment 는 재시작 반복 경보로 잡는다 — `chassis-failure.md` §2) | 유지 (재시작 후 재처리) |
+| 종료 중 실패 | 종료 (context 취소) 로 생긴 실패 | 시도 수·DLQ 를 건드리지 않고 NACK·미커밋 | 유지 |
+
+- `catch` 해서 로그만 찍고 정상 반환하면 확인 응답이 나가 **조용히 유실**된다. DLQ 를 못 두는 환경이면 "알림 후 포기" 를 명시하고 그 손실을 감수하는 이유를 적는다. 평소에 타지 않는 fallback 경로를 새로 만들지 않는다. 호출자 재시도, 미리 밀어 둔 데이터, 상시 가동 failover 를 쓴다. degraded 상태 (Source pause + Position 유지 + 백오프) 는 이 원칙에 맞는다
+
+**SinkDown 판정**: Retryable 은 연결 실패·타임아웃·429·502·503·504·락 충돌이다. 기본은 업계 관행대로 Retryable 을 메시지 탓으로 세지 않고 미루는 것이다 (Vector·Logstash 출력, Kafka Connect `RetriableException`) — 장애 동안 정상 메시지가 DLQ 로 가지 않는다. 다만 이것만으로는 그 메시지만의 Retryable (락 충돌·그 메시지만 타임아웃) 이 파티션을 영원히 막는다. 그래서 세기 전에 **쓰기 경로 확인 (canary 쓰기)** 으로 범위를 가린다 — 실패한 쓰기와 같은 경로·샤드·테넌트·자격 증명의 작은 실제 쓰기다 (샤드×인스턴스마다 heartbeat 행 upsert). canary 도 실패하면 SinkDown 이다. 성공하면 범위가 그 메시지뿐이다: 429·503 은 `Retry-After` 만큼 그 메시지만 미루고 시도 수를 세지 않으며 (키·테넌트별 한도), 그 밖은 Transient 로 세어 N 회 뒤 DLQ 로 보낸다. 부작용 없는 쓰기가 없는 Sink (결제·메일 API) 는 검증·dry-run 호출을 쓰고, 그것도 없으면 기본으로 돌아가 `io.md` §1 처리 루프의 `e.overload` 분기처럼 다룬다 (메시지 단위 Source 는 반환하지 않고 연장하며 든다. 머리 정체는 '가장 오래된 미처리 항목 나이' 경보로 잡는다). ping·`SELECT 1` 같은 연결 확인으로는 안 된다 — 과부하·read-only·디스크 가득 참에서는 연결은 살아 있고 쓰기만 실패한다. circuit breaker 처럼 상태로 판정하거나 half-open 확인을 실제 메시지로 하면, 머리의 실패 메시지가 회로를 영영 닫지 못해 소비자 전체가 멈춘다.
 
 ## 1. 독성 입력과 DLQ
 
 - 재시도 토픽 (지연 단계별, Source 파티션을 막지 않음, 순서 포기) vs 제자리 재시도 (순서 유지, 파티션이 막힘) 중 하나를 고른다
 - DLQ 헤더: 에러, 시도 수, Source topic/partition/offset, 최초 실패 시각, `traceparent` (OTel trace context, `chassis-observability.md` §4), 원본 bytes
 - 종료 (context 취소) 로 생긴 실패는 메시지 탓이 아니다. DLQ 로 보내지 말고 NACK·미커밋
-- 재시도 가능한 오류 (연결 실패·타임아웃·429·502·503·504·락 충돌) 는 SKILL.md 의 SinkDown 판정을 먼저 거친다. SinkDown 이면 메시지별 시도 수·브로커 전달 횟수를 쓰지 않는다 (`io.md` §1 SinkDown 절). canary 쓰기가 성공하면 범위가 그 메시지뿐이다 — 429·503 은 `Retry-After` 만큼 미루되 시도 수를 세지 않고, 그 밖만 Transient 로 세어 N 회 뒤 DLQ 로 보낸다
+- 재시도 가능한 오류 (연결 실패·타임아웃·429·502·503·504·락 충돌) 는 위 SinkDown 판정을 먼저 거친다. SinkDown 이면 메시지별 시도 수·브로커 전달 횟수를 쓰지 않는다 (`io.md` §1 SinkDown 절). canary 쓰기가 성공하면 범위가 그 메시지뿐이다 — 429·503 은 `Retry-After` 만큼 미루되 시도 수를 세지 않고, 그 밖만 Transient 로 세어 N 회 뒤 DLQ 로 보낸다
 - DLQ 는 버리는 곳이 아니라 재처리 대기열이다. 재투입 명령은 Utility (`chassis-operations.md` §3)
 - 브로커별 재전달 조건·DLQ 지원은 `io.md` §1 브로커 비교. RabbitMQ 에서 독성 감지는 reject/requeue=false 가 필요하다 (`io.md` §1)
 - 호환 불가능한 스키마 버전은 Poison 으로 분류한다 (`contract.md` §5)
@@ -37,7 +51,7 @@ graceful degradation (부하 때 요청당 일을 줄이기) 은 정기적으로
 
 ## 4. 장애 대응표
 
-여러 데몬이 이어진 시스템이면 SKILL.md 의 오류 분류와 별개로 시스템 수준 표를 만든다. 위치별로 사고를 나열하고 대처와 시험을 잇는다. 대처가 사람의 손이면 Utility 명령과 절차까지 적는다. 표가 길어지면 장애 지점이 많다는 신호이니 구조를 줄인다.
+여러 데몬이 이어진 시스템이면 위 오류 분류와 별개로 시스템 수준 표를 만든다. 위치별로 사고를 나열하고 대처와 시험을 잇는다. 대처가 사람의 손이면 Utility 명령과 절차까지 적는다. 표가 길어지면 장애 지점이 많다는 신호이니 구조를 줄인다.
 
 | 위치 | 이슈 | 영향 | 대처 | 시험 |
 |---|---|---|---|---|
