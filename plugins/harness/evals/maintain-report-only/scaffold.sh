@@ -48,7 +48,8 @@ cat > package.json <<'JSON'
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "test": "node --test"
+    "test": "node --test",
+    "lint": "node --check src/index.js"
   }
 }
 JSON

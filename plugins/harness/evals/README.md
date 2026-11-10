@@ -1,6 +1,6 @@
 # harness evals
 
-`claude plugin eval` 스위트. 케이스 3개. 결과는 참고용이고 릴리스 게이트가 아니다.
+`claude plugin eval` 스위트. 케이스 4개. 결과는 참고용이고 릴리스 게이트가 아니다.
 
 ## 실행
 
@@ -20,7 +20,8 @@ claude plugin eval plugins/harness --trust-plugin --scaffold --allow-tools Write
 | 케이스 | 확인하는 것 |
 |---|---|
 | `setup-fresh` | 문서 없는 프로젝트에서 setup 이 산출물 7종을 만들고 AGENTS.md 가 40줄 이하·실재 명령만 적는지 |
-| `maintain-report-only` | 점검만 요청하면 Edit·Write 없이 깨진 포인터 `harness/RUNBOOK.md` 를 보고하는지 |
+| `setup-greenfield` | 코드 없는 신규 프로젝트에서 요청에 담긴 스택·레이어를 ARCHITECTURE·ADR (`Accepted`) 에 넣고, `package.json`·`src/`·강제 훅을 만들지 않고, 없는 검증 명령을 적지 않는지 |
+| `maintain-report-only` | 점검만 요청하면 Edit·Write 없이 깨진 포인터 `harness/RUNBOOK.md`, AGENTS.md 에 없는 `lint` 스크립트 (⑦), 마커 4.0.0 이후 변경 이력을 보고하는지 |
 | `signal-suggest` | 마커 3.0.0 프로젝트에서 무관한 작업 후 `/harness` 를 제안하되 스킬을 스스로 실행하지 않는지 |
 
 ## 한계
