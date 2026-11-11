@@ -1,6 +1,6 @@
 ---
 name: harness
-description: "프로젝트에 에이전트용 지속 지식 문서 (AGENTS.md 지도 + harness/ 의 ARCHITECTURE·ADR·GLOSSARY·LESSONS) 와 선택적 레이어 검사 강제를 구축하고 유지한다. 상태를 감지해 setup (최초 구축) 또는 maintain (낡음 점검 + 세션 학습 승격) 으로 분기한다. 하네스 셋업·점검·업데이트, 학습 승격 (reflect), 용어집, ADR, 아키텍처 불변 조건, 레이어 경계 강제, AGENTS.md 정리 요청, 또는 세션 시작 시 '하네스 자가 점검 신호' 를 받고 사용자가 점검을 수락했을 때 사용한다."
+description: "프로젝트에 에이전트용 지속 지식 문서 (AGENTS.md 지도 + harness/ 의 ARCHITECTURE·ADR·GLOSSARY·LESSONS, 선택적 CONVENTIONS) 와 선택적 레이어 검사 강제를 구축하고 유지한다. 상태를 감지해 setup (최초 구축) 또는 maintain (낡음 점검 + 세션 학습 승격) 으로 분기한다. 하네스 셋업·점검·업데이트, 학습 승격 (reflect), 용어집, ADR, 아키텍처 불변 조건, 레이어 경계 강제, AGENTS.md 정리 요청, 또는 세션 시작 시 '하네스 자가 점검 신호' 를 받고 사용자가 점검을 수락했을 때 사용한다."
 ---
 
 # Harness
@@ -33,6 +33,7 @@ description: "프로젝트에 에이전트용 지속 지식 문서 (AGENTS.md �
   harness/
     .harness.json           # 마커
     ARCHITECTURE.md  ADR.md  GLOSSARY.md  LESSONS.md
+    CONVENTIONS.md          # (선택) 코딩 관례 — 다른 관례 문서가 없을 때만
   .claude/settings.json     # (선택) 레이어 검사 훅 — 팀 공유
   scripts/…                 # (선택) 검사기 + 훅 어댑터
 ```
@@ -55,7 +56,7 @@ description: "프로젝트에 에이전트용 지속 지식 문서 (AGENTS.md �
 
 ## 보호 규칙 (모든 모드 공통)
 
-- 문서의 **본문 데이터**(ADR 항목, GLOSSARY 행, LESSONS 항목, 사용자가 추가한 섹션) 는 수정·삭제하지 않는다. 모드가 만지는 것은 골격과 마커뿐이다.
+- 문서의 **본문 데이터**(ADR 항목, GLOSSARY 행, LESSONS 항목, CONVENTIONS 규칙, 사용자가 추가한 섹션) 는 수정·삭제하지 않는다. 모드가 만지는 것은 골격과 마커뿐이다.
 - 쓰기는 사용자 승인 후에만 한다. setup 도 구축 범위를 먼저 확인받는다 (사용자가 기본값 진행을 미리 허락했으면 생략).
 - `ARCHITECTURE.md`·`ADR.md` 는 모드가 직접 고치지 않는다 — 권고만 하고 작업 에이전트·사람이 반영한다. GLOSSARY 행 삭제는 사람만 한다.
 - 기존 `CLAUDE.md` 는 수정하지 않는다. 검사기 스크립트는 실행만 한다.

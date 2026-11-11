@@ -1,6 +1,6 @@
 schema_version: "1.0"
 name: setup-greenfield
-description: 코드가 없는 신규 프로젝트에 계획된 스택·레이어를 주고 setup 을 돌려, 문서에 시드하되 코드·도구 체인은 만들지 않는지 본다
+description: 코드가 없는 신규 프로젝트에 계획된 스택·레이어를 주고 setup 을 돌려, 문서에 시드하되 코드·도구 체인은 만들지 않는지, 사용자가 준 코딩 관례로 CONVENTIONS.md 를 만드는지 본다
 tags: [setup]
 runs: 1
 context:

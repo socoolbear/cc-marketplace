@@ -54,3 +54,12 @@ test('greet', () => {
   assert.equal(greet({ name: 'a' }), 'hello, a');
 });
 JS
+
+cat > CONTRIBUTING.md <<'MD'
+# Contributing
+
+## 코딩 관례
+
+- 조회 함수는 없으면 null 을 돌려주면 `find*`, 없으면 던지면 `get*` 로 이름 짓는다 — 호출부가 null 처리 여부를 이름으로 안다
+- 테스트 이름은 무엇을 보장하는지 한국어 문장으로 쓴다 — 실패 목록만 보고 깨진 약속을 안다
+MD
