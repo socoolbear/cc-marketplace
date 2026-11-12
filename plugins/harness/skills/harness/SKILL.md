@@ -33,7 +33,7 @@ description: "프로젝트에 에이전트용 지속 지식 문서 (AGENTS.md �
   harness/
     .harness.json           # 마커
     ARCHITECTURE.md  ADR.md  GLOSSARY.md  LESSONS.md
-    CONVENTIONS.md          # 코딩 관례 (기본 절 이름·예외·변환) — 다른 관례 문서가 없을 때만
+    CONVENTIONS.md          # 코딩 관례 (기본 절 이름·예외·변환·빈 줄) — 다른 관례 문서가 없을 때만
   .claude/settings.json     # (선택) 레이어 검사 훅 — 팀 공유
   scripts/…                 # (선택) 검사기 + 훅 어댑터
 ```

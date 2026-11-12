@@ -142,7 +142,7 @@ append-only. 발행된 항목의 본문은 수정하지 않는다 (번복은 새
 
 ## 7. `harness/CONVENTIONS.md` — 코딩 관례
 
-포매터·검사기가 판정할 수 없는 코딩 관례 (네이밍·예외 처리·테스트 관례 등) 의 정본이다. 기존 관례 문서가 없으면 기본 절 3개 (아래 `## 이름`·`## 예외`·`## 변환`) 로 만든다. 이미 관례 문서가 있으면 만들지 않고 AGENTS.md 관례 포인터만 그 파일로 건다 (사본은 갈라진다).
+포매터·검사기가 판정할 수 없는 코딩 관례 (네이밍·예외 처리·테스트 관례 등) 의 정본이다. 기존 관례 문서가 없으면 기본 절 4개 (아래 `## 이름`·`## 예외`·`## 변환`·`## 빈 줄`) 로 만든다. 이미 관례 문서가 있으면 만들지 않고 AGENTS.md 관례 포인터만 그 파일로 건다 (사본은 갈라진다).
 
 ````markdown
 # 코딩 관례 (CONVENTIONS)
@@ -154,7 +154,7 @@ append-only. 발행된 항목의 본문은 수정하지 않는다 (번복은 새
 
 | 내용 | 정본 | 강제 |
 |------|------|------|
-| 포맷·import 순서 | {포매터·린터} | `{명령}` |
+| 포맷 (도구가 강제하는 것)·import 순서 | {포매터·린터} | `{명령}` |
 | 레이어·import 방향·타입 경계 | `harness/ARCHITECTURE.md` | {검사기 또는 —} |
 | 결정 배경 | `harness/ADR.md` | — |
 | 용어·식별자 표기 | `harness/GLOSSARY.md` | — |
@@ -240,6 +240,56 @@ result = Pricing.price(input)                       // 판단·계산
 repository.save(result)                             // 쓰기
 ```
 
+## 빈 줄
+
+함수 본문의 문을 다섯 종류로 나눈다. 같은 종류끼리는 붙이고, 종류가 바뀌는 곳에 빈 줄 하나를 둔다. 빈 줄이 흐름의 단계를 보여 준다 — 아무 데나 띄우거나 전부 붙이면 그 신호가 사라진다.
+
+| 종류 | 문 |
+|---|---|
+| 선언 | 변수 선언·대입 — 조기 반환으로 끝나는 선언 (`?: return`) 포함 |
+| 제어 블록 | `if`·`when`/`switch`·`for`·`while`·`try`, 반복 함수 (`repeat(n) { … }`) |
+| 실행 | 결과를 쓰지 않는 함수 호출 — 람다를 받는 호출 (`transaction { … }`), 시험에서 시험 대상의 결과를 받는 선언 (`result = service.charge(order)`) 포함. 기대값 선언 (`expected = …`) 은 선언 |
+| 검증 (시험) | `assert*`·`assertThrows`·`verify` |
+| 종료 | `return`·`throw` |
+
+- 선언끼리, 연속된 실행끼리, 연속된 검증끼리는 붙인다
+- 제어 블록은 블록마다 띄운다 (제어 블록끼리도)
+- 블록의 첫 문 앞·마지막 문 뒤에는 빈 줄을 두지 않는다 (`if` 안의 `throw` 한 줄 등). 블록 안에도 같은 규칙을 쓴다
+
+```
+// 위반 — 선언 사이를 띄우고, 제어 블록·실행·종료를 붙임
+decidedBy = requireOperator(context)
+
+approval = getRow(approvalId)
+if (approval.requestedBy == decidedBy) {
+    throw SelfDecision()
+}
+repository.decide(approvalId, decision, decidedBy)
+return getRow(approvalId)
+
+// 준수
+decidedBy = requireOperator(context)
+approval = getRow(approvalId)
+
+if (approval.requestedBy == decidedBy) {
+    throw SelfDecision()
+}
+
+repository.decide(approvalId, decision, decidedBy)
+
+return getRow(approvalId)
+
+// 준수 (시험) — 준비 → 실행 → 검증
+order = givenOrder()
+expected = PAID
+
+result = service.charge(order)
+service.settle(order)
+
+assertEquals(expected, result.status)
+verify(gateway).capture(order.id)
+```
+
 ## {주제}
 
 - {규칙 — 이유}
@@ -254,7 +304,7 @@ repository.save(result)                             // 쓰기
 - `## {주제}` 는 프로젝트가 정하는 반복 절이다 — maintain ⑤ 의 골격 비교 대상이 아니다.
 - 없는 포매터·검사기 행은 지운다.
 - 기본 절은 **제목만 골격이고 본문은 프로젝트 데이터다** — 아래대로 손보거나 팀이 고친 본문을 maintain ⑤ 가 비교하지 않는다 (제목 누락만 본다).
-- **기본 절의 전제** — 맞지 않는 절은 지운다: `## 이름` 은 타입·모듈 안에 멤버를 두는 코드, `## 예외` 는 예외로 오류를 전달하는 언어, `## 변환` 은 조회 (저장소) 계층과 업무 계층이 나뉜 코드. 표의 앱 유형은 프로젝트에 있는 행만 남기고, `{…}` 분기는 프로젝트 언어 쪽 하나만 쓴다.
+- **기본 절의 전제** — 맞지 않는 절은 지운다: `## 이름` 은 타입·모듈 안에 멤버를 두는 코드, `## 예외` 는 예외로 오류를 전달하는 언어, `## 변환` 은 조회 (저장소) 계층과 업무 계층이 나뉜 코드, `## 빈 줄` 은 포매터·린터가 문 사이 빈 줄을 이 규칙대로 강제하지 않는 코드 (강제하면 도구가 정본이다). 표의 앱 유형은 프로젝트에 있는 행만 남기고, `{…}` 분기는 프로젝트 언어 쪽 하나만 쓴다.
 - **ARCHITECTURE 로 가는 줄** — 기본 절을 쓰면 아래 import 금지를 `harness/ARCHITECTURE.md` `## 금지 패턴` 에 프로젝트의 패키지·계층 이름으로 쓴다 (해당 개념이 없으면 쓰지 않는다). 레이어 표 행이 아니므로 레이어 검사기 ([`enforcement.md`](enforcement.md)) 범위 밖이다 — 강제하려면 프로젝트의 아키텍처 테스트 도구 (import 규칙 테스트) 를 쓴다.
   - `## 예외`: 업무 계층은 전송 계층의 상태코드 타입을 import 하지 않는다
   - `## 변환`: `transform` 패키지는 업무 흐름 (서비스)·저장소·설정·DB·프레임워크·시계를 import 하지 않는다 (도메인·입출력 타입은 허용)
