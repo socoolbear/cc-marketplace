@@ -1,6 +1,6 @@
 ---
 name: harness
-description: "프로젝트에 에이전트용 지속 지식 문서 (AGENTS.md 지도 + harness/ 의 ARCHITECTURE·ADR·GLOSSARY·LESSONS, 선택적 CONVENTIONS) 와 선택적 레이어 검사 강제를 구축하고 유지한다. 상태를 감지해 setup (최초 구축) 또는 maintain (낡음 점검 + 세션 학습 승격) 으로 분기한다. 하네스 셋업·점검·업데이트, 학습 승격 (reflect), 용어집, ADR, 아키텍처 불변 조건, 레이어 경계 강제, AGENTS.md 정리 요청, 또는 세션 시작 시 '하네스 자가 점검 신호' 를 받고 사용자가 점검을 수락했을 때 사용한다."
+description: "프로젝트에 에이전트용 지속 지식 문서 (AGENTS.md 지도 + harness/ 의 ARCHITECTURE·ADR·GLOSSARY·LESSONS, CONVENTIONS — 기존 관례 문서가 없을 때) 와 선택적 레이어 검사 강제를 구축하고 유지한다. 상태를 감지해 setup (최초 구축) 또는 maintain (낡음 점검 + 세션 학습 승격) 으로 분기한다. 하네스 셋업·점검·업데이트, 학습 승격 (reflect), 용어집, ADR, 아키텍처 불변 조건, 레이어 경계 강제, AGENTS.md 정리 요청, 또는 세션 시작 시 '하네스 자가 점검 신호' 를 받고 사용자가 점검을 수락했을 때 사용한다."
 ---
 
 # Harness
@@ -33,7 +33,7 @@ description: "프로젝트에 에이전트용 지속 지식 문서 (AGENTS.md �
   harness/
     .harness.json           # 마커
     ARCHITECTURE.md  ADR.md  GLOSSARY.md  LESSONS.md
-    CONVENTIONS.md          # (선택) 코딩 관례 — 다른 관례 문서가 없을 때만
+    CONVENTIONS.md          # 코딩 관례 (기본 절 이름·예외·변환) — 다른 관례 문서가 없을 때만
   .claude/settings.json     # (선택) 레이어 검사 훅 — 팀 공유
   scripts/…                 # (선택) 검사기 + 훅 어댑터
 ```

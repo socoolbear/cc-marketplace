@@ -1,6 +1,6 @@
 schema_version: "1.0"
 name: setup-fresh
-description: 하네스 문서가 없는 작은 node 프로젝트에 setup 모드를 돌려 산출물 7종이 생기는지, 이미 있는 관례 문서 (CONTRIBUTING.md) 를 베끼지 않고 가리키는지 본다
+description: 하네스 문서가 없는 작은 node 프로젝트에 setup 모드를 돌려 산출물 7종이 생기는지, 이미 있는 관례 문서 (CONTRIBUTING.md) 를 베끼지 않고 가리키며 그 문서에 기본 절을 쓰지 않는지 본다
 tags: [setup]
 runs: 1
 context:
