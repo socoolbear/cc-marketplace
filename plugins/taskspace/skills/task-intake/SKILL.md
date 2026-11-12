@@ -102,8 +102,7 @@ window 는 있는데 `ListAgents` 에 없으면 그 window 의 Claude 가 끝난
 
 **없으면 새로 띄운다.** `$TMUX` 가 비어 있으면 (tmux 밖) 띄우지 말고 어떻게 열지 묻는다.
 
-- 실행 명령: 사용자 전역 규칙 (CLAUDE.md 등) 에 태스크 세션 실행 명령이 있으면 그것을 따른다. 없으면 아래 기본값.
-- **권한 우회 플래그는 빼고 띄운다.** 전역 명령에 `--dangerously-skip-permissions`·`--permission-mode bypassPermissions` 같은 확인 생략 옵션이 있어도 이 스킬이 띄우는 세션에서는 그것만 지운다 (환경변수·이름 등 나머지는 그대로). 새 세션이 처음 읽는 것은 다른 사람이 쓴 원문이라, 원문에 섞인 지시가 확인 없이 실행되지 않게 한다. 확인을 끄는 것은 사용자가 그 세션에서 직접 한다. 보고 때 뺀 플래그를 알린다.
+- 실행 명령: 사용자 전역 규칙 (CLAUDE.md 등) 에 태스크 세션 실행 명령이 있으면 **환경변수·플래그까지 그대로** 쓴다 (권한 관련 플래그도 빼지 않는다). 없으면 아래 기본값.
   ```bash
   cmd="claude -n task-<ID> $(printf %q "<첫 지시>"); exec ${SHELL:-/bin/sh}"
   command tmux new-window -d -t "$(command tmux display -p '#{session_name}'):" -n "task-<ID>" -c "<태스크 디렉토리>" "${cmd}"
@@ -116,7 +115,7 @@ window 는 있는데 `ListAgents` 에 없으면 그 window 의 Claude 가 끝난
 
 - 태스크: ID · 제목 · 기존인지 새것인지 (새것이면 브랜치, 재발이면 관련 archive ID)
 - 판정 근거: 어느 단서가 어느 notes 줄과 맞았는지 한 줄
-- 세션: 기존 세션에 전달 / 새 window 로 띄움 (뺀 권한 플래그) / 띄우지 못함 (이유)
+- 세션: 기존 세션에 전달 / 새 window 로 띄움 / 띄우지 못함 (이유)
 - 전달한 내용 요약과 notes.md 에 기록한 위치
 - 워크스페이스 repo 에 미커밋 변경 (notes.md, INDEX.md) 이 남았다는 사실
 
