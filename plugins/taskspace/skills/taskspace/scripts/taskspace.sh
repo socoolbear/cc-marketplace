@@ -45,7 +45,8 @@ usage() {
   repos                                      등록된 repo 와 기본 브랜치 · 열린 worktree 수
   new  <TASK-ID|next> [--slug <슬러그>] [--title <제목>] [<repo>[=<branch>]...]
                                              태스크 생성 + worktree + notes.md + 심링크. next 는 다음 번호 자동 배정,
-                                             슬러그가 있으면 브랜치 feature/<ID>-<슬러그> (번호만인 ID 는 슬러그 필수)
+                                             슬러그가 있으면 브랜치 feature/<ID>-<슬러그> (번호만인 ID 는 슬러그 필수).
+                                             repo 를 빼면 notes.md 만 만든다 (repo 미정 조사 태스크, 나중에 new <ID> <repo>)
   link [<TASK-ID> [<repo>...]]               .local/<repo>/ 를 worktree 에 상대 심링크 (디렉토리 통째 가능). 인자 없으면 전 태스크
   migrate <repo> <checkout> <rel-path>...    기존 체크아웃의 gitignore 된 파일을 .local/<repo>/ 로 복사 (원본은 그대로)
   sync <TASK-ID> [<repo>...] [--rebase]      worktree 에 origin/<기본 브랜치> 반영 (merge 기본)
@@ -117,7 +118,8 @@ validate_slug() {
     || die 1 "슬러그 형식 오류: '$1' (영문 소문자·숫자·하이픈 kebab-case)"
 }
 
-# tasks/ · archive/ 의 번호형 디렉토리 (<접두사><숫자>) 중 최대 번호 +1 을 3자리로. 접두사는 계승하되 둘 이상 섞이면 거부
+# tasks/ · archive/ 의 번호형 디렉토리 (<접두사><숫자>) 중 최대 번호 +1 을 3자리로. 접두사는 계승하되 둘 이상 섞이면 거부.
+# 이슈 트래커 키 형식 (대문자 접두사 + '-', 예: PAY-123) 은 거부 — 그 번호는 트래커가 정하므로 +1 하면 가짜 키가 된다
 next_id() {
   local d base prefix num max=0 seen=0 first_prefix=""
 
@@ -136,6 +138,10 @@ next_id() {
     fi
     [[ "${num}" -gt "${max}" ]] && max="${num}"
   done
+
+  if [[ "${first_prefix}" =~ ^[A-Z][A-Z0-9]*-$ ]]; then
+    die 1 "TASK-ID 가 이슈 트래커 키 형식 ('${first_prefix}<번호>') 이라 next 로 번호를 지어낼 수 없습니다 — ID 를 직접 지정하세요"
+  fi
 
   printf '%s%03d\n' "${first_prefix}" "$((max + 1))"
 }
@@ -851,11 +857,6 @@ cmd_new() {
   [[ -d "${ROOT}/archive/${id}" ]] \
     && die 1 "archive 에 있는 태스크입니다 (완료·보류·폐기) — resume ${id} 로 재개하세요"
 
-  if [[ ${#specs[@]} -eq 0 ]]; then
-    cmd_repos
-    die 3 "repo 를 지정하세요: new ${id} [--slug <슬러그>] [--title <제목>] <repo>[=<branch>]..."
-  fi
-
   # 슬러그: 명시 > notes.md 계승. 한 태스크 안에서 브랜치 규칙이 둘이 되지 않게 불일치는 거부
   existing="$(notes_field "${notes}" '슬러그')"
   if [[ -n "${slug}" ]]; then
@@ -865,7 +866,7 @@ cmd_new() {
   else
     slug="${existing}"
   fi
-  if [[ "${id}" =~ ^[0-9]+$ && -z "${slug}" && "${specs[*]}" != *=* ]]; then
+  if [[ ${#specs[@]} -gt 0 && "${id}" =~ ^[0-9]+$ && -z "${slug}" && "${specs[*]}" != *=* ]]; then
     die 1 "번호만인 TASK-ID 는 브랜치에 슬러그가 필요합니다: new ${id} --slug <슬러그> ... (또는 <repo>=<branch> 로 직접 지정)"
   fi
 
@@ -882,7 +883,7 @@ cmd_new() {
     log "📝 notes.md 생성"
   fi
 
-  for spec in "${specs[@]}"; do
+  for spec in ${specs[@]+"${specs[@]}"}; do
     name="${spec%%=*}"
     br="feature/${id}${slug:+-${slug}}"
     [[ "${spec}" == *=* ]] && br="${spec#*=}"
