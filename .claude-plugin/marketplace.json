@@ -33,13 +33,13 @@
     {
       "name": "sessions",
       "source": "./plugins/sessions",
-      "description": "Claude Code 세션 관련 도구 묶음. side-task: 지금 대화를 이어받은 분기 세션을 tmux 옆 패널에 띄워 곁가지 작업을 맡기고, 시작·공유·질문·완료를 SendMessage 로 보고받은 뒤 부모가 패널 닫기를 판단. crosstalk: [deprecated → 공식 SendMessage / ListAgents] 같은 머신의 다른 세션과 UDS (유닉스 도메인 소켓) 로 메시지를 주고받는 세션 간 메시징",
-      "version": "1.2.0",
+      "description": "Claude Code 세션 관련 도구 묶음. child-session: 태스크를 흐름별로 나눠 브리프 파일을 받아 일하는 새 세션을 tmux 새 window 로 띄우고, 보고·규칙 전파·window 닫기를 부모가 관리. side-task: 지금 대화를 이어받은 분기 세션을 tmux 옆 패널에 띄워 곁가지 작업을 맡기고, 시작·공유·질문·완료를 SendMessage 로 보고받은 뒤 부모가 패널 닫기를 판단. crosstalk: [deprecated → 공식 SendMessage / ListAgents] 같은 머신의 다른 세션과 UDS (유닉스 도메인 소켓) 로 메시지를 주고받는 세션 간 메시징",
+      "version": "1.3.0",
       "author": {
         "name": "socoolbear"
       },
       "category": "developer-productivity",
-      "tags": ["sessions", "side-task", "fork", "tmux", "crosstalk", "messaging", "uds", "unix-socket", "multi-session"]
+      "tags": ["sessions", "child-session", "brief", "side-task", "fork", "tmux", "crosstalk", "messaging", "uds", "unix-socket", "multi-session"]
     },
     {
       "name": "snippets",

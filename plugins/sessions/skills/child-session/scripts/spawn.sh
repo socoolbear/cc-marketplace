@@ -1,0 +1,99 @@
+#!/usr/bin/env bash
+# 브리프를 받아 일하는 새 Claude 세션 (자식 세션) 을 현재 tmux 세션의 새 window 로 띄운다.
+# 첫 지시는 이 스크립트가 만든다 (자식 규약 child.md 와 브리프의 절대 경로, 부모 주소).
+# 사용: spawn.sh --parent <부모 이름> [--parent-ref <ref>] --suffix <접미사> --brief <브리프 파일> [--cwd <디렉토리>]
+#                [--env NAME]... [--flag <claude 인자>]... [-- <덧붙일 지시>]
+# 출력: window=<@N> pane=<%N> name=<세션 이름> cwd=<경로>
+# 종료코드: 2 인자 오류 · 3 tmux 밖 · 5 window 생성 실패
+set -euo pipefail
+
+usage() {
+    echo "사용: spawn.sh --parent <부모 이름> [--parent-ref <ref>] --suffix <접미사> --brief <브리프 파일> [--cwd <디렉토리>] [--env NAME]... [--flag <claude 인자>]... [-- <덧붙일 지시>]" >&2
+    exit 2
+}
+
+parent=""
+parent_ref=""
+suffix=""
+brief=""
+cwd=""
+env_names=()
+flags=()
+
+while [[ $# -gt 0 ]]; do
+    if [[ "$1" == "--" ]]; then
+        shift
+        break
+    fi
+
+    [[ $# -ge 2 ]] || usage
+
+    case "$1" in
+        --parent) parent="$2" ;;
+        --parent-ref) parent_ref="$2" ;;
+        --suffix) suffix="$2" ;;
+        --brief) brief="$2" ;;
+        --cwd) cwd="$2" ;;
+        --env) env_names+=("$2") ;;
+        --flag) flags+=("$2") ;;
+        *) usage ;;
+    esac
+
+    shift 2
+done
+
+extra="${*:-}"
+
+if [[ -z "${parent}" || -z "${suffix}" || -z "${brief}" ]]; then
+    usage
+fi
+
+if [[ ! "${suffix}" =~ ^[a-z0-9][a-z0-9-]*$ ]]; then
+    echo "접미사는 영문 소문자·숫자·- 만 씁니다: ${suffix}" >&2
+    exit 2
+fi
+
+if [[ ! -f "${brief}" ]]; then
+    echo "브리프 파일이 없습니다: ${brief}" >&2
+    exit 2
+fi
+
+if [[ -z "${TMUX:-}" || -z "${TMUX_PANE:-}" ]]; then
+    echo "tmux 안에서 실행해야 합니다 (\$TMUX·\$TMUX_PANE 없음)" >&2
+    exit 3
+fi
+
+if [[ -z "${cwd}" ]]; then
+    cwd="$(command tmux display -p -t "${TMUX_PANE}" '#{pane_current_path}')"
+fi
+
+if [[ ! -d "${cwd}" ]]; then
+    echo "작업 디렉토리가 없습니다: ${cwd}" >&2
+    exit 2
+fi
+
+brief_path="$(cd "$(dirname "${brief}")" && pwd)/$(basename "${brief}")"
+child_rules="$(cd "$(dirname "${BASH_SOURCE[0]}")/../references" && pwd)/child.md"
+name="${parent}-${suffix}"
+parent_address="${parent}${parent_ref:+ [${parent_ref}]}"
+prompt="child-session 자식 세션 ${name} 입니다. 부모는 ${parent_address} 입니다 (보고할 때 이 주소 그대로). 먼저 ${child_rules} 와 브리프 ${brief_path} 를 읽고 따르세요.${extra:+ ${extra}}"
+tmux_session="$(command tmux display -p -t "${TMUX_PANE}" '#{session_name}')"
+
+# --add-dir 처럼 값을 여러 개 받는 플래그가 첫 지시를 먹지 않도록 -- 로 끊는다
+claude_args=(claude -n "${name}" ${flags[@]+"${flags[@]}"} -- "${prompt}")
+cmd="$(printf '%q ' "${claude_args[@]}"); exec ${SHELL:-/bin/sh}"
+
+env_args=()
+
+for env_name in ${env_names[@]+"${env_names[@]}"}; do
+    if [[ -n "${!env_name:-}" ]]; then
+        env_args+=(-e "${env_name}=${!env_name}")
+    fi
+done
+
+if ! created="$(command tmux new-window -d -t "${tmux_session}:" -n "${name}" -c "${cwd}" ${env_args[@]+"${env_args[@]}"} -P -F '#{window_id} #{pane_id}' "${cmd}")"; then
+    echo "window 를 만들지 못했습니다" >&2
+    exit 5
+fi
+
+echo "window=${created% *} pane=${created#* } name=${name} cwd=${cwd}"

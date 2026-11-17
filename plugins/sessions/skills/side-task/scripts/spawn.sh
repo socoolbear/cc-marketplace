@@ -57,7 +57,8 @@ fi
 name="${parent}-${suffix}"
 cwd="$(command tmux display -p -t "${TMUX_PANE}" '#{pane_current_path}')"
 
-claude_args=(claude --resume "${session_id}" --fork-session -n "${name}" ${flags[@]+"${flags[@]}"} "${prompt}")
+# --add-dir 처럼 값을 여러 개 받는 플래그가 첫 지시를 먹지 않도록 -- 로 끊는다
+claude_args=(claude --resume "${session_id}" --fork-session -n "${name}" ${flags[@]+"${flags[@]}"} -- "${prompt}")
 cmd="$(printf '%q ' "${claude_args[@]}"); exec ${SHELL:-/bin/sh}"
 
 env_args=()
