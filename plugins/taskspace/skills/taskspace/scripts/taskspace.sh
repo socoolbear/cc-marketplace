@@ -3,7 +3,7 @@
 #
 # 구조:
 #   <root>/                 워크스페이스 repo (notes 추적용)
-#   ├── .gitignore          .bares/ .local/ shared/ tasks/*/*/
+#   ├── .gitignore          .bares/ .local/ shared/ tasks/*/*/ archive/*/attachments/
 #   ├── repos.txt           등록한 repo 목록 (<url>[=<name>] 한 줄씩)
 #   ├── .bares/<repo>.git/  bare 저장소 (ignore). info/exclude 에 링크 경로를 등록 (전 worktree 적용)
 #   ├── .local/<repo>/      repo 별 로컬 파일 원본 (.env·키·참조 소스, ignore) → worktree 에 심링크
@@ -11,8 +11,8 @@
 #   ├── tasks/INDEX.md      태스크 색인 (추적, 생성 파일 — index 가 notes.md 만으로 다시 씀)
 #   ├── tasks/CLAUDE.md     작업 지도 (추적, 없으면 init/new 가 템플릿에서 생성. 상위라 worktree 세션에도 실림.
 #                           <!-- taskspace:begin/end --> 표식 안쪽만 upgrade 가 관리, 밖은 사용자 영역)
-#   ├── tasks/<ID>/         진행 중 — notes.md (추적) · <repo>/ worktree (ignore) · <repo>/.prompts/ 스크래치 (info/exclude)
-#   └── archive/<ID>/       끝난 태스크 (완료·보류·폐기) — notes.md 등 추적 파일만, worktree 없음 (done/hold/abandon 이 이동)
+#   ├── tasks/<ID>/         진행 중 — notes.md (추적) · attachments/ 원문 첨부 (ignore) · <repo>/ worktree (ignore) · <repo>/.prompts/ 스크래치 (info/exclude)
+#   └── archive/<ID>/       끝난 태스크 (완료·보류·폐기) — notes.md 등 추적 파일과 attachments/ (ignore), worktree 없음 (done/hold/abandon 이 이동)
 #
 # macOS 기본 bash 3.2 호환 (연관배열·mapfile 사용 금지, 빈 배열은 ${arr[@]+"${arr[@]}"}).
 set -euo pipefail
@@ -23,7 +23,8 @@ TASKS_CLAUDE_TEMPLATE="${SCRIPT_DIR}/../references/tasks-claude-template.md"
 GITIGNORE_LINES=".bares/
 .local/
 shared/
-tasks/*/*/"
+tasks/*/*/
+archive/*/attachments/"
 
 # 표식(<!-- taskspace:begin/end -->) 도입 전, 정확히 이 내용이었던 tasks/CLAUDE.md 의 해시 목록
 # (끝 개행 차이 무시, content_hash 로 계산). upgrade 가 "사용자가 안 고친 구버전 원본"인지 판별하는 데만 쓴다.
@@ -323,7 +324,7 @@ claude_needs_marker_update() {
   return 0
 }
 
-# 레거시 이전 대상이 있거나 tasks/CLAUDE.md 가 최신 템플릿과 다르면 0 — list·new 끝의 안내용 싼 검사
+# 레거시 이전 대상이 있거나 .gitignore 에 빠진 규칙이 있거나 tasks/CLAUDE.md 가 최신 템플릿과 다르면 0 — list·new 끝의 안내용 싼 검사
 upgrade_needed() {
   local d id n finished
 
@@ -336,6 +337,8 @@ upgrade_needed() {
       [[ -n "${finished}" ]] && return 0
     fi
   done
+
+  gitignore_needs_update && return 0
 
   claude_needs_marker_update
 }
@@ -521,7 +524,34 @@ ensure_line() {
   local file=$1 line=$2
 
   [[ -f "${file}" ]] || : > "${file}"
-  grep -qxF -- "${line}" "${file}" || printf '%s\n' "${line}" >> "${file}"
+  grep -qxF -- "${line}" "${file}" && return 0
+
+  # 끝 개행 없이 끝나는 파일이면 마지막 줄에 이어 붙지 않게 개행부터 넣는다
+  if [[ -s "${file}" && -n "$(tail -c1 "${file}")" ]]; then
+    printf '\n' >> "${file}"
+  fi
+
+  printf '%s\n' "${line}" >> "${file}"
+}
+
+# 워크스페이스 .gitignore 에 GITIGNORE_LINES 중 빠진 줄을 추가 (init·upgrade 공용)
+ensure_gitignore() {
+  local dir=$1 line
+
+  while IFS= read -r line; do
+    ensure_line "${dir}/.gitignore" "${line}"
+  done <<< "${GITIGNORE_LINES}"
+}
+
+# archive 의 첨부 폴더가 실제로 ignore 되지 않으면 0 (2.8.0 에서 추가된 규칙).
+# 줄 비교가 아니라 git 의 판정을 쓴다 — 규칙을 상위 repo 의 .gitignore 에 뒀거나 "/archive/..." 처럼 고쳐 쓴 워크스페이스를 오래됐다고 보지 않기 위해.
+# git repo 밖이면 (종료 코드 128) 판정할 수 없으므로 1
+gitignore_needs_update() {
+  local status=0
+
+  git -C "${ROOT}" check-ignore -q "archive/_/attachments/" 2>/dev/null || status=$?
+
+  [[ "${status}" -eq 1 ]]
 }
 
 # 파일에서 정확히 같은 줄만 제거 (없으면 통과)
@@ -673,10 +703,7 @@ cmd_init() {
     log "🌱 git init: ${dir}"
   fi
 
-  local line
-  while IFS= read -r line; do
-    ensure_line "${dir}/.gitignore" "${line}"
-  done <<< "${GITIGNORE_LINES}"
+  ensure_gitignore "${dir}"
   [[ -f "${dir}/repos.txt" ]] || : > "${dir}/repos.txt"
 
   ROOT="${dir}"
@@ -1512,6 +1539,11 @@ cmd_upgrade() {
       log "⚠️  [${id}] 이전 실패 — 위 로그를 확인하세요"
     fi
   done
+
+  if gitignore_needs_update; then
+    ensure_gitignore "${ROOT}"
+    log "🙈 .gitignore: 빠진 제외 규칙 추가"
+  fi
 
   claude_result="$(upgrade_tasks_claude)"
   log "🗺️  tasks/CLAUDE.md: ${claude_result}"

@@ -10,11 +10,11 @@ description: bare 저장소 (`.bares/`) 로 여러 repo 를 중앙 등록해 두
 
 ## 1. 구조와 전제
 
-`.bares/` 에 여러 repo 를 bare 저장소로 중앙 등록해 두고, 이슈 하나(TASK-ID)마다 `tasks/<TASK-ID>/` 아래에 관련 repo 의 worktree 를 한 벌 모아 둔다. 태스크가 끝나면(완료·보류·폐기) `archive/<TASK-ID>/` 로 옮겨 진행 중 목록에서 빠진다 — worktree 는 없고 notes.md·CLAUDE.md 등 추적 파일만 남는다. **워크스페이스 루트 자체가 git repo** 다 (여러 워크스페이스를 묶는 상위 repo 안에 만들면 그 상위 repo 가 대신 추적한다 — 10절) — `.gitignore`·`repos.txt`·`tasks/CLAUDE.md`·`tasks/INDEX.md`·`tasks/*/notes.md`·`tasks/*/CLAUDE.md`·`archive/*/notes.md`·`archive/*/CLAUDE.md` 만 추적하고, `.bares/`·`.local/`·`shared/`·각 worktree 는 ignore 한다.
+`.bares/` 에 여러 repo 를 bare 저장소로 중앙 등록해 두고, 이슈 하나(TASK-ID)마다 `tasks/<TASK-ID>/` 아래에 관련 repo 의 worktree 를 한 벌 모아 둔다. 태스크가 끝나면(완료·보류·폐기) `archive/<TASK-ID>/` 로 옮겨 진행 중 목록에서 빠진다 — worktree 는 없고 notes.md·CLAUDE.md 등 추적 파일과 받아 둔 원문 첨부 (`attachments/`, ignore) 만 남는다. **워크스페이스 루트 자체가 git repo** 다 (여러 워크스페이스를 묶는 상위 repo 안에 만들면 그 상위 repo 가 대신 추적한다 — 10절) — `.gitignore`·`repos.txt`·`tasks/CLAUDE.md`·`tasks/INDEX.md`·`tasks/*/notes.md`·`tasks/*/CLAUDE.md`·`archive/*/notes.md`·`archive/*/CLAUDE.md` 만 추적하고, `.bares/`·`.local/`·`shared/`·각 worktree 는 ignore 한다.
 
 ```
 <워크스페이스 루트>/            ← git repo (notes 추적용)
-├── .gitignore                   # .bares/ · .local/ · shared/ · tasks/*/*/ 제외
+├── .gitignore                   # .bares/ · .local/ · shared/ · tasks/*/*/ · archive/*/attachments/ 제외
 ├── repos.txt                    # 추적 — 등록한 repo 목록 (다른 머신 복원용)
 ├── .bares/<repo>.git/           # ignore — bare 저장소
 ├── .local/<repo>/<상대경로>      # ignore — 비밀·참조 자료·개인 설정의 원본 (파일·디렉토리·외부 위치로의 심링크)
@@ -25,13 +25,15 @@ description: bare 저장소 (`.bares/`) 로 여러 repo 를 중앙 등록해 두
 │   └── <TASK-ID>/                # 진행 중
 │       ├── notes.md             # 추적 — 영구 보존 (archive 이동 후에도 남음)
 │       ├── CLAUDE.md            # 추적 — 선택. repo 가 둘 이상일 때 규칙 문서 경로 표
+│       ├── attachments/         # ignore — 선택. 원문 (Jira·Slack·Notion) 의 첨부 파일. task-intake 가 받아 둠, archive 로 함께 이동
 │       └── <repo>/              # ignore — worktree, 브랜치 feature/<TASK-ID>[-<슬러그>]
 │           ├── .prompts/                                      # info/exclude — 스크래치, done/hold/abandon 때 함께 삭제
 │           ├── .env → ../../../.local/<repo>/.env             # 상대 심링크 (파일)
 │           └── vendor-src → ../../../.local/<repo>/vendor-src  # 상대 심링크 (디렉토리)
 └── archive/<TASK-ID>/            # 끝난 태스크 (완료·보류·폐기) — worktree 없음, done/hold/abandon 이 이동
     ├── notes.md                  # 추적 — 상태·일시·사유·보존 브랜치 기록
-    └── CLAUDE.md                 # 추적 — 선택 (있었으면 그대로)
+    ├── CLAUDE.md                 # 추적 — 선택 (있었으면 그대로)
+    └── attachments/              # ignore — 선택 (있었으면 그대로)
 ```
 
 루트는 `$TS root` 로 판별한다 (`TASKSPACE_ROOT` 환경변수 > cwd 부터 상위로 `.bares/` 또는 `repos.txt` 탐색 — clone 직후엔 `.bares/` 가 없어서 `repos.txt` 가 마커다). **루트를 찾지 못하면 taskspace 워크스페이스가 아직 없다는 뜻이다** — 추측으로 `.bares/` 를 만들지 말고 사용자에게 두 갈래를 제시해 고르게 한다:
@@ -276,6 +278,7 @@ $TS upgrade
 1. worktree 없이 `- 완료 일시:` 만 있는 레거시 태스크를 `done` 과 같은 경로로 `archive/<ID>` 로 옮긴다(1.x 워크스페이스 이전 수단). `완료 일시` 없는 idle 태스크는 건드리지 않고 목록만 보고한다 — `done`/`hold`/`abandon` 중 사용자가 고른다. 현재 cwd 가 이전 대상 태스크 안이면 그 태스크만 건너뛰고 알린다.
 2. `tasks/CLAUDE.md` 를 표식(`<!-- taskspace:begin -->`~`<!-- taskspace:end -->`) 형식으로 최신화한다 — 표식이 있으면 안쪽만 최신 템플릿으로 바꾸고 표식 밖(사용자가 추가한 내용)은 그대로 둔다. 표식이 없고 파일이 표식 도입 전 템플릿과 정확히 같으면 통째로 새 형식으로 바꾸고, 사용자가 고친 파일이면 건드리지 않고 표식을 넣는 방법만 안내한다.
 3. `tasks/INDEX.md` 를 다시 쓴다.
+4. `.gitignore` 에 현재 버전의 제외 규칙 중 빠진 줄을 추가한다 (예: 2.8.0 의 `archive/*/attachments/`).
 
 실행 후 무엇을 옮겼는지, `tasks/CLAUDE.md` 를 어떻게 처리했는지, 수동으로 처리해야 할 항목(완료 일시 없는 idle 태스크, 사용자 수정 CLAUDE.md 등)을 보고하고, **워크스페이스 repo 에 미커밋 변경이 남아 있다는 사실**을 알린다 — 커밋은 사용자가 지시할 때만 한다.
 
