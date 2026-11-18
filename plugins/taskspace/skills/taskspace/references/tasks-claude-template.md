@@ -10,7 +10,7 @@
 | 끝난 태스크 (완료·보류·폐기) | `../archive/<ID>/notes.md` — 상태는 INDEX.md |
 | 태스크 목록·제목 | `INDEX.md` — 생성 파일, 직접 편집 금지 (제목은 `notes.md` 첫 줄) |
 
-- `<TASK-ID>/<repo>/` 는 별개 git worktree 다 — 코드의 git 은 그 안에서만. 워크스페이스 repo 의 commit·push 는 지시할 때만
+- `<TASK-ID>/<repo>/` 는 별개 git worktree 다 — 코드의 git 은 그 안에서만. 워크스페이스 repo (notes.md·INDEX.md) 의 commit·push 는 묻지 않고 한다: 태스크 상태가 바뀐 직후, 단계를 마치고 보고하기 직전, 세션을 닫기 전에 이 세션이 바꾼 경로만 지정해 커밋하고 바로 push
 - 두 repo 를 한 커밋에 섞지 않는다
 - `.local/` 로 향하는 심링크(`.env` 등)는 전 태스크가 공유한다 — 태스크 전용 값은 링크를 지우고 실파일로
 
