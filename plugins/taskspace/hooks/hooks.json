@@ -1,0 +1,17 @@
+{
+  "description": "taskspace 워크스페이스 점검 — 세션 시작 시 플러그인 업데이트 반영 (upgrade) 이 남아 있으면 안내를 모델 컨텍스트로 전달",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/skills/taskspace/scripts/taskspace.sh\" check 2>/dev/null || true",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}

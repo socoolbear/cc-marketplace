@@ -51,7 +51,7 @@ IDE·세션 설정처럼 도구가 통째로 다시 쓰는 파일은, 도구가 
 
 ## 기존 워크스페이스의 `.gitignore` 갱신
 
-`shared/` 등 새 ignore 줄이 필요하면 `init <root>` 를 재실행한다 (멱등이라 안전하다). 2.8.0 의 첨부 제외 규칙 (`archive/*/attachments/`) 이 빠진 워크스페이스는 `upgrade` 도 채워 준다.
+`shared/` 등 새 ignore 줄이 필요하면 `init <root>` 를 재실행한다 (멱등이라 안전하다). 2.8.0 의 첨부 제외 규칙 (`archive/*/attachments/`) 이 빠진 워크스페이스는 명령 (`root`·`check` 제외) 을 실행할 때 그 한 줄이 채워진다.
 
 ## 기존 체크아웃을 정리(삭제)하기 전에
 

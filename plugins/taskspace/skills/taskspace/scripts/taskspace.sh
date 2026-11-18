@@ -25,6 +25,8 @@ GITIGNORE_LINES=".bares/
 shared/
 tasks/*/*/
 archive/*/attachments/"
+# 2.8.0 에서 추가된 줄 — 기존 워크스페이스에는 require_root 가 이 줄만 채운다 (나머지 줄은 init 이 넣는다)
+ATTACHMENTS_IGNORE_LINE="archive/*/attachments/"
 
 # 표식(<!-- taskspace:begin/end -->) 도입 전, 정확히 이 내용이었던 tasks/CLAUDE.md 의 해시 목록
 # (끝 개행 차이 무시, content_hash 로 계산). upgrade 가 "사용자가 안 고친 구버전 원본"인지 판별하는 데만 쓴다.
@@ -67,6 +69,8 @@ usage() {
   index                                      tasks/INDEX.md 재생성 (진행 중 · 보류 · 폐기 · 완료 섹션. new · done · list 끝에 자동 실행)
   upgrade                                    플러그인 업데이트를 워크스페이스에 반영 (멱등). 레거시 완료 태스크를
                                              done 경로로 archive/ 이전 + tasks/CLAUDE.md 표식 블록 최신화. 자동 실행 안 됨
+  check                                      upgrade 가 필요하면 사유를 한 줄로 출력 (읽기 전용, 세션 시작 훅용).
+                                             워크스페이스 밖이거나 필요 없으면 아무것도 출력하지 않는다. 항상 종료코드 0
 
 종료코드: 1 인자 오류 · 2 루트 없음 · 3 repo 미지정 · 4 done/hold/abandon 차단 · 5 sync 미완료
 EOF
@@ -98,10 +102,24 @@ find_root() {
   done
 }
 
-require_root() {
+locate_root() {
   ROOT="$(find_root)" || die 2 "taskspace 루트 (.bares/ 또는 repos.txt 가 있는 디렉토리) 를 찾지 못했습니다. 'taskspace.sh init [<dir>] [<url>...]' 로 최초 세팅하세요."
   mkdir -p "${ROOT}/.bares" "${ROOT}/tasks"
   log "📁 root: ${ROOT}"
+}
+
+# 루트를 찾고, 되돌리기 쉬운 반영 (첨부 제외 규칙 한 줄) 은 바로 채운다 — 다른 장비에서 upgrade 를 잊어도 채워지게.
+# 경로만 묻는 root 서브커맨드는 locate_root 를 써서 파일을 고치지 않는다. 쓰기에 실패해도 (읽기 전용 등) 명령은 계속한다
+require_root() {
+  locate_root
+
+  gitignore_needs_update || return 0
+
+  if ensure_line "${ROOT}/.gitignore" "${ATTACHMENTS_IGNORE_LINE}" 2>/dev/null; then
+    log "🙈 .gitignore: 첨부 제외 규칙 추가 (${ATTACHMENTS_IGNORE_LINE}) — 워크스페이스 repo 에 미커밋 변경"
+  else
+    log "⚠️  .gitignore 에 첨부 제외 규칙을 넣지 못했습니다 (쓰기 불가) — 계속 진행"
+  fi
 }
 
 validate_id() {
@@ -112,6 +130,15 @@ validate_id() {
     || die 1 "TASK-ID 형식 오류: '${id}' (허용: ^[A-Za-z0-9][A-Za-z0-9._-]*$)"
   git check-ref-format --branch "feature/${id}" >/dev/null 2>&1 \
     || die 1 "TASK-ID 가 브랜치명으로 부적합합니다: '${id}'"
+}
+
+# upgrade 가 tasks/<id> 를 done 경로로 archive 에 옮길 수 있으면 0 — ID 가 유효하고 archive/<id> 가 없을 때.
+# validate_id 는 die 하므로 서브셸에서 돌려 판정만 받는다
+legacy_movable() {
+  local id=$1
+
+  ( validate_id "${id}" ) >/dev/null 2>&1 || return 1
+  [[ ! -e "${ROOT}/archive/${id}" ]]
 }
 
 validate_slug() {
@@ -288,10 +315,21 @@ content_hash() {
   printf '%s' "$(cat "$1")" | shasum -a 256 | awk '{print $1}'
 }
 
+# 온전한 표식 한 쌍이 있으면 0 — 시작·끝 표식이 각각 정확히 한 줄씩 (그 줄에 표식만) 있고 시작이 앞.
+# 이때만 블록을 비교·교체한다. 본문에서 표식 문자열을 언급한 줄, 끝 공백·CR 이 붙은 표식 줄, 짝이 안 맞는 표식을
+# 표식으로 다루면 블록 비교가 영영 어긋나거나 교체할 때 사용자 영역이 지워진다
+claude_markers_intact() {
+  awk '
+    $0 == "<!-- taskspace:begin -->" { begins++; if (!begin_line) begin_line = NR }
+    $0 == "<!-- taskspace:end -->"   { ends++;   if (!end_line)   end_line = NR }
+    END { exit !(begins == 1 && ends == 1 && begin_line < end_line) }
+  ' "$1"
+}
+
 # '<!-- taskspace:begin -->' ~ '<!-- taskspace:end -->' 사이 내용만 추출 (표식 없으면 아무것도 출력하지 않음)
 claude_marker_block() {
   [[ -f "$1" ]] || return 0
-  awk '/<!-- taskspace:begin -->/{f=1; next} /<!-- taskspace:end -->/{f=0} f' "$1"
+  awk '$0 == "<!-- taskspace:begin -->"{f=1; next} $0 == "<!-- taskspace:end -->"{f=0} f' "$1"
 }
 
 # file 의 표식 블록을 new_block(멀티라인 문자열) 으로 교체 (표식 밖은 그대로 보존). 순수 bash — awk -v 는
@@ -302,45 +340,90 @@ replace_marker_block() {
   tmp="${file}.tmp.$$"
   : > "${tmp}"
   while IFS= read -r line || [[ -n "${line}" ]]; do
-    if [[ "${line}" == *"<!-- taskspace:begin -->"* ]]; then
+    if [[ "${line}" == "<!-- taskspace:begin -->" ]]; then
       printf '%s\n' "${line}" >> "${tmp}"
       printf '%s\n' "${new_block}" >> "${tmp}"
       skip=1
       continue
     fi
-    [[ "${line}" == *"<!-- taskspace:end -->"* ]] && skip=0
+    [[ "${line}" == "<!-- taskspace:end -->" ]] && skip=0
     [[ "${skip}" -eq 1 ]] || printf '%s\n' "${line}" >> "${tmp}"
   done < "${file}"
   mv -- "${tmp}" "${file}"
 }
 
-# tasks/CLAUDE.md 의 표식 블록이 없거나 최신 템플릿과 다르면 0 (upgrade 가 필요하다는 뜻)
-claude_needs_marker_update() {
-  local file="${ROOT}/tasks/CLAUDE.md"
+# upgrade 가 tasks/CLAUDE.md 를 실제로 바꿀 수 있으면 0 — 파일 없음 · 온전한 표식 안쪽이 템플릿과 다름 · 표식 도입 전 원본 그대로.
+# 온전한 표식 없이 사용자가 고친 파일은 upgrade 가 건드리지 않으므로 1 (upgrade_tasks_claude 의 분기와 맞춘다)
+claude_upgradable() {
+  local file="${ROOT}/tasks/CLAUDE.md" hash
 
   [[ -f "${file}" ]] || return 0
-  grep -q -- '<!-- taskspace:begin -->' "${file}" || return 0
-  [[ "$(claude_marker_block "${file}")" == "$(claude_marker_block "${TASKS_CLAUDE_TEMPLATE}")" ]] && return 1
+
+  if claude_markers_intact "${file}"; then
+    if [[ "$(claude_marker_block "${file}")" == "$(claude_marker_block "${TASKS_CLAUDE_TEMPLATE}")" ]]; then
+      return 1
+    fi
+
+    return 0
+  fi
+
+  hash="$(content_hash "${file}")"
+  case " ${CLAUDE_LEGACY_HASHES} " in
+    *" ${hash} "*) return 0 ;;
+  esac
+
+  return 1
+}
+
+# upgrade 가 필요한 사유를 한 줄씩 stdout 으로 (없으면 출력 없음). 읽기 전용 — 항상 exit 0
+# 세션 시작마다 도는 검사라 싸게 유지한다 — 레거시 태스크는 첫 건에서 끊고, worktree 유무는 fork 없이 본다.
+# 사유는 upgrade (또는 다음 명령) 가 실제로 없앨 수 있는 것만 낸다 — 못 없애는 사유는 안내가 끝나지 않는다
+upgrade_reasons() {
+  local notes d sub idle finished here
+
+  here="$(pwd)/"
+
+  # grep 한 번으로 후보 (완료 일시 줄이 있는 notes.md) 만 추린 뒤, 후보에 대해서만 worktree 유무와 헤더 필드를 확인한다
+  while IFS= read -r notes; do
+    d="${notes%notes.md}"
+    # 현재 디렉토리가 그 태스크 안이면 upgrade 가 건너뛰므로 사유로 내지 않는다
+    case "${here}" in
+      "${d}"*) continue ;;
+    esac
+
+    # upgrade 가 옮기지 못하는 태스크 (ID 형식 오류 · archive 에 같은 ID) 도 사유로 내지 않는다
+    legacy_movable "$(basename "${d}")" || continue
+
+    idle=1
+    for sub in "${d}"*/; do
+      if [[ -f "${sub}.git" ]]; then
+        idle=0
+        break
+      fi
+    done
+    [[ "${idle}" -eq 1 ]] || continue
+
+    finished="$(notes_field "${notes}" '완료 일시')"
+    if [[ -n "${finished}" ]]; then
+      printf 'archive 로 옮길 완료 태스크 있음\n'
+      break
+    fi
+  done < <(grep -l -- '^- 완료 일시:' "${ROOT}"/tasks/*/notes.md 2>/dev/null)
+
+  if gitignore_needs_update && [[ -w "${ROOT}/.gitignore" ]]; then
+    printf '.gitignore 에 첨부 제외 규칙 없음\n'
+  fi
+
+  if claude_upgradable; then
+    printf 'tasks/CLAUDE.md 가 없거나 구버전\n'
+  fi
+
   return 0
 }
 
-# 레거시 이전 대상이 있거나 .gitignore 에 빠진 규칙이 있거나 tasks/CLAUDE.md 가 최신 템플릿과 다르면 0 — list·new 끝의 안내용 싼 검사
+# upgrade 사유가 하나라도 있으면 0 — list·new 끝의 안내용 싼 검사
 upgrade_needed() {
-  local d id n finished
-
-  for d in "${ROOT}"/tasks/*/; do
-    [[ -d "${d}" ]] || continue
-    id="$(basename "${d}")"
-    n="$(task_worktrees "${d}" | grep -c . || true)"
-    if [[ "${n}" -eq 0 ]]; then
-      finished="$(notes_field "${d}notes.md" '완료 일시')"
-      [[ -n "${finished}" ]] && return 0
-    fi
-  done
-
-  gitignore_needs_update && return 0
-
-  claude_needs_marker_update
+  [[ -n "$(upgrade_reasons)" ]]
 }
 
 # tasks/CLAUDE.md 를 표식 형식으로 최신화. 결과 한 줄을 stdout 으로 (요약용) — 항상 exit 0
@@ -355,7 +438,7 @@ upgrade_tasks_claude() {
 
   tpl_block="$(claude_marker_block "${TASKS_CLAUDE_TEMPLATE}")"
 
-  if grep -q -- '<!-- taskspace:begin -->' "${file}"; then
+  if claude_markers_intact "${file}"; then
     cur_block="$(claude_marker_block "${file}")"
     if [[ "${cur_block}" == "${tpl_block}" ]]; then
       printf '최신 (변경 없음)\n'
@@ -374,6 +457,11 @@ upgrade_tasks_claude() {
       return 0
       ;;
   esac
+
+  if grep -qF -- 'taskspace:begin' "${file}"; then
+    printf '표식 문자열은 있지만 온전한 한 쌍이 아니어서 그대로 둠 — 시작·끝 표식을 각각 한 번씩, 그 줄에 표식만 (앞뒤 공백·CR 없이) 두세요\n'
+    return 0
+  fi
 
   printf '표식이 없고 알려진 구버전과도 달라 사용자 수정으로 보고 그대로 둠 — %s 를 참고해 <!-- taskspace:begin -->…<!-- taskspace:end --> 로 감싸 넣으세요\n' \
     "${TASKS_CLAUDE_TEMPLATE}"
@@ -534,7 +622,7 @@ ensure_line() {
   printf '%s\n' "${line}" >> "${file}"
 }
 
-# 워크스페이스 .gitignore 에 GITIGNORE_LINES 중 빠진 줄을 추가 (init·upgrade 공용)
+# 워크스페이스 .gitignore 에 GITIGNORE_LINES 중 빠진 줄을 추가 (init 용)
 ensure_gitignore() {
   local dir=$1 line
 
@@ -553,7 +641,10 @@ gitignore_needs_update() {
   git -C "${ROOT}" check-ignore -q "archive/_/attachments/" 2>/dev/null || status=$?
   [[ "${status}" -eq 1 ]] || return 1
 
-  ! grep -qxF -- "archive/*/attachments/" "${ROOT}/.gitignore" 2>/dev/null
+  ! grep -qxF -- "${ATTACHMENTS_IGNORE_LINE}" "${ROOT}/.gitignore" 2>/dev/null || return 1
+
+  # taskspace 가 만든 .gitignore 일 때만 (worktree 제외 규칙이 그 표시다) — 루트로 잘못 잡힌 다른 repo 의 .gitignore 를 고치지 않는다
+  grep -qxF -- 'tasks/*/*/' "${ROOT}/.gitignore" 2>/dev/null
 }
 
 # 파일에서 정확히 같은 줄만 제거 (없으면 통과)
@@ -1507,12 +1598,12 @@ cmd_resume() {
 # ---------------------------------------------------------------- upgrade
 
 # 플러그인 업데이트를 워크스페이스에 반영 (멱등). 자동 실행은 하지 않는다 — 사용자가 upgrade 를 요청하거나
-# list/new 가 안내했을 때만. 1) worktree 없이 완료 일시만 있는 레거시 태스크를 done 경로로 archive/ 이전
+# list/new·세션 시작 훅 (check) 이 안내했을 때만. 1) worktree 없이 완료 일시만 있는 레거시 태스크를 done 경로로 archive/ 이전
 # 2) tasks/CLAUDE.md 표식 블록을 최신 템플릿으로 (표식 밖 사용자 영역은 보존)
 cmd_upgrade() {
   require_root
 
-  local d id n finished moved=0 skipped_cwd="" idle_list="" claude_result
+  local d id n finished moved=0 skipped_cwd="" idle_list="" unmovable="" claude_result
 
   for d in "${ROOT}"/tasks/*/; do
     [[ -d "${d}" ]] || continue
@@ -1523,6 +1614,13 @@ cmd_upgrade() {
     finished="$(notes_field "${d}notes.md" '완료 일시')"
     if [[ -z "${finished}" ]]; then
       idle_list="${idle_list}${idle_list:+, }${id}"
+      continue
+    fi
+
+    # done 경로가 die 로 upgrade 전체를 끝내는 경우 (ID 형식 오류 · archive 에 같은 ID) 는 건너뛰고 보고만 한다
+    if ! legacy_movable "${id}"; then
+      log "⚠️  [${id}] 옮길 수 없어 건너뜀 (TASK-ID 형식이 아니거나 archive/${id} 가 이미 있음) — 직접 정리하세요"
+      unmovable="${unmovable}${unmovable:+, }${id}"
       continue
     fi
 
@@ -1542,18 +1640,32 @@ cmd_upgrade() {
     fi
   done
 
-  if gitignore_needs_update; then
-    ensure_gitignore "${ROOT}"
-    log "🙈 .gitignore: 빠진 제외 규칙 추가"
-  fi
-
   claude_result="$(upgrade_tasks_claude)"
   log "🗺️  tasks/CLAUDE.md: ${claude_result}"
 
   write_index
   log "📇 tasks/INDEX.md 갱신"
 
-  log "✅ upgrade 요약: 레거시 이전 ${moved}건${skipped_cwd:+ · cwd 로 건너뜀: ${skipped_cwd}}${idle_list:+ · 수동 처리 필요(완료 일시 없는 idle): ${idle_list}} · CLAUDE.md: ${claude_result}"
+  log "✅ upgrade 요약: 레거시 이전 ${moved}건${skipped_cwd:+ · cwd 로 건너뜀: ${skipped_cwd}}${idle_list:+ · 수동 처리 필요(완료 일시 없는 idle): ${idle_list}}${unmovable:+ · 수동 처리 필요(옮길 수 없음): ${unmovable}} · CLAUDE.md: ${claude_result}"
+}
+
+# 세션 시작 훅이 부른다. 워크스페이스 안이고 upgrade 사유가 있으면 한 줄 안내를 stdout 으로 (세션 컨텍스트에 실린다).
+# 파일을 만들거나 고치지 않는다 (require_root 를 쓰지 않는 이유). 훅이 세션을 방해하지 않게 항상 exit 0
+cmd_check() {
+  local reasons
+
+  ROOT="$(find_root 2>/dev/null)" || return 0
+  # repos.txt 만 우연히 있는 다른 프로젝트를 워크스페이스로 보지 않는다 (세팅된 워크스페이스에는 tasks/ 가 있다)
+  [[ -d "${ROOT}/tasks" ]] || return 0
+  # TASKSPACE_ROOT 를 전역으로 둔 장비에서, 워크스페이스 밖에서 연 세션에는 알리지 않는다
+  case "$(pwd -P)/" in
+    "$(cd "${ROOT}" && pwd -P)/"*) ;;
+    *) return 0 ;;
+  esac
+  reasons="$(upgrade_reasons 2>/dev/null | paste -sd '|' - | sed 's/|/, /g')" || return 0
+  [[ -n "${reasons}" ]] || return 0
+
+  printf 'taskspace 워크스페이스 (%s) 에 플러그인 업데이트 반영이 남아 있습니다: %s. 사용자에게 한 줄로 알리고, 수락하면 taskspace 스킬의 upgrade 를 실행하세요.\n' "${ROOT}" "${reasons}"
 }
 
 # ---------------------------------------------------------------- main
@@ -1563,7 +1675,7 @@ cmd=$1
 shift
 
 case "${cmd}" in
-  root)  require_root; printf '%s\n' "${ROOT}" ;;
+  root)  locate_root; printf '%s\n' "${ROOT}" ;;
   init)  cmd_init "$@" ;;
   add)   cmd_add "$@" ;;
   repos) cmd_repos ;;
@@ -1578,6 +1690,7 @@ case "${cmd}" in
   list)  cmd_list ;;
   index) cmd_index ;;
   upgrade) cmd_upgrade ;;
+  check) cmd_check ;;
   -h|--help|help) usage ;;
   *) log "알 수 없는 서브커맨드: ${cmd}"; usage ;;
 esac
