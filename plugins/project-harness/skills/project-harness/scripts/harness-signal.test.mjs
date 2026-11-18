@@ -31,7 +31,7 @@ function createFixture({ pluginVersion = '4.0.0', marker = { version: '3.0.0' } 
   fs.mkdirSync(path.join(fixture.pluginRoot, '.claude-plugin'));
   fs.writeFileSync(
     path.join(fixture.pluginRoot, '.claude-plugin', 'plugin.json'),
-    JSON.stringify({ name: 'harness', version: pluginVersion }),
+    JSON.stringify({ name: 'project-harness', version: pluginVersion }),
   );
   if (marker) writeMarker(fixture.project, marker);
 

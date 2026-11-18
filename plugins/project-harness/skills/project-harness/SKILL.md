@@ -1,9 +1,9 @@
 ---
-name: harness
-description: "프로젝트에 에이전트용 지속 지식 문서 (AGENTS.md 지도 + harness/ 의 ARCHITECTURE·ADR·GLOSSARY·LESSONS, CONVENTIONS — 기존 관례 문서가 없을 때) 와 선택적 레이어 검사 강제를 구축하고 유지한다. 상태를 감지해 setup (최초 구축) 또는 maintain (낡음 점검 + 세션 학습 승격) 으로 분기한다. 하네스 셋업·점검·업데이트, 학습 승격 (reflect), 용어집, ADR, 아키텍처 불변 조건, 레이어 경계 강제, AGENTS.md 정리 요청, 또는 세션 시작 시 '하네스 자가 점검 신호' 를 받고 사용자가 점검을 수락했을 때 사용한다."
+name: project-harness
+description: "프로젝트에 에이전트용 지속 지식 문서 (AGENTS.md 지도 + harness/ 의 ARCHITECTURE·ADR·GLOSSARY·LESSONS, CONVENTIONS — 기존 관례 문서가 없을 때) 와 선택적 레이어 검사 강제를 구축하고 유지한다. 상태를 감지해 setup (최초 구축) 또는 maintain (낡음 점검 + 세션 학습 승격) 으로 분기한다. 하네스 셋업·점검·업데이트, 학습 승격 (reflect), 용어집, ADR, 아키텍처 불변 조건, 레이어 경계 강제, AGENTS.md 정리 요청, 또는 세션 시작 시 '하네스 자가 점검 신호' 를 받고 사용자가 점검을 수락했을 때 사용한다. 대상은 프로젝트 repo 하나다 — 사용자 전역 설정 (`~/.claude` 의 규칙·훅·설정) 을 고치는 요청은 대상이 아니다."
 ---
 
-# Harness
+# Project Harness
 
 에이전트가 매 세션 다시 알아내지 않도록 **코드에서 재도출할 수 없는 지식**(함정·이유·관례·이력·용어)을 repo 문서로 유지한다. 이 파일은 규약과 분기를 정하고, 모드별 행동은 `modes/` 가 정한다.
 

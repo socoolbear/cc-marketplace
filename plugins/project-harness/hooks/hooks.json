@@ -7,7 +7,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "command -v node >/dev/null 2>&1 && node \"${CLAUDE_PLUGIN_ROOT}/skills/harness/scripts/harness-signal.mjs\" || true",
+            "command": "command -v node >/dev/null 2>&1 && node \"${CLAUDE_PLUGIN_ROOT}/skills/project-harness/scripts/harness-signal.mjs\" || true",
             "timeout": 5
           }
         ]

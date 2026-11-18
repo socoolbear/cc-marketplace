@@ -191,7 +191,7 @@ export function buildContext({ skeleton, learnings, pointers }) {
   return [
     '[harness 자가 점검 신호] 이 프로젝트의 하네스 문서에 점검할 거리가 있습니다:',
     ...lines,
-    '사용자의 현재 요청을 먼저 끝내세요. 그 응답 끝에 한 줄로만 "`/harness` 로 하네스 점검을 할 수 있어요" 라고 한 번 제안하고, 스스로 실행하지 마세요. 사용자가 원하면 harness 스킬로 점검합니다.',
+    '사용자의 현재 요청을 먼저 끝내세요. 그 응답 끝에 한 줄로만 "`/project-harness` 로 하네스 점검을 할 수 있어요" 라고 한 번 제안하고, 스스로 실행하지 마세요. 사용자가 원하면 project-harness 스킬로 점검합니다.',
   ].join('\n');
 }
 

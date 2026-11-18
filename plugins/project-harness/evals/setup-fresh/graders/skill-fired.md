@@ -1,8 +1,6 @@
 ---
 type: tool_used
 tool: Skill
-input_match: harness
-min: 0
-max: 0
+input_match: project-harness
 arm: both
 ---

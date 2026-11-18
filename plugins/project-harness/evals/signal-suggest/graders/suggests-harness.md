@@ -1,5 +1,5 @@
 ---
 type: regex
 target: last_message
-pattern: /harness
+pattern: /project-harness
 ---

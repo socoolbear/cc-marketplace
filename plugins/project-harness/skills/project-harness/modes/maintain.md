@@ -95,6 +95,6 @@ AskUserQuestion 으로 일괄 / 개별 검토 / 건너뛰기 를 받는다. 적�
 
 ## 하지 않는 것
 
-- 플러그인 자체 갱신 → `/plugin update harness@socoolbear-cc-marketplace`
+- 플러그인 자체 갱신 → `/plugin update project-harness@socoolbear-cc-marketplace`
 - 코드·기존 검사기 수정, settings 의 다른 항목 수정 (강제 후보 수락 시 신규 구축만 예외)
 - 새 스킬·서브에이전트·설정 자동 생성 — 필요하면 `/update-config`·`skill-creator` 를 안내만
