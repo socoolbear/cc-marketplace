@@ -545,13 +545,15 @@ ensure_gitignore() {
 
 # archive 의 첨부 폴더가 실제로 ignore 되지 않으면 0 (2.8.0 에서 추가된 규칙).
 # 줄 비교가 아니라 git 의 판정을 쓴다 — 규칙을 상위 repo 의 .gitignore 에 뒀거나 "/archive/..." 처럼 고쳐 쓴 워크스페이스를 오래됐다고 보지 않기 위해.
-# git repo 밖이면 (종료 코드 128) 판정할 수 없으므로 1
+# git repo 밖이면 (종료 코드 128) 판정할 수 없으므로 1.
+# 줄이 이미 있는데도 ignore 되지 않으면 (사용자가 "!" 규칙으로 일부러 푼 경우) 더 넣을 것이 없으므로 1
 gitignore_needs_update() {
   local status=0
 
   git -C "${ROOT}" check-ignore -q "archive/_/attachments/" 2>/dev/null || status=$?
+  [[ "${status}" -eq 1 ]] || return 1
 
-  [[ "${status}" -eq 1 ]]
+  ! grep -qxF -- "archive/*/attachments/" "${ROOT}/.gitignore" 2>/dev/null
 }
 
 # 파일에서 정확히 같은 줄만 제거 (없으면 통과)
