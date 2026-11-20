@@ -14,6 +14,7 @@
 | 에이전트 `workstyle:impl-dev` · `workstyle:qa-runner` | 프로젝트 전용 에이전트가 없을 때 쓰는 폴백 (구현 · 시험 실행) |
 | 명령 `/workstyle:now` · `/workstyle:handoff` · `/workstyle:setup` | 진행 상황 보고 후 이어가기 · 인계 문서 작성 · 장비 설정 |
 | 실행 파일 `workstyle board` · `workstyle metrics [days]` | 열려 있는 세션의 상태 꼬리표를 한 화면에 (상황판) · 사람 개입 지표 |
+| 실행 파일 `workstyle backtest collect · judge · report` (`bin/ask-backtest`) | 질문 대조 — 과거 질문 창의 질문을 모델이 세 번 따로 고르게 하고 사용자의 실제 답과 견준다. 질문을 사람 대신 승인하는 판정 방식을 실제 질문에 붙이기 전에 재는 용도 (아래 「질문 대조」) |
 
 ## 필요한 것
 
@@ -62,6 +63,21 @@ macOS (`md5` · `stat -f`), `jq`, `git`. 버전은 따로 올리지 않습니다
 | `ask-classify/{judge,log.jsonl}` | 사용자 · 질문 분류 | 질문 분류 · 지표 |
 | `disabled` | 사용자 | 멈춤 점검 · night-loop (같은 끄기 스위치) |
 | `night/…` | night-loop | 질문 전 점검 (야간 모드 판정) |
+
+## 질문 대조
+
+질문을 사람 대신 승인하는 판정 방식 (자동 승인) 은 실제 질문에 붙이기 전에 과거 답으로 먼저 잽니다. 대화 기록에 남은 질문 창의 실제 답이 정답입니다.
+
+```bash
+workstyle backtest collect 30 > ~/asked.jsonl                               # 최근 30일의 답이 남은 질문
+ASK_BACKTEST_MODEL=<상위 모델 별칭> workstyle backtest judge ~/asked.jsonl > ~/verdicts.jsonl   # 표본 100건을 세 번씩 판정
+workstyle backtest report ~/verdicts.jsonl ~/asked.jsonl                    # 일치율 · 추천안 채택률 · 켜는 조건
+```
+
+- 판정은 추천 표시를 지우고 선택지 순서를 돌려서 보여주며, 세 번이 모두 추천안일 때만 자동 승인 대상으로 셉니다. 비교 기준은 추천안을 그냥 따를 때의 일치율 (추천안 채택률) 입니다
+- 판정 방식을 바꿔 재려면 `ASK_BACKTEST_INSTRUCTIONS=<지시문 파일>`, 질문 직전 대화 글을 함께 주려면 `ASK_BACKTEST_CONTEXT=1` 을 붙입니다
+- 모은 파일과 판정 파일에는 질문 글이 들어 있으므로 저장소 밖에 둡니다. 모델로 나가는 글은 주소 · 메일 · 긴 숫자 · 토큰 모양 문자열을 가리지만 사람 이름 · repo 이름은 가리지 못합니다
+- 켜는 조건과 첫 측정 결과는 `~/.claude/workstyle/docs/workflow.md` §7 과 저장소의 `docs/evolution/workstyle.md` 에 있습니다
 
 ## 시험
 

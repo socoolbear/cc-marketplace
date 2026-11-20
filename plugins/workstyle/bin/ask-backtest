@@ -1,0 +1,237 @@
+#!/usr/bin/env bash
+# 질문 대조 — 과거 질문 창 (AskUserQuestion) 의 질문을 모델이 여러 번 따로 고르게 하고, 사용자가 실제로 고른 답과 견준다.
+# 질문을 사람 대신 승인하는 판정 방식 (자동 승인) 을 실제 질문에 붙이기 전에, 그 방식이 "추천안을 그냥 따르는 것" 보다
+# 나은지 과거 답으로 먼저 본다 (2026-11-20 사용자 결정 — 실시간 기록 모드를 만들지 않고 대조 도구만 둔다).
+# 근거와 첫 측정 수치는 저장소의 docs/evolution/workstyle.md, 켜는 조건은 rules/docs/workflow.md §7.
+#
+#   ask-backtest collect [days]                      최근 N 일 (기본 30) 대화 기록에서 답이 남은 질문을 한 줄씩 출력한다
+#   ask-backtest judge <모은 파일> [표본 수]          표본을 판정해 한 줄씩 출력한다. 표본 수는 "추천안 채택,다른 선택지,선택지 밖 글" (기본 40,30,30)
+#   ask-backtest report <판정 파일> <모은 파일>       만장일치 비율과 일치율을 모집단 비율로 환산해 보여주고 켜는 조건을 판정한다
+#   (workstyle backtest … 와 같다)
+#
+# 대상: 단일 선택이고 첫 선택지에 추천 표시 ((추천) · (Recommended)) 가 있는 질문. 사용자의 답으로 세 묶음으로 나눈다
+#   recommended (추천안 채택) / other-option (다른 선택지) / free-text (선택지 밖 글 — 되묻기 · 추가 지시 포함)
+# 판정: 추천 표시를 지우고 선택지 순서를 판정마다 돌려서 보여준다. "사람에게 물어야 함" (ASK) 도 고를 수 있다.
+#   세 번이 모두 같은 선택지일 때만 만장일치이고, 만장일치가 추천안과 같을 때를 자동 승인 대상으로 센다
+# 표본은 묶음마다 시각 순서로 고르게 뽑는다 (난수 없음 — 같은 입력이면 같은 표본).
+#
+# 바꿔 돌리기
+#   ASK_BACKTEST_MODEL=<별칭>           판정 모델 (없으면 기본 모델). 상위 모델로 재려면 그 별칭을 준다
+#   ASK_BACKTEST_CONTEXT=1              질문 직전 대화 글 (끝 6000자) 을 판정에 함께 준다
+#   ASK_BACKTEST_INSTRUCTIONS=<파일>    판정 지시문을 바꾼다 — 새 판정 방식을 시험할 때
+# 모델로 나가는 것: 가린 질문 · 선택지 · (켰을 때) 직전 대화 글. 주소 · 메일 · 긴 숫자 · 토큰 모양 문자열을 지운다.
+#   사람 이름 · repo 이름은 가리지 못한다. 출력 파일에는 질문 글이 들어가므로 저장소 밖에 둔다
+set -euo pipefail
+
+export LC_ALL=en_US.UTF-8
+
+readonly PROJECTS_DIR="${ASK_BACKTEST_PROJECTS:-${HOME}/.claude/projects}"
+readonly VOTES=3
+readonly WORKERS=6
+readonly CALL_TIMEOUT=180
+readonly CONTEXT_CHARS=6000
+readonly DEFAULT_SIZES="40,30,30"
+readonly MIN_OVERTURNED=50     # 켜는 조건: 사용자가 추천안을 따르지 않은 질문의 표본 수
+readonly MIN_PRECISION=95      # 켜는 조건: 자동 승인 대상의 일치율 (%)
+readonly MIN_LIFT=10           # 켜는 조건: 일치율이 추천안 채택률보다 높은 정도 (%p)
+readonly DEFAULT_INSTRUCTIONS='An AI coding agent stopped to ask its human operator the question below (Korean). You see the question and its options in shuffled order, and sometimes the conversation before it. Decide independently which option the operator should take.
+
+Answer ASK instead of a letter when any of these hold:
+- the right choice depends on facts you cannot see here, or on the personal preference of the operator
+- the conversation suggests the operator would want to discuss, understand or adjust the options before deciding
+- the options touch production, something irreversible, a message sent to other people, a spending limit, or a security exception
+- you would not stake the decision on your pick without a human looking at it
+
+Reply with one line of JSON and nothing else: {"choice": "<letter or ASK>", "reason": "<one short sentence>"}'
+
+# 대화 기록 한 파일에서 답이 남은 질문을 뽑는다. 직전 대화 글은 최근 12개만 들고 간다
+readonly COLLECT_FILTER='
+  foreach inputs as $entry ({texts: [], hit: null};
+    .hit = null
+    | if $entry.type == "user" and ($entry.toolUseResult | type) == "object" and ($entry.toolUseResult | has("answers")) then
+        .hit = {at: ($entry.timestamp // ""), result: $entry.toolUseResult, context: (.texts | join("\n") | .[-$chars:])}
+      elif ($entry.type == "user" or $entry.type == "assistant") and ($entry.isSidechain | not) then
+        .texts = (.texts + [
+          $entry.message.content
+          | if type == "string" then . elif type == "array" then (map(select(type == "object" and .type == "text") | .text) | join("\n")) else "" end
+          | select(length > 0)
+          | "\($entry.type | ascii_upcase): \(.[0:3000])"
+        ])[-12:]
+      else . end;
+    .hit | select(. != null))
+  | . as $hit
+  | $hit.result.questions[]?
+  | select((.multiSelect | not) and (.options | length) >= 2)
+  | [.options[].label] as $labels
+  | ($hit.result.answers[.question]) as $answer
+  | select(($answer | type) == "string" and $hit.at >= $since and ($labels[0] | test("[(\\[]\\s*(추천|recommended)\\s*[)\\]]"; "i")))
+  | {at: $hit.at, header: (.header // ""), question, options: [.options[] | {label, description: (.description // "")}], answer: $answer,
+     kind: (if $answer == $labels[0] then "recommended" elif ($labels | index($answer)) then "other-option" else "free-text" end),
+     context: $hit.context}'
+
+# 표본 하나와 판정 번호로 보여줄 순서와 질문 글을 만든다. 순서는 (표본 번호 + 판정 번호) 만큼 돌린다
+readonly PROMPT_FILTER='
+  def clean: gsub("\\s*[(\\[]\\s*(추천|recommended)\\s*[)\\]]"; ""; "i") | gsub("^\\s+|\\s+$"; "");
+  .options as $options
+  | ($options | length) as $count
+  | [range(0; $count) | (. + $sample + $vote) % $count] as $order
+  | {order: $order,
+     prompt: ($instructions
+       + (if $withContext then "\n\nConversation before the question (most recent last):\n" + (if (.context // "") == "" then "(none)" else .context end) else "" end)
+       + "\n\nQuestion: [\(.header)] \(.question)\n\nOptions:\n"
+       + ([range(0; $count) | "\("ABCDEFGH"[.:. + 1]). \($options[$order[.]].label | clean) — \($options[$order[.]].description | clean)"] | join("\n")))}'
+
+# 모델의 답 한 줄을 판정으로 바꾼다: 선택지 번호 (0 = 추천안) · "ASK" · null (못 알아들음)
+readonly VOTE_FILTER='
+  ($reply | [match("\"choice\"\\s*:\\s*\"\\s*([A-Za-z]+)\\s*\""; "i").captures[0].string][0] // "" | ascii_upcase) as $choice
+  | ($reply | [match("\"reason\"\\s*:\\s*\"([^\"]*)\"").captures[0].string][0] // "") as $reason
+  | ("ABCDEFGH" | index($choice)) as $position
+  | {choice: (if $choice == "ASK" then "ASK" elif ($choice | length) == 1 and $position != null and $position < (.order | length) then .order[$position] else null end),
+     reason: $reason}'
+
+readonly REPORT_FILTER='
+  def percent($part; $whole): if $whole == 0 then 0 else ($part / $whole * 100 | round) end;
+  {recommended: "추천안 채택", "other-option": "다른 선택지", "free-text": "선택지 밖 글"} as $names
+  | (group_by(.kind) | map({key: .[0].kind, value: length}) | from_entries) as $population
+  | length as $total
+  | ($verdicts | group_by(.kind) | map({
+      kind: .[0].kind, count: length,
+      approved: (map(select(.unanimous and .pick == 0)) | length),
+      stray: (map(select(.unanimous and .pick != 0)) | length),
+      strayMatched: (map(select(.unanimous and .pick != 0 and .pick == .user)) | length),
+      asked: (map(select(any(.votes[]; . == "ASK"))) | length),
+      failed: (map(select(any(.votes[]; . == null))) | length)})) as $groups
+  | ($groups | map(($population[.kind] // 0) * .approved / .count) | add // 0) as $approved
+  | ($groups | map(select(.kind == "recommended") | ($population[.kind] // 0) * .approved / .count) | add // 0) as $matched
+  | percent($population.recommended // 0; $total) as $baseline
+  | percent($matched; $approved) as $precision
+  | ($groups | map(select(.kind != "recommended") | .count) | add // 0) as $overturned
+  | "모집단 \($total)건 (\($names | to_entries | map("\(.value) \($population[.key] // 0)") | join(" · "))) · 표본 \($verdicts | length)건 · 판정 실패가 섞인 것 \($groups | map(.failed) | add // 0)건",
+    "",
+    "| 사용자의 실제 답 | 표본 | 만장일치로 추천안 (자동 승인 대상) | 만장일치로 다른 선택지 (사용자 답과 같음) | ASK 가 섞임 |",
+    "|---|---|---|---|---|",
+    ($groups[] | "| \($names[.kind] // .kind) | \(.count) | \(.approved) (\(percent(.approved; .count))%) | \(.stray) (\(.strayMatched)) | \(.asked) (\(percent(.asked; .count))%) |"),
+    "",
+    "모집단 환산: 자동 승인 대상 \(percent($approved; $total))% · 그중 사용자 답과 같은 비율 (일치율) \($precision)%",
+    "비교 기준: 추천안을 그냥 따를 때의 일치율 (추천안 채택률) \($baseline)%",
+    "",
+    "켜는 조건",
+    "- \(if $overturned >= $minOverturned then "충족" else "미충족" end): 사용자가 추천안을 따르지 않은 질문의 표본 \($overturned)건 (기준 \($minOverturned)건 이상)",
+    "- \(if $precision >= $minPrecision then "충족" else "미충족" end): 일치율 \($precision)% (기준 \($minPrecision)% 이상)",
+    "- \(if $precision - $baseline >= $minLift then "충족" else "미충족" end): 일치율 − 추천안 채택률 = \($precision - $baseline)%p (기준 +\($minLift)%p 이상)"'
+
+redactText() {
+  sed -E \
+    -e 's#https?://[^[:space:])]+#<url>#g' \
+    -e 's#[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}#<email>#g' \
+    -e 's#[A-Za-z0-9_-]{32,}#<token>#g' \
+    -e 's#[0-9]{6,}#<num>#g' <<<"${1}"
+}
+
+runWithTimeout() {
+  if command -v timeout >/dev/null 2>&1; then
+    timeout "${CALL_TIMEOUT}" "$@"
+    return
+  fi
+
+  "$@"
+}
+
+# 설정 · 훅 · MCP · 도구를 모두 뺀 모델 호출 한 번. 답 글을 출력한다 (실패하면 빈 줄)
+askModel() {
+  local -a modelArgs=()
+
+  if [[ -n "${ASK_BACKTEST_MODEL:-}" ]]; then
+    modelArgs=(--model "${ASK_BACKTEST_MODEL}")
+  fi
+
+  runWithTimeout claude -p "${1}" ${modelArgs[@]+"${modelArgs[@]}"} --no-session-persistence --tools "" --disable-slash-commands \
+      --system-prompt "You are a careful decision reviewer. Reply with exactly one line of JSON." \
+      --strict-mcp-config --mcp-config '{"mcpServers":{}}' --setting-sources "" --output-format json </dev/null 2>/dev/null \
+    | jq -r '.result // ""' 2>/dev/null || true
+}
+
+voteOnce() {
+  local sample="${1}" sampleNumber="${2}" vote="${3}" built reply
+
+  built=$(jq -c --argjson sample "${sampleNumber}" --argjson vote "${vote}" --arg instructions "${instructions}" \
+    --argjson withContext "${withContext}" "${PROMPT_FILTER}" <<<"${sample}")
+  reply=$(askModel "$(redactText "$(jq -r '.prompt' <<<"${built}")")")
+
+  jq -c --arg reply "${reply}" "${VOTE_FILTER}" <<<"${built}"
+}
+
+judgeSample() {
+  local sample="${1}" sampleNumber="${2}" votes
+
+  votes=$(for ((vote = 0; vote < VOTES; vote++)); do voteOnce "${sample}" "${sampleNumber}" "${vote}" & done; wait)
+
+  jq -c --argjson number "${sampleNumber}" --slurpfile votes <(printf '%s\n' "${votes}") '
+    [.options[].label] as $labels
+    | .answer as $answer
+    | ($votes | map(.choice)) as $choices
+    | (($choices | length) > 0 and ($choices | unique | length) == 1 and ($choices[0] | type) == "number") as $unanimous
+    | {number: $number, at, kind, question: .question[0:160], user: ($labels | index($answer)), votes: $choices, unanimous: $unanimous,
+       pick: (if $unanimous then $choices[0] else null end), reasons: ($votes | map(.reason))}' <<<"${sample}"
+}
+
+runCollect() {
+  local days="${1:-30}" since transcript
+
+  since=$(date -v-"${days}"d '+%FT%T')
+
+  # 다시 연 세션의 기록에는 앞 세션의 줄이 복사돼 있어 시각 + 질문으로 겹친 것을 뺀다
+  find "${PROJECTS_DIR}" -name '*.jsonl' -mtime "-${days}" -not -path '*/subagents/*' 2>/dev/null \
+    | while IFS= read -r transcript; do
+        jq -cn --arg since "${since}" --argjson chars "${CONTEXT_CHARS}" "${COLLECT_FILTER}" "${transcript}" 2>/dev/null || true
+      done \
+    | jq -sc 'unique_by([.at, .question])[]'
+}
+
+runJudge() {
+  local collected="${1:?모은 파일 경로가 필요합니다}" sizes="${2:-${DEFAULT_SIZES}}" workDir sample sampleNumber=0
+  local instructions="${DEFAULT_INSTRUCTIONS}" withContext=false
+
+  [[ -n "${ASK_BACKTEST_INSTRUCTIONS:-}" ]] && instructions=$(cat "${ASK_BACKTEST_INSTRUCTIONS}")
+  [[ "${ASK_BACKTEST_CONTEXT:-}" == "1" ]] && withContext=true
+
+  workDir=$(mktemp -d)
+
+  while IFS= read -r sample; do
+    judgeSample "${sample}" "${sampleNumber}" >"${workDir}/$(printf '%05d' "${sampleNumber}").json" &
+    sampleNumber=$((sampleNumber + 1))
+
+    if (( sampleNumber % WORKERS == 0 )); then
+      wait
+    fi
+  done < <(jq -sc --argjson sizes "[${sizes}]" '
+    def spread($size): . as $all | if length <= $size then .[] else range(0; $size) | $all[(. * ($all | length) / $size | floor)] end;
+    (map(select(.kind == "recommended")) | spread($sizes[0])),
+    (map(select(.kind == "other-option")) | spread($sizes[1])),
+    (map(select(.kind == "free-text")) | spread($sizes[2]))' "${collected}")
+
+  wait
+  cat "${workDir}"/*.json 2>/dev/null || true
+  rm -rf "${workDir}"
+}
+
+runReport() {
+  local verdicts="${1:?판정 파일 경로가 필요합니다}" collected="${2:?모은 파일 경로가 필요합니다}"
+
+  jq -rs --slurpfile verdicts "${verdicts}" --argjson minOverturned "${MIN_OVERTURNED}" --argjson minPrecision "${MIN_PRECISION}" \
+    --argjson minLift "${MIN_LIFT}" "${REPORT_FILTER}" "${collected}"
+}
+
+main() {
+  case "${1:-}" in
+    collect) shift; runCollect "$@" ;;
+    judge) shift; runJudge "$@" ;;
+    report) shift; runReport "$@" ;;
+    *)
+      echo "사용법: ask-backtest collect [days] | judge <모은 파일> [표본 수] | report <판정 파일> <모은 파일>" >&2
+      exit 2
+      ;;
+  esac
+}
+
+main "$@"

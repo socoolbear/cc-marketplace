@@ -336,6 +336,74 @@ EOF
   [[ "$(cat "${bin_dir}/workstyle")" == "mine" ]] && ok "install — 남의 파일은 덮어쓰지 않는다" || fail "install — 남의 파일은 덮어쓰지 않는다" "${OUT:0:200}"
 }
 
+testBacktest() {
+  local root="${WORK}/backtest"
+  local transcripts="${root}/home/.claude/projects/proj"
+  local path_value="${root}/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+  local stamp
+
+  makeRoot "${root}"
+  mkdir -p "${transcripts}"
+  stamp=$(date '+%FT%T')
+
+  # 가짜 모델: 분류 질문에는 none, 대조 질문에는 "첫째" 가 붙은 글자를 고른다 ("물어봐" 가 있으면 ASK). 받은 질문 글을 남긴다
+  cat >"${root}/bin/claude" <<'EOF'
+#!/usr/bin/env bash
+prompt="$2"
+printf '%s\n---\n' "${prompt}" >>"${HOME}/prompts.log"
+choice=$(grep -oE '^[A-H]\. 첫째' <<<"${prompt}" | head -1 | cut -c1)
+[[ "${prompt}" == *"물어봐"* ]] && choice="ASK"
+[[ "${prompt}" == *"Labels:"* ]] && { printf '{"result":"none"}\n'; exit 0; }
+jq -cn --arg choice "${choice}" '{result: ({choice: $choice, reason: "시험"} | tojson)}'
+EOF
+
+  jq -cn --arg at "${stamp}" '
+    def asked($question; $labels; $answer; $multi):
+      {type: "user", timestamp: $at, toolUseResult: {questions: [{header: "시험", question: $question, multiSelect: $multi, options: ($labels | map({label: ., description: "설명"}))}], answers: {($question): $answer}}};
+    {type: "user", message: {content: "배경을 알려줘"}},
+    {type: "assistant", message: {content: [{type: "text", text: "조사했습니다"}]}},
+    asked("어느 쪽으로 할까요?"; ["첫째 (추천)", "둘째"]; "첫째 (추천)"; false),
+    asked("둘 중 무엇으로 할까요?"; ["첫째 (Recommended)", "둘째"]; "둘째"; false),
+    asked("물어봐야 하는 질문"; ["첫째 (추천)", "둘째"]; "먼저 설명해줘"; false),
+    asked("여러 개 고르기"; ["첫째 (추천)", "둘째"]; "첫째 (추천)"; true),
+    asked("추천 표시 없는 질문"; ["첫째", "둘째"]; "첫째"; false)' >"${transcripts}/session.jsonl"
+
+  OUT=$(env -i PATH="${path_value}" HOME="${root}/home" "${PLUGIN_ROOT}/bin/workstyle" backtest collect 30 2>&1)
+  printf '%s\n' "${OUT}" >"${root}/collected.jsonl"
+  [[ "$(jq -sc 'map(.kind) | sort' "${root}/collected.jsonl" 2>/dev/null)" == '["free-text","other-option","recommended"]' ]] \
+    && ok "대조 — 단일 선택 · 추천 표시 있는 질문만 답에 따라 세 묶음으로 모은다" || fail "대조 — collect 묶음" "${OUT:0:300}"
+  [[ "$(jq -sr '.[0].context' "${root}/collected.jsonl" 2>/dev/null)" == *"조사했습니다"* ]] \
+    && ok "대조 — 질문 직전 대화 글을 함께 모은다" || fail "대조 — collect 직전 대화 글" "${OUT:0:300}"
+
+  OUT=$(env -i PATH="${path_value}" HOME="${root}/home" "${PLUGIN_ROOT}/bin/ask-backtest" judge "${root}/collected.jsonl" 2>&1)
+  printf '%s\n' "${OUT}" >"${root}/verdicts.jsonl"
+  [[ "$(jq -sc 'map([.kind, .user, .unanimous, .pick])' "${root}/verdicts.jsonl" 2>/dev/null)" == '[["recommended",0,true,0],["other-option",1,true,0],["free-text",null,false,null]]' ]] \
+    && ok "대조 — 돌린 순서의 글자를 원래 선택지로 되돌리고, ASK 가 있으면 만장일치가 아니다" || fail "대조 — judge 판정" "${OUT:0:300}"
+  grep -qE '추천|Recommended' "${root}/home/prompts.log" \
+    && fail "대조 — 추천 표시를 가린다" "$(grep -E '추천|Recommended' "${root}/home/prompts.log" | head -2)" || ok "대조 — 추천 표시를 가린다"
+  grep -q '^A\. 첫째' "${root}/home/prompts.log" && grep -q '^B\. 첫째' "${root}/home/prompts.log" \
+    && ok "대조 — 판정마다 선택지 순서를 돌린다" || fail "대조 — 선택지 순서" "$(grep -E '^[A-H]\. ' "${root}/home/prompts.log" | head -6)"
+  grep -q '조사했습니다' "${root}/home/prompts.log" \
+    && fail "대조 — 직전 대화 글은 켰을 때만 보낸다" "꺼져 있는데 보냄" || ok "대조 — 직전 대화 글은 켰을 때만 보낸다"
+
+  OUT=$(env -i PATH="${path_value}" HOME="${root}/home" ASK_BACKTEST_CONTEXT=1 "${PLUGIN_ROOT}/bin/ask-backtest" judge "${root}/collected.jsonl" 1,0,0 2>&1)
+  grep -q '조사했습니다' "${root}/home/prompts.log" && [[ "$(jq -s 'length' <<<"${OUT}" 2>/dev/null)" == 1 ]] \
+    && ok "대조 — ASK_BACKTEST_CONTEXT=1 이면 직전 대화 글을 보내고, 표본 수만큼만 판정한다" || fail "대조 — 직전 대화 글 켜기 · 표본 수" "${OUT:0:300}"
+
+  OUT=$(env -i PATH="${path_value}" HOME="${root}/home" "${PLUGIN_ROOT}/bin/ask-backtest" report "${root}/verdicts.jsonl" "${root}/collected.jsonl" 2>&1)
+  [[ "${OUT}" == *"자동 승인 대상 67%"*"(일치율) 50%"*"(추천안 채택률) 33%"*"미충족: 일치율 50%"* ]] \
+    && ok "대조 — 모집단 비율로 환산한 일치율과 켜는 조건 판정" || fail "대조 — report" "${OUT:0:600}"
+
+  OUT=$(env -i PATH="${path_value}" HOME="${root}/home" "${PLUGIN_ROOT}/bin/workstyle" backtest 2>&1)
+  RC=$?
+  [[ ${RC} == 2 && "${OUT}" == *"사용법: ask-backtest"* ]] && ok "대조 — 하위 명령이 없으면 사용법" || fail "대조 — 사용법" "rc=${RC} ${OUT:0:200}"
+
+  printf '%s\n' '{"text":"운영 배포를 진행할까요?","label":"production"}' '{"text":"초안을 만들까요?","label":"none"}' >"${root}/labeled.jsonl"
+  OUT=$(env -i PATH="${path_value}" HOME="${root}/home" ASK_JUDGE=llm bash "${PLUGIN_HOOKS}/ask-classify.sh" eval "${root}/labeled.jsonl" 2>&1)
+  [[ "${OUT}" == *"물을 일 아님으로 본 것 1건 / 1건"*"낮춤 [production → none]"* ]] \
+    && ok "질문 분류 eval — 낮추면 안 되는 분류를 낮춘 건수를 센다" || fail "질문 분류 eval — 낮춤 건수" "${OUT:0:600}"
+}
+
 main() {
   makeRoot "${WORK}/new"
   [[ -n "${LEGACY_DIR}" ]] && makeRoot "${WORK}/legacy"
@@ -352,6 +420,7 @@ main() {
     testHooksJson
     testMarkSession
     testBin
+    testBacktest
     testSyncRules
   fi
 
