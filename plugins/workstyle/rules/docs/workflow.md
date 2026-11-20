@@ -39,7 +39,7 @@
 
 ### 검증 주체
 
-`Agent` 도구로 **별도 리뷰어 서브에이전트** 를 띄운다 (`subagent_type: general-purpose`, `model: fable` — 검토 (`*-critic`) 와 같은 이유로 상위 모델, `~/.claude/workstyle/docs/work-split.md` §2 의 「모델」).
+`Agent` 도구로 **별도 리뷰어 서브에이전트** 를 띄운다 (`subagent_type: general-purpose`).
 자기가 쓴 계획을 스스로 검토하면 감싸는 편향이 남으므로 인라인 셀프 리뷰로 대체하지 않는다.
 
 **인원**: 기본 1명. **구조적 결정을 포함하거나 되돌리기 어려우면** 관점을 나눠 2~3명을 병렬로 띄운다.
