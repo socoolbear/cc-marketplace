@@ -44,7 +44,8 @@ checkStale() {
 
   [[ -d "${latest}" ]] || return 0
 
-  if ! diff -rq -x ".orphaned_at" "${latest}" "${PLUGIN_ROOT}" >/dev/null 2>&1; then
+  # 설치본 폴더에는 Claude Code 가 두는 표시 파일 (.in_use · .orphaned_at) 이 있다 — 내용 차이가 아니다
+  if ! diff -rq -x ".orphaned_at" -x ".in_use" "${latest}" "${PLUGIN_ROOT}" >/dev/null 2>&1; then
     notes+=("설치된 workstyle 이 이 장비의 마켓플레이스 사본과 내용이 다르다 — 옛 규칙 · 훅으로 일하고 있을 수 있다. claude plugin update workstyle@${marketplace} 를 실행하고 세션을 다시 연다")
   fi
 }

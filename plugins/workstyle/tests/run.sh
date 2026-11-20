@@ -287,6 +287,7 @@ testSyncRules() {
   echo "규칙" >"${installed}/rules/AGENTS.md"
   echo "규칙" >"${latest}/rules/AGENTS.md"
   echo "@~/.claude/workstyle/AGENTS.md" >"${home}/.claude/CLAUDE.md"
+  touch "${installed}/.in_use"   # Claude Code 가 설치본에 두는 표시 파일은 차이로 보지 않는다
   OUT=$(env -i PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin" HOME="${home}" bash "${installed}/hooks/sync-rules.sh" <<<'{}' 2>&1)
   [[ -z "${OUT}" ]] && ok "옛 판 감지 — 설치본과 마켓플레이스 사본이 같으면 조용하다" || fail "옛 판 감지 — 같으면 조용" "${OUT:0:200}"
   echo "새 규칙" >"${latest}/rules/AGENTS.md"
