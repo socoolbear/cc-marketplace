@@ -54,15 +54,15 @@ macOS (`md5` · `stat -f`), `jq`, `git`. 버전은 따로 올리지 않습니다
 
 ## 함께 쓰는 상태 (`~/.local/state/claude-loop/`)
 
-`night-loop` 플러그인과 같은 폴더를 씁니다. 이름을 바꾸지 않습니다.
+폴더 이름은 야간 루프 (`night-loop` 플러그인, 2026-11-21 에 내림) 와 함께 쓰던 때의 것입니다. 이름을 바꾸지 않습니다.
 
 | 경로 | 쓰는 쪽 | 읽는 쪽 |
 |---|---|---|
-| `board/<세션 ID>.md` | 멈춤 점검 | `workstyle board` (`claude-loop board` 가 넘겨 부른다) |
-| `stop-gate/{mode,owed-mode,next-mode,length-mode}` · `stop-gate/log.jsonl` | 사용자 · 멈춤 점검 | 멈춤 점검 · night-loop 의 아침 요약 |
+| `board/<세션 ID>.md` | 멈춤 점검 | `workstyle board` |
+| `stop-gate/{mode,owed-mode,next-mode,length-mode}` · `stop-gate/log.jsonl` | 사용자 · 멈춤 점검 | 멈춤 점검 |
 | `ask-classify/{judge,log.jsonl}` | 사용자 · 질문 분류 | 질문 분류 · 지표 |
-| `disabled` | 사용자 | 멈춤 점검 · night-loop (같은 끄기 스위치) |
-| `night/…` | night-loop | 질문 전 점검 (야간 모드 판정) |
+| `disabled` | 사용자 | 멈춤 점검 |
+| `night/…` | 없음 (야간 루프를 내린 뒤로 쓰는 쪽이 없다) | 질문 전 점검 (야간 모드 판정 — 지금은 늘 낮으로 본다) |
 
 ## 질문 대조
 

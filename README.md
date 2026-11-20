@@ -20,7 +20,6 @@
 |---------|--------|------|------|
 | claude-notify | 훅 (자동) · `/claude-notify:notify-setup` · `/claude-notify:notify-doctor` | macOS 알림 훅 — 터미널 foreground / 화면 잠금 상태를 감지해 terminal-notifier (로컬) 와 ntfy (모바일 푸시) 중 알맞은 채널을 자동 선택 | |
 | deploy-guard | 훅 (자동) · 스킬 `deploy` · `/deploy-guard:setup` | 배포 확인 장치 — 운영 배포를 일으키는 push · 머지 · workflow 실행을 첫 실행에 점검 목록으로 막고 다시 실행하면 확인창을 띄운다. 배포 뒤에는 직접 QA 를 알린다. 대상은 저장소 밖 비공개 파일에서 읽는다 | |
-| night-loop | 훅 (자동) · `/night-loop:setup` · `claude-loop` | AI 야간 루프 — 밤 01:30 에 opt-in 한 태스크 세션에 일을 맡기고 08:30 에 아침 요약을 만든다. 야간 가드 훅이 그 세션의 위험 동작 (머지·보호 브랜치 push·외부 발송·지시 파일 수정 등) 을 확인창에서 멈추고, 검증 게이트 훅이 검증 명령이 실패한 채 끝내지 못하게 막는다. macOS · tmux 전용 | |
 | workstyle | 훅 (자동) · `/workstyle:now` · `/workstyle:handoff` · `/workstyle:setup` · `workstyle board` | 일하는 방식 — 계획 검증 · 질문 전 점검 · 멈춤 점검 (상태 꼬리표) · 컨텍스트 알림 훅, 폴백 서브에이전트, 상황판. 버전 없이 커밋으로 갱신 | |
 
 ### 부르는 도구
@@ -52,11 +51,8 @@
 /plugin install worktrees@socoolbear-cc-marketplace
 /plugin install taskspace@socoolbear-cc-marketplace
 /plugin install programming@socoolbear-cc-marketplace
-/plugin install night-loop@socoolbear-cc-marketplace
 ```
 
 `@` 뒤는 `.claude-plugin/marketplace.json` 의 `name` 값 (`socoolbear-cc-marketplace`) 입니다.
 
 `claude-notify` 는 설치하면 훅 (`Notification` · `Stop`) 이 자동으로 붙습니다. 설치 후 `/claude-notify:notify-setup` 을 한 번 실행해 ntfy 토픽을 정하세요.
-
-`night-loop` 는 설치하면 야간 가드·검증 게이트 훅이 붙습니다 (야간 모드가 아닌 세션에서는 아무것도 하지 않습니다). 밤에 실제로 돌리려면 `/night-loop:setup` 을 한 번 실행해 launchd 예약과 실행 파일을 등록하세요.

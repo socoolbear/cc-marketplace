@@ -26,7 +26,7 @@
 # 「다음」 점검만 기록으로 돌리기:      echo record > ~/.local/state/claude-loop/stop-gate/next-mode
 # 본문 길이 점검만 기록으로 돌리기:    echo record > ~/.local/state/claude-loop/stop-gate/length-mode
 # 기록: ~/.local/state/claude-loop/stop-gate/log.jsonl (턴마다 한 줄)
-# 끄기: touch ~/.local/state/claude-loop/disabled (claude-loop 와 같은 스위치)
+# 끄기: touch ~/.local/state/claude-loop/disabled
 #
 # set -e 를 쓰지 않는 이유: Stop 훅의 exit 2 는 턴 차단이다. 예기치 못한 실패는 전부 exit 0 으로 흡수한다.
 set -uo pipefail

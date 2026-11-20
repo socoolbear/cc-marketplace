@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # 사람 개입 지표 — 최근 N 일 (기본 1) 메인 세션 transcript 에서 질문·입력·중단 수를 센다.
-# night-loop 의 아침 요약 (claude-loop brief) 이 싣는다. 결정 개입 줄이기 (rules/docs/workflow.md §7) 의 효과를 보는 용도.
+# 결정 개입 줄이기 (rules/docs/workflow.md §7) 의 효과를 보는 용도.
 #
 #   loop-metrics [days]   (workstyle metrics [days] 와 같다)
 #
