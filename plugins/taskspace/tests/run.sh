@@ -27,6 +27,9 @@ trap 'rm -rf "${SANDBOX}"' EXIT
 failures=0
 checks=0
 
+# 속도 시험 기준 (밀리초). 느린 CI 러너는 SPEED_BUDGET_MS 로 늘린다 — 훅 제한 5초 아래로만
+readonly SPEED_BUDGET_MS="${SPEED_BUDGET_MS:-2000}"
+
 # nowMs — 지금 시각 (밀리초). 초 단위로 재면 1.35초가 1초나 2초로 찍혀 2초 기준 시험이 흔들린다
 nowMs() {
   perl -MTime::HiRes=time -e 'printf "%d\n", time * 1000'
@@ -522,7 +525,7 @@ testSpeed() {
   out="$(runTs "${GROUP}" check 2>&1)"
   elapsed=$(( $(nowMs) - started ))
   checkContains "공백만 2만 자인 줄 199개 뒤의 줄도 읽음" "missing@m 미설치" "${out}"
-  check "공백만 2만 자인 줄 199개 · check 가 2초 안" "통과" "$([[ "${elapsed}" -lt 2000 ]] && echo 통과 || echo "${elapsed}ms")"
+  check "공백만 2만 자인 줄 199개 · check 가 기준 시간 안" "통과" "$([[ "${elapsed}" -lt "${SPEED_BUDGET_MS}" ]] && echo 통과 || echo "${elapsed}ms")"
 
   : >"${DECLARED}"
   for index in $(seq 1 25); do
@@ -532,7 +535,7 @@ testSpeed() {
   started="$(nowMs)"
   runTs "${GROUP}/tasks/T-1" check >/dev/null 2>&1
   elapsed=$(( $(nowMs) - started ))
-  check "선언 50줄 · check 가 2초 안 (훅 제한 5초)" "통과" "$([[ "${elapsed}" -lt 2000 ]] && echo 통과 || echo "${elapsed}ms")"
+  check "선언 50줄 · check 가 기준 시간 안 (훅 제한 5초)" "통과" "$([[ "${elapsed}" -lt "${SPEED_BUDGET_MS}" ]] && echo 통과 || echo "${elapsed}ms")"
 }
 
 setUp

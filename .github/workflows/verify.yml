@@ -15,5 +15,10 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+      # workstyle 의 질문 분류 판정이 timeout 을 쓴다. 최신 macOS 는 기본으로 있고 러너 이미지에는 없을 수 있다
+      - name: timeout 명령 확보
+        run: command -v timeout || brew install coreutils
       - name: 검증 명령
+        env:
+          SPEED_BUDGET_MS: "4000"   # 러너가 이 장비보다 느리다 (2.4초 실측). 훅 제한 5초 안
         run: bash scripts/verify.sh
