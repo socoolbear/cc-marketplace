@@ -200,7 +200,7 @@ testDiffAgainstLegacy() {
 
 testHooksJson() {
   local actual
-  local expected='PostToolUse||context-guard.sh|5 PreToolUse|AskUserQuestion|ask-precheck.sh|5 PreToolUse|ExitPlanMode|enforce-plan-review.sh|5 SessionStart||mark-session.sh|5 SessionStart|compact|compact-restore.sh|10 Stop||stop-gate.sh|5 Stop||team-cleanup-check.sh|5'
+  local expected='PostToolUse||context-guard.sh|5 PreToolUse|AskUserQuestion|ask-precheck.sh|5 PreToolUse|ExitPlanMode|enforce-plan-review.sh|5 SessionStart||mark-session.sh|5 SessionStart||sync-rules.sh|10 SessionStart|compact|compact-restore.sh|10 Stop||stop-gate.sh|5 Stop||team-cleanup-check.sh|5'
 
   actual=$(jq -r '.hooks | to_entries[] | .key as $event | .value[] | (.matcher // "") as $matcher | .hooks[] | "\($event)|\($matcher)|\(.command | capture("hooks/(?<file>[a-z-]+\\.sh)").file)|\(.timeout)"' \
     "${PLUGIN_ROOT}/hooks/hooks.json" | sort | tr '\n' ' ' | sed 's/ $//')
@@ -225,6 +225,79 @@ testMarkSession() {
 
   runIn "${WORK}/new" "${PLUGIN_HOOKS}/mark-session.sh" '{"session_id":"../escape"}'
   [[ ${RC} == 0 && ! -e "${WORK}/new/tmp/escape" ]] && ok "세션 표시 — 이상한 세션 ID 는 무시" || fail "세션 표시 — 이상한 세션 ID 는 무시" "rc=${RC}"
+}
+
+# runSync <HOME> — sync-rules.sh 를 격리한 HOME 에서 돌린다 (설치본 rules/ 대신 시험용 플러그인 폴더를 쓴다)
+runSync() {
+  OUT=$(env -i PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin" HOME="$1" bash "${WORK}/syncplug/hooks/sync-rules.sh" <<<'{"session_id":"sync-1"}' 2>&1)
+  RC=$?
+}
+
+testSyncRules() {
+  local home="${WORK}/synchome"
+  local target="${home}/.claude/workstyle"
+
+  mkdir -p "${WORK}/syncplug/hooks" "${WORK}/syncplug/rules/docs" "${home}/.claude" "${WORK}/checkout"
+  cp "${PLUGIN_HOOKS}/sync-rules.sh" "${WORK}/syncplug/hooks/"
+  echo "규칙 1" >"${WORK}/syncplug/rules/AGENTS.md"
+  echo "문서 1" >"${WORK}/syncplug/rules/docs/workflow.md"
+  echo "@~/.claude/workstyle/AGENTS.md" >"${home}/.claude/CLAUDE.md"
+
+  runSync "${home}"
+  [[ ${RC} == 0 && -z "${OUT}" && "$(cat "${target}/AGENTS.md" 2>/dev/null)" == "규칙 1" && -f "${target}/.synced-copy" && -f "${target}/docs/workflow.md" ]] \
+    && ok "규칙 맞추기 — 고정 폴더가 없으면 사본을 만든다" || fail "규칙 맞추기 — 고정 폴더가 없으면 사본을 만든다" "rc=${RC} ${OUT:0:200}"
+
+  echo "규칙 2" >"${WORK}/syncplug/rules/AGENTS.md"
+  echo "손으로 고침" >"${target}/docs/workflow.md"
+  runSync "${home}"
+  [[ ${RC} == 0 && "$(cat "${target}/AGENTS.md")" == "규칙 2" && "$(cat "${target}/docs/workflow.md")" == "문서 1" && -z "$(ls -d "${target}".* 2>/dev/null)" ]] \
+    && ok "규칙 맞추기 — 내용이 다르면 설치본으로 맞추고 임시 폴더를 남기지 않는다" || fail "규칙 맞추기 — 내용이 다르면 맞춘다" "rc=${RC} ${OUT:0:200}"
+
+  rm -rf "${target}"
+  echo "체크아웃 규칙" >"${WORK}/checkout/AGENTS.md"
+  ln -s "${WORK}/checkout" "${target}"
+  runSync "${home}"
+  [[ ${RC} == 0 && -z "${OUT}" && -L "${target}" && "$(cat "${target}/AGENTS.md")" == "체크아웃 규칙" ]] \
+    && ok "규칙 맞추기 — 심링크는 건드리지 않는다" || fail "규칙 맞추기 — 심링크는 건드리지 않는다" "rc=${RC} ${OUT:0:200}"
+
+  rm -rf "${WORK}/checkout"
+  runSync "${home}"
+  [[ ${RC} == 0 && -L "${target}" && "${OUT}" == *"끊긴 심링크"* ]] && ok "규칙 맞추기 — 끊긴 심링크를 알린다" || fail "규칙 맞추기 — 끊긴 심링크를 알린다" "rc=${RC} ${OUT:0:200}"
+
+  rm -f "${target}"
+  mkdir -p "${target}"
+  echo "남의 파일" >"${target}/AGENTS.md"
+  runSync "${home}"
+  [[ ${RC} == 0 && "$(cat "${target}/AGENTS.md")" == "남의 파일" && "${OUT}" == *"그대로 두었다"* ]] \
+    && ok "규칙 맞추기 — 사본 표시가 없는 폴더는 건드리지 않고 알린다" || fail "규칙 맞추기 — 사본 표시가 없는 폴더" "rc=${RC} ${OUT:0:200}"
+
+  rm -rf "${target}"
+  echo "# 다른 내용" >"${home}/.claude/CLAUDE.md"
+  runSync "${home}"
+  [[ ${RC} == 0 && "${OUT}" == *"import 줄이 없다"* && "$(jq -r '.hookSpecificOutput.hookEventName' <<<"${OUT}" 2>/dev/null)" == "SessionStart" ]] \
+    && ok "규칙 맞추기 — 전역 지시 파일에 import 줄이 없으면 알린다" || fail "규칙 맞추기 — import 줄 없음 알림" "rc=${RC} ${OUT:0:200}"
+
+  # 설치본 (cache) 과 마켓플레이스 사본의 내용이 다르면 알린다
+  local installed="${WORK}/pl/plugins/cache/market/workstyle/abc123"
+  local latest="${WORK}/pl/plugins/marketplaces/market/plugins/workstyle"
+
+  mkdir -p "${installed}/hooks" "${installed}/rules" "${latest}/hooks" "${latest}/rules"
+  cp "${PLUGIN_HOOKS}/sync-rules.sh" "${installed}/hooks/"
+  cp "${PLUGIN_HOOKS}/sync-rules.sh" "${latest}/hooks/"
+  echo "규칙" >"${installed}/rules/AGENTS.md"
+  echo "규칙" >"${latest}/rules/AGENTS.md"
+  echo "@~/.claude/workstyle/AGENTS.md" >"${home}/.claude/CLAUDE.md"
+  OUT=$(env -i PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin" HOME="${home}" bash "${installed}/hooks/sync-rules.sh" <<<'{}' 2>&1)
+  [[ -z "${OUT}" ]] && ok "옛 판 감지 — 설치본과 마켓플레이스 사본이 같으면 조용하다" || fail "옛 판 감지 — 같으면 조용" "${OUT:0:200}"
+  echo "새 규칙" >"${latest}/rules/AGENTS.md"
+  OUT=$(env -i PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin" HOME="${home}" bash "${installed}/hooks/sync-rules.sh" <<<'{}' 2>&1)
+  [[ "${OUT}" == *"claude plugin update workstyle@market"* ]] && ok "옛 판 감지 — 내용이 다르면 갱신 명령을 알린다" || fail "옛 판 감지 — 다르면 알림" "${OUT:0:200}"
+  rm -rf "${target}"
+
+  rm -rf "${WORK}/syncplug/rules"
+  rm -rf "${target}"
+  runSync "${home}"
+  [[ ${RC} == 0 && -z "${OUT}" && ! -e "${target}" ]] && ok "규칙 맞추기 — 플러그인에 rules/ 가 없으면 아무것도 하지 않는다" || fail "규칙 맞추기 — rules/ 없음" "rc=${RC} ${OUT:0:200}"
 }
 
 testBin() {
@@ -278,6 +351,7 @@ main() {
     testHooksJson
     testMarkSession
     testBin
+    testSyncRules
   fi
 
   echo "---"

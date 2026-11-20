@@ -9,6 +9,7 @@
 | 멈춤 점검 `hooks/stop-gate.sh` (Stop) | 상태 꼬리표 (지금 / 사용자 몫 / 다음) · 본문 길이 · 묻는 말로 끝내기를 점검하고, 꼬리표를 상황판 파일로 남긴다 |
 | 컨텍스트 알림 `hooks/context-guard.sh` (PostToolUse) · compact 복원 `hooks/compact-restore.sh` (SessionStart — compact) | 컨텍스트가 차면 진행 문서 (`.prompts/PROGRESS-<세션 앞 8자>.md`) 를 쓰게 알리고, compact 뒤 그 문서를 다시 싣는다 |
 | 팀 정리 `hooks/team-cleanup-check.sh` (Stop) | 일이 끝난 팀이 남아 있으면 알린다 |
+| 취향 규칙 `rules/` + 규칙 맞추기 `hooks/sync-rules.sh` (SessionStart) | 매 세션 실리는 지시문 (`AGENTS.md` · `workflow-table.md` · `coding-style.md`) 과 그것이 가리키는 문서 (`docs/`). 훅이 고정 폴더 `~/.claude/workstyle` 에 사본을 맞추고, 전역 지시 파일이 거기서 불러온다 |
 | 세션 표시 `hooks/mark-session.sh` (SessionStart) | 이 세션에 플러그인 훅이 실렸다는 표시를 `${TMPDIR}/claude-plugin-sessions/` 에 남긴다 — 같은 장치를 설정 파일의 훅으로 돌리던 장비가 옮겨 올 때 설정 쪽 훅이 이 표시를 보고 물러난다 |
 | 에이전트 `workstyle:impl-dev` · `workstyle:qa-runner` | 프로젝트 전용 에이전트가 없을 때 쓰는 폴백 (구현 · 시험 실행) |
 | 명령 `/workstyle:now` · `/workstyle:handoff` · `/workstyle:setup` | 진행 상황 보고 후 이어가기 · 인계 문서 작성 · 장비 설정 |
@@ -21,6 +22,25 @@ macOS (`md5` · `stat -f`), `jq`, `git`. 버전은 따로 올리지 않습니다
 ## 장비 설정
 
 플러그인을 설치한 뒤 세션에서 `/workstyle:setup` 을 한 번 실행합니다. `~/.local/bin/workstyle` 과 `~/.local/bin/loop-metrics` (설치본을 찾아 부르는 작은 스크립트) 가 생깁니다.
+
+## 취향 규칙이 실리는 방법
+
+플러그인은 지시문을 직접 실을 수 없고, 세션 시작 훅으로 넣은 글은 서브에이전트에 실리지 않습니다. 그래서 전역 지시 파일 `~/.claude/CLAUDE.md` 가 고정 폴더의 글을 불러옵니다 (`/workstyle:setup` 이 줄을 점검합니다).
+
+```
+@~/.claude/workstyle/AGENTS.md
+@~/.claude/workstyle/workflow-table.md
+@~/.claude/workstyle/coding-style.md
+```
+
+| 장비 | 고정 폴더 `~/.claude/workstyle` | 규칙을 고치면 |
+|---|---|---|
+| 일반 장비 | 세션 시작 훅이 맞추는 사본 (`.synced-copy` 표시) | 플러그인 갱신 뒤 세션을 열면 사본이 바뀐다 (그 세션은 옛 사본을 읽을 수 있다). 사본을 직접 고친 것은 사라진다 |
+| 개발 장비 | 이 저장소 체크아웃의 `plugins/workstyle/rules` 로 가는 심링크 | 다음 세션에 바로 실린다. 훅 · 에이전트 · 명령은 push 뒤 플러그인 갱신으로 반영된다 |
+
+버전 번호가 없어 옛 판에 머문 장비를 다른 곳에서 잡지 못하므로, 세션 시작 훅이 설치본과 그 장비의 마켓플레이스 사본의 내용을 견줘 다르면 갱신 명령을 알립니다 (마켓플레이스 사본이 갱신된 장비에서만 잡힙니다 — 자동 갱신을 켜 둡니다).
+
+공개 플러그인에 넣을 수 없는 규칙 (회사 · 프로젝트 이름, 장비 경로가 든 것) 은 저장소 밖 파일 `~/.config/claude/local-rules.md` 에 두고 전역 지시 파일에서 함께 불러옵니다. Codex 는 `~/.codex/AGENTS.md` 가 고정 폴더의 `AGENTS.md` 를 가리키게 합니다.
 
 ## 훅이 기대는 것
 
