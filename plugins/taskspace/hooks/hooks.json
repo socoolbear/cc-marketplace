@@ -1,5 +1,5 @@
 {
-  "description": "taskspace 워크스페이스 점검 — 세션 시작 시 플러그인 업데이트 반영 (upgrade) 이 남아 있으면 안내를 모델 컨텍스트로 전달",
+  "description": "taskspace 워크스페이스 점검 — 세션 시작 시 플러그인 업데이트 반영 (upgrade) 이 남아 있거나, 워크스페이스가 선언한 필수 플러그인·경로 (requires.txt) 가 이 장비에 없으면 안내를 모델 컨텍스트로 전달 (읽기 전용)",
   "hooks": {
     "SessionStart": [
       {

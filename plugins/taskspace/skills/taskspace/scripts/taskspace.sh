@@ -5,6 +5,8 @@
 #   <root>/                 워크스페이스 repo (notes 추적용)
 #   ├── .gitignore          .bares/ .local/ shared/ tasks/*/*/ archive/*/attachments/
 #   ├── repos.txt           등록한 repo 목록 (<url>[=<name>] 한 줄씩)
+#   ├── requires.txt        선택 — 이 워크스페이스에서 일하는 장비에 있어야 하는 플러그인·경로 선언 (check 가 빠진 것을 알린다.
+#                           워크스페이스를 묶는 상위 repo 의 꼭대기에 둬도 된다)
 #   ├── .bares/<repo>.git/  bare 저장소 (ignore). info/exclude 에 링크 경로를 등록 (전 worktree 적용)
 #   ├── .local/<repo>/      repo 별 로컬 파일 원본 (.env·키·참조 소스, ignore) → worktree 에 심링크
 #   ├── shared/             repo 밖에 둬도 되는 공용 자료 (ignore)
@@ -69,8 +71,12 @@ usage() {
   index                                      tasks/INDEX.md 재생성 (진행 중 · 보류 · 폐기 · 완료 섹션. new · done · list 끝에 자동 실행)
   upgrade                                    플러그인 업데이트를 워크스페이스에 반영 (멱등). 레거시 완료 태스크를
                                              done 경로로 archive/ 이전 + tasks/CLAUDE.md 표식 블록 최신화. 자동 실행 안 됨
-  check                                      upgrade 가 필요하면 사유를 한 줄로 출력 (읽기 전용, 세션 시작 훅용).
-                                             워크스페이스 밖이거나 필요 없으면 아무것도 출력하지 않는다. 항상 종료코드 0
+  check                                      upgrade 가 필요하거나 requires.txt 의 필수 항목이 이 장비에 없으면 각각 한 줄로 출력
+                                             (읽기 전용, 세션 시작 훅용). 워크스페이스 밖이거나 알릴 것이 없으면 아무것도 출력하지 않는다.
+                                             항상 종료코드 0
+  requires                                   requires.txt 의 선언 전체 (optional 포함) 와 이 장비의 상태를 표로 출력 (읽기 전용, 항상 종료코드 0)
+
+환경변수: TASKSPACE_ROOT (루트 고정) · TASKSPACE_REQUIRES_SKIP (요구 점검에서 뺄 대상을 공백으로 나눠 — requires.txt 에 적힌 글자 그대로, all 이면 전부)
 
 종료코드: 1 인자 오류 · 2 루트 없음 · 3 repo 미지정 · 4 done/hold/abandon 차단 · 5 sync 미완료
 EOF
@@ -1649,7 +1655,339 @@ cmd_upgrade() {
   log "✅ upgrade 요약: 레거시 이전 ${moved}건${skipped_cwd:+ · cwd 로 건너뜀: ${skipped_cwd}}${idle_list:+ · 수동 처리 필요(완료 일시 없는 idle): ${idle_list}}${unmovable:+ · 수동 처리 필요(옮길 수 없음): ${unmovable}} · CLAUDE.md: ${claude_result}"
 }
 
-# 세션 시작 훅이 부른다. 워크스페이스 안이고 upgrade 사유가 있으면 한 줄 안내를 stdout 으로 (세션 컨텍스트에 실린다).
+# ---------------------------------------------------------------- requires (요구 선언)
+#
+# requires.txt — 이 워크스페이스에서 일하는 장비에 있어야 하는 것을 한 줄씩 선언한다 (형식 상세: references/requires.md)
+#   plugin <이름>@<마켓플레이스> [<최소 버전>] [optional]
+#   path   <경로> [optional] [-- <없을 때 보여 줄 안내. {dir} 은 선언 파일이 있는 폴더로 바뀐다>]
+#
+# 선언 파일의 글은 워크스페이스 repo 에서 온 것이라 셸로 평가하지 않는다 — eval · 명령 치환 · 변수 확장 · glob 없이
+# 글자로만 다루고 (~/ · $HOME/ · {dir} 치환만 한다), 모델 컨텍스트에 들어가는 길이에 상한을 둔다.
+# 여기 함수들은 전부 읽기 전용이다 (세션 시작 훅이 부른다).
+
+REQUIRES_FILE_NAME="requires.txt"
+REQUIRES_MAX_LINES=200   # 선언 파일에서 읽는 줄 수
+REQUIRES_MAX_LINE=1000   # 한 줄 길이. 넘으면 알 수 없는 줄
+REQUIRES_MAX_ITEMS=10    # 세션 시작 안내에 싣는 항목 수
+REQUIRES_MAX_PATH=200    # path 줄의 경로 길이
+REQUIRES_MAX_HINT=300    # 안내문 길이 ({dir} 치환 뒤). 넘으면 자르지 않고 생략한다 — 잘린 명령이 실행되면 안 된다
+REQUIRES_SEP=$'\037'     # 레코드 필드 구분 (입력에서 제어 문자를 지우므로 겹치지 않는다. 공백 문자가 아니라 빈 필드가 유지된다)
+
+# 선언 파일 경로를 stdout 으로 (없으면 출력 없음). 루트의 실제 경로에서 시작해 그 루트가 속한 git repo 의 꼭대기
+# (.git 이 폴더든 파일이든) 까지 올라가며 처음 만난 파일 하나. 세션 cwd 가 아니라 루트 기준이라 어디서 열어도 같은 파일이다.
+# 루트가 git repo 안이 아니면 루트의 파일만 본다 (홈 폴더 같은 무관한 상위 파일을 줍지 않는다)
+requires_file() {
+  local start dir first=""
+
+  start="$(cd "${ROOT}" 2>/dev/null && pwd -P)" || return 0
+  dir="${start}"
+
+  while true; do
+    if [[ -z "${first}" && -f "${dir}/${REQUIRES_FILE_NAME}" ]]; then
+      first="${dir}/${REQUIRES_FILE_NAME}"
+    fi
+
+    if [[ -e "${dir}/.git" ]]; then
+      [[ -n "${first}" ]] && printf '%s\n' "${first}"
+      return 0
+    fi
+
+    [[ "${dir}" == "/" || -z "${dir}" ]] && break
+    dir="${dir%/*}"
+    [[ -n "${dir}" ]] || dir="/"
+  done
+
+  if [[ "${first}" == "${start}/${REQUIRES_FILE_NAME}" ]]; then
+    printf '%s\n' "${first}"
+  fi
+
+  return 0
+}
+
+# 앞뒤 공백을 뗀 글을 stdout 으로 (fork 없음)
+requires_trim() {
+  local text=$1
+
+  text="${text#"${text%%[![:space:]]*}"}"
+  text="${text%"${text##*[![:space:]]}"}"
+  printf '%s' "${text}"
+}
+
+# 선언 파일을 읽어 레코드를 한 줄씩 stdout 으로: <종류>␟<대상>␟<최소 버전>␟<optional 0|1>␟<안내문>
+# 종류는 plugin · path · unknown (형식에 맞지 않는 줄 — 대상 자리에 원문 앞부분)
+requires_entries() {
+  local file=$1 dir line kind rest left target need opt extra hint out
+
+  dir="${file%/*}"
+
+  # 제어 문자 (탭 · CR 포함) 는 공백으로 바꾼다 — 경로 안에 있었다면 공백 든 경로가 되어 알 수 없는 줄로 걸린다.
+  # 끝 개행이 없는 마지막 줄도 읽고, 앞 REQUIRES_MAX_LINES 줄만 본다 (줄마다 fork 가 있어 훅 제한 5초를 지키려는 것)
+  while IFS= read -r line || [[ -n "${line}" ]]; do
+    # 아주 긴 줄은 다듬지 않고 넘긴다 — 공백만 수만 자인 줄에서 앞뒤 공백 떼기가 훅 제한을 넘긴다
+    if [[ "${#line}" -gt "${REQUIRES_MAX_LINE}" ]]; then
+      printf 'unknown%s(%s자를 넘는 줄)%s%s0%s\n' "${REQUIRES_SEP}" "${REQUIRES_MAX_LINE}" "${REQUIRES_SEP}" "${REQUIRES_SEP}" "${REQUIRES_SEP}"
+      continue
+    fi
+
+    line="${line#$'\xef\xbb\xbf'}"   # UTF-8 BOM
+    line="$(requires_trim "${line}")"
+    [[ -n "${line}" && "${line}" != "#"* ]] || continue
+
+    kind="${line%%[[:space:]]*}"
+    rest=""
+    [[ "${line}" == *[[:space:]]* ]] && rest="$(requires_trim "${line#*[[:space:]]}")"
+    target="" need="" opt="" extra="" hint=""
+
+    case "${kind}" in
+      plugin)
+        read -r target need opt extra <<<"${rest}" || true
+
+        if [[ "${need}" == "optional" && -z "${opt}" ]]; then
+          opt="optional"
+          need=""
+        fi
+
+        # 이름·마켓의 첫 글자는 영숫자만 — `-` 로 시작하면 jq 와 설치 명령이 옵션으로 읽는다
+        if [[ ! "${target}" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*@[A-Za-z0-9][A-Za-z0-9._-]*$ ]] \
+          || [[ -n "${need}" && ! "${need}" =~ ^v?[0-9]+(\.[0-9]+)*$ ]] \
+          || [[ -n "${opt}" && "${opt}" != "optional" ]] || [[ -n "${extra}" ]]; then
+          kind="unknown"
+        fi
+        ;;
+      path)
+        left="${rest}"
+
+        if [[ "${rest}" == *" -- "* ]]; then
+          left="${rest%% -- *}"
+          hint="$(requires_trim "${rest#* -- }")"
+        elif [[ "${rest}" == *" --" ]]; then
+          left="${rest% --}"
+        fi
+
+        read -r target opt extra <<<"${left}" || true
+
+        # 공백이 든 경로는 extra 로 넘쳐 여기서 걸린다. 상대 경로는 기준이 모호해 받지 않는다
+        if [[ -z "${target}" || "${#target}" -gt "${REQUIRES_MAX_PATH}" ]] \
+          || [[ "${target}" != /* && "${target}" != "~/"* && "${target}" != '$HOME/'* ]] \
+          || [[ -n "${opt}" && "${opt}" != "optional" ]] || [[ -n "${extra}" ]]; then
+          kind="unknown"
+        fi
+        ;;
+      *)
+        kind="unknown"
+        ;;
+    esac
+
+    if [[ "${kind}" == "unknown" ]]; then
+      printf 'unknown%s%s%s%s0%s\n' "${REQUIRES_SEP}" "${line:0:80}" "${REQUIRES_SEP}" "${REQUIRES_SEP}" "${REQUIRES_SEP}"
+      continue
+    fi
+
+    # {dir} → 선언 파일이 있는 폴더. 치환 결과를 다시 훑지 않게 앞에서부터 잘라 붙인다
+    out=""
+    while [[ "${hint}" == *'{dir}'* ]]; do
+      out="${out}${hint%%'{dir}'*}${dir}"
+      hint="${hint#*'{dir}'}"
+    done
+    hint="${out}${hint}"
+    [[ "${#hint}" -le "${REQUIRES_MAX_HINT}" ]] || hint="(안내문이 길어 생략 — 선언 파일 참고)"
+
+    if [[ "${opt}" == "optional" ]]; then opt=1; else opt=0; fi
+
+    printf '%s%s%s%s%s%s%s%s%s\n' "${kind}" "${REQUIRES_SEP}" "${target}" "${REQUIRES_SEP}" "${need}" "${REQUIRES_SEP}" "${opt}" "${REQUIRES_SEP}" "${hint}"
+  done < <(head -n "${REQUIRES_MAX_LINES}" "${file}" 2>/dev/null | LC_ALL=C tr '\000-\011\013-\037\177' ' ')
+}
+
+# 설치 기록에서 플러그인 상태를 뽑는다. 인자는 <이름@마켓> <최소 버전> 쌍. 인자 순서대로 한 줄씩: <대상>␟<상태>␟<설치 버전>
+# 상태: ok · missing · low · unknown (설치 버전을 숫자로 읽을 수 없음). 실패하면 0 이 아닌 종료코드 (호출 쪽이 판정 불가로 처리)
+requires_plugin_status() {
+  local installed=$1
+  shift
+
+  jq -r --arg cwd "$(pwd -P)" --arg sep "${REQUIRES_SEP}" '
+    def nums:
+      sub("^v"; "") | (split("-")[0] // "") | (split("+")[0] // "") | split(".")
+      | if length > 0 and all(.[]; test("^[0-9]+$")) then map(tonumber) else null end;
+    def pad: . + [range(length; 8) | 0];
+
+    ((.plugins // {}) | if type == "object" then . else {} end) as $plugins
+    | $ARGS.positional as $args
+    | range(0; $args | length; 2) as $i
+    | $args[$i] as $target
+    | $args[$i + 1] as $need
+    | [ ($plugins[$target] | if type == "array" then . else [] end)[]
+        | select(type == "object")
+        | select((.projectPath // null) as $project
+            | $project == null or $cwd == $project or ($cwd | startswith($project + "/")))
+        | (.version // "" | tostring) ] as $versions
+    | if ($versions | length) == 0 then [$target, "missing", ""]
+      else
+        ([ $versions[] | {text: ., nums: nums} | select(.nums != null) ] | max_by(.nums | pad)) as $best
+        | if $best == null then [$target, "unknown", $versions[0]]
+          elif $need == "" then [$target, "ok", $best.text]
+          elif ($best.nums | pad) < ($need | nums | pad) then [$target, "low", $best.text]
+          else [$target, "ok", $best.text]
+          end
+      end
+    | join($sep)
+  ' "${installed}" --args "$@"
+}
+
+# 선언 전체를 판정해 한 줄씩 stdout 으로: <종류>␟<대상>␟<최소 버전>␟<optional>␟<상태>␟<설치 버전>␟<안내문>
+# 상태 — plugin: ok · missing · low · unknown · skip:<사유> (판정 불가) / path: ok · absent / 공통: skipped (환경변수로 뺌) / unknown 줄: unknown
+requires_report() {
+  local file=$1 entries installed kind target need opt hint status have skip_reason="" plugin_lines="" expanded skip_list
+  local -a plugin_args
+
+  skip_list=" ${TASKSPACE_REQUIRES_SKIP:-} "
+  skip_list="${skip_list//[[:space:]]/ }"
+
+  entries="$(requires_entries "${file}")"
+  [[ -n "${entries}" ]] || return 0
+
+  plugin_args=()
+  while IFS="${REQUIRES_SEP}" read -r kind target need opt hint; do
+    [[ "${kind}" == "plugin" ]] && plugin_args+=("${target}" "${need}")
+  done <<<"${entries}"
+
+  if [[ "${#plugin_args[@]}" -gt 0 ]]; then
+    installed="${CLAUDE_CONFIG_DIR:-${HOME}/.claude}/plugins/installed_plugins.json"
+
+    if ! command -v jq >/dev/null 2>&1; then
+      skip_reason="jq 없음"
+    elif [[ ! -f "${installed}" ]]; then
+      skip_reason="설치 기록 없음"
+    elif ! plugin_lines="$(requires_plugin_status "${installed}" "${plugin_args[@]}" 2>/dev/null)"; then
+      skip_reason="설치 기록을 읽을 수 없음"
+      plugin_lines=""
+    elif [[ "$(grep -c . <<<"${plugin_lines}")" -ne $((${#plugin_args[@]} / 2)) ]]; then
+      # 빈 파일 · JSON 문서가 둘 이어진 파일은 jq 가 성공해도 줄 수가 어긋난다 — 줄 순서로 맞추므로 믿지 않는다
+      skip_reason="설치 기록을 읽을 수 없음"
+      plugin_lines=""
+    fi
+  fi
+
+  # jq 는 인자 순서대로 한 줄씩 내므로 plugin 줄을 만날 때마다 fd 3 에서 한 줄씩 꺼낸다
+  exec 3<<<"${plugin_lines}"
+
+  while IFS="${REQUIRES_SEP}" read -r kind target need opt hint; do
+    status="" have=""
+
+    case "${kind}" in
+      plugin)
+        if [[ -n "${skip_reason}" ]]; then
+          status="skip:${skip_reason}"
+        else
+          IFS="${REQUIRES_SEP}" read -r _ status have <&3 || status="skip:설치 기록을 읽을 수 없음"
+        fi
+        ;;
+      path)
+        expanded="${target}"
+        case "${target}" in
+          "~/"*)     expanded="${HOME}/${target#\~/}" ;;
+          '$HOME/'*) expanded="${HOME}/${target#\$HOME/}" ;;
+        esac
+
+        if [[ -e "${expanded}" ]]; then status="ok"; else status="absent"; fi
+        ;;
+      *)
+        status="unknown"
+        ;;
+    esac
+
+    if [[ "${kind}" != "unknown" ]]; then
+      case "${skip_list}" in
+        *" all "* | *" ${target} "*) status="skipped" ;;
+      esac
+    fi
+
+    printf '%s%s%s%s%s%s%s%s%s%s%s%s%s\n' "${kind}" "${REQUIRES_SEP}" "${target}" "${REQUIRES_SEP}" "${need}" "${REQUIRES_SEP}" "${opt}" \
+      "${REQUIRES_SEP}" "${status}" "${REQUIRES_SEP}" "${have}" "${REQUIRES_SEP}" "${hint}"
+  done <<<"${entries}"
+
+  exec 3<&-
+}
+
+# 필수 항목 중 이 장비에 없는 것이 있으면 한 줄 안내를 stdout 으로 (세션 시작 훅용). 없거나 선언 파일이 없으면 출력 없음.
+# optional · 판정 불가 · 비교 불가는 알리지 않는다 — 안내된 명령으로 없앨 수 없는 사유는 세션마다 끝없이 뜬다
+requires_notice() {
+  local file kind target need opt status have hint item items="" count=0
+
+  file="$(requires_file)"
+  [[ -n "${file}" ]] || return 0
+
+  while IFS="${REQUIRES_SEP}" read -r kind target need opt status have hint; do
+    [[ "${opt}" == "0" ]] || continue
+
+    case "${kind}:${status}" in
+      plugin:missing) item="${target} 미설치 → claude plugin install ${target}" ;;
+      plugin:low)     item="${target} ${have} < ${need} → claude plugin marketplace update ${target#*@} && claude plugin update ${target}" ;;
+      path:absent)    item="${target} 없음${hint:+ → ${hint}}" ;;
+      *) continue ;;
+    esac
+
+    count=$((count + 1))
+    [[ "${count}" -le "${REQUIRES_MAX_ITEMS}" ]] && items="${items}${items:+; }${item}"
+  done < <(requires_report "${file}")
+
+  [[ "${count}" -gt 0 ]] || return 0
+  [[ "${count}" -le "${REQUIRES_MAX_ITEMS}" ]] || items="${items}; 외 $((count - REQUIRES_MAX_ITEMS))건"
+
+  printf 'taskspace 워크스페이스 (%s) 가 요구하는 것 중 이 장비에 없는 것이 있습니다 (선언: %s): %s. 하던 일을 먼저 하고, 사용자에게 한 줄로 알린 뒤 수락하면 안내된 명령을 실행하세요 (플러그인은 새 세션부터 적용). 사용자가 없는 세션이면 실행하지 말고 넘어가세요. 선택 항목을 포함한 전체는 taskspace 스킬의 requires 로 봅니다.\n' \
+    "${ROOT}" "${file}" "${items}"
+}
+
+# 선언 전체 (optional 포함) 와 이 장비의 상태를 표로. 읽기 전용, 항상 exit 0 (locate_root 는 폴더를 만들어서 쓰지 않는다)
+cmd_requires() {
+  local file kind target need opt status have hint text label disabled=""
+
+  if ! ROOT="$(find_root 2>/dev/null)"; then
+    printf 'taskspace 루트 (.bares/ 또는 repos.txt 가 있는 디렉토리) 를 찾지 못했습니다\n'
+    return 0
+  fi
+
+  file="$(requires_file)" || true
+  if [[ -z "${file}" ]]; then
+    printf '선언 파일 (%s) 이 없습니다 — 이 워크스페이스는 요구 점검을 하지 않습니다\n' "${REQUIRES_FILE_NAME}"
+    return 0
+  fi
+
+  # 설치됐지만 꺼진 플러그인은 설치 기록에 드러나지 않는다. 여기서는 5초 제한이 없으므로 CLI 에 묻는다 (실패하면 이 판정만 건너뛴다)
+  if command -v claude >/dev/null 2>&1 && command -v jq >/dev/null 2>&1; then
+    disabled="$(claude plugin list --json 2>/dev/null </dev/null | jq -r '.[]? | select(.enabled == false) | .id' 2>/dev/null)" || disabled=""
+  fi
+
+  printf '선언: %s\n' "${file}"
+  printf '%-7s %-52s %-8s %-8s %s\n' "KIND" "TARGET" "NEED" "HAVE" "STATUS"
+
+  while IFS="${REQUIRES_SEP}" read -r kind target need opt status have hint; do
+    label="${target}"
+    [[ "${opt}" == "1" ]] && label="${target} (optional)"
+
+    if [[ "${kind}" == "plugin" && "${status}" == "ok" ]] && grep -qxF -- "${target}" <<<"${disabled}"; then
+      status="disabled"
+    fi
+
+    case "${kind}:${status}" in
+      *:ok)            text="ok" ;;
+      *:skipped)       text="건너뜀 (TASKSPACE_REQUIRES_SKIP)" ;;
+      plugin:missing)  text="미설치 → claude plugin install ${target}" ;;
+      plugin:low)      text="낮음 → claude plugin marketplace update ${target#*@} && claude plugin update ${target}" ;;
+      plugin:disabled) text="꺼짐 → claude plugin enable ${target}" ;;
+      plugin:unknown)  text="버전 비교 불가" ;;
+      plugin:skip:*)   text="판정 불가 (${status#skip:})" ;;
+      path:absent)     text="없음${hint:+ → ${hint}}" ;;
+      *)               kind="?"; text="알 수 없는 줄" ;;
+    esac
+
+    printf '%-7s %-52s %-8s %-8s %s\n' "${kind}" "${label}" "${need:--}" "${have:--}" "${text}"
+  done < <(requires_report "${file}" 2>/dev/null)
+
+  return 0
+}
+
+# 세션 시작 훅이 부른다. 워크스페이스 안에서 연 세션이면 한 줄 안내를 stdout 으로 (세션 컨텍스트에 실린다):
+# upgrade 사유가 있으면 한 줄, requires.txt 의 필수 항목이 이 장비에 없으면 한 줄. 둘은 서로 막지 않는다.
 # 파일을 만들거나 고치지 않는다 (require_root 를 쓰지 않는 이유). 훅이 세션을 방해하지 않게 항상 exit 0
 cmd_check() {
   local reasons
@@ -1662,10 +2000,16 @@ cmd_check() {
     "$(cd "${ROOT}" && pwd -P)/"*) ;;
     *) return 0 ;;
   esac
-  reasons="$(upgrade_reasons 2>/dev/null | paste -sd '|' - | sed 's/|/, /g')" || return 0
-  [[ -n "${reasons}" ]] || return 0
+  reasons="$(upgrade_reasons 2>/dev/null | paste -sd '|' - | sed 's/|/, /g')" || reasons=""
 
-  printf 'taskspace 워크스페이스 (%s) 에 플러그인 업데이트 반영이 남아 있습니다: %s. 사용자에게 한 줄로 알리고, 수락하면 taskspace 스킬의 upgrade 를 실행하세요.\n' "${ROOT}" "${reasons}"
+  if [[ -n "${reasons}" ]]; then
+    printf 'taskspace 워크스페이스 (%s) 에 플러그인 업데이트 반영이 남아 있습니다: %s. 사용자에게 한 줄로 알리고, 수락하면 taskspace 스킬의 upgrade 를 실행하세요.\n' "${ROOT}" "${reasons}"
+  fi
+
+  # upgrade 안내를 먼저 낸 뒤에 본다 — 요구 점검 쪽의 실패가 위 안내를 막지 않게 격리한다
+  requires_notice 2>/dev/null || true
+
+  return 0
 }
 
 # ---------------------------------------------------------------- main
@@ -1691,6 +2035,7 @@ case "${cmd}" in
   index) cmd_index ;;
   upgrade) cmd_upgrade ;;
   check) cmd_check ;;
+  requires) cmd_requires ;;
   -h|--help|help) usage ;;
   *) log "알 수 없는 서브커맨드: ${cmd}"; usage ;;
 esac

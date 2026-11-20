@@ -10,12 +10,13 @@ description: bare 저장소 (`.bares/`) 로 여러 repo 를 중앙 등록해 두
 
 ## 1. 구조와 전제
 
-`.bares/` 에 여러 repo 를 bare 저장소로 중앙 등록해 두고, 이슈 하나(TASK-ID)마다 `tasks/<TASK-ID>/` 아래에 관련 repo 의 worktree 를 한 벌 모아 둔다. 태스크가 끝나면(완료·보류·폐기) `archive/<TASK-ID>/` 로 옮겨 진행 중 목록에서 빠진다 — worktree 는 없고 notes.md·CLAUDE.md 등 추적 파일과 받아 둔 원문 첨부 (`attachments/`, ignore) 만 남는다. **워크스페이스 루트 자체가 git repo** 다 (여러 워크스페이스를 묶는 상위 repo 안에 만들면 그 상위 repo 가 대신 추적한다 — 10절) — `.gitignore`·`repos.txt`·`tasks/CLAUDE.md`·`tasks/INDEX.md`·`tasks/*/notes.md`·`tasks/*/CLAUDE.md`·`archive/*/notes.md`·`archive/*/CLAUDE.md` 만 추적하고, `.bares/`·`.local/`·`shared/`·각 worktree 는 ignore 한다.
+`.bares/` 에 여러 repo 를 bare 저장소로 중앙 등록해 두고, 이슈 하나(TASK-ID)마다 `tasks/<TASK-ID>/` 아래에 관련 repo 의 worktree 를 한 벌 모아 둔다. 태스크가 끝나면(완료·보류·폐기) `archive/<TASK-ID>/` 로 옮겨 진행 중 목록에서 빠진다 — worktree 는 없고 notes.md·CLAUDE.md 등 추적 파일과 받아 둔 원문 첨부 (`attachments/`, ignore) 만 남는다. **워크스페이스 루트 자체가 git repo** 다 (여러 워크스페이스를 묶는 상위 repo 안에 만들면 그 상위 repo 가 대신 추적한다 — 10절) — `.gitignore`·`repos.txt`·`requires.txt` (선택)·`tasks/CLAUDE.md`·`tasks/INDEX.md`·`tasks/*/notes.md`·`tasks/*/CLAUDE.md`·`archive/*/notes.md`·`archive/*/CLAUDE.md` 만 추적하고, `.bares/`·`.local/`·`shared/`·각 worktree 는 ignore 한다.
 
 ```
 <워크스페이스 루트>/            ← git repo (notes 추적용)
 ├── .gitignore                   # .bares/ · .local/ · shared/ · tasks/*/*/ · archive/*/attachments/ 제외
 ├── repos.txt                    # 추적 — 등록한 repo 목록 (다른 머신 복원용)
+├── requires.txt                 # 추적 — 선택. 장비에 있어야 하는 플러그인·경로 선언 (9-1절. 묶는 상위 repo 의 꼭대기에 둬도 된다)
 ├── .bares/<repo>.git/           # ignore — bare 저장소
 ├── .local/<repo>/<상대경로>      # ignore — 비밀·참조 자료·개인 설정의 원본 (파일·디렉토리·외부 위치로의 심링크)
 ├── shared/                      # ignore — repo 밖에서도 의미 있는 자료 (배포 로그, QA 자료 등). notes.md 에서 경로로 참조
@@ -281,6 +282,8 @@ $TS repos   # .bares/*.git 목록: 이름 · 기본 브랜치 · 열린 worktree
 
 **세션 시작 안내:** 플러그인의 세션 시작 훅이 `$TS check` (읽기 전용) 를 돌려, 워크스페이스 안에서 연 세션이고 `upgrade` 로 없앨 수 있는 것이 남아 있으면 사유를 한 줄로 알린다 ("taskspace 워크스페이스 … 에 플러그인 업데이트 반영이 남아 있습니다"). 이 안내는 사용자가 taskspace 와 무관한 일로 연 세션에도 오므로, 바로 실행하지 않고 사용자에게 한 줄로 알린 뒤 수락하면 `upgrade` 를 실행한다. 사용자가 지금 하던 요청이 먼저다.
 
+같은 훅이 요구 선언 (9-1절) 도 본다 — 필수 항목이 이 장비에 없으면 "taskspace 워크스페이스 … 가 요구하는 것 중 이 장비에 없는 것이 있습니다" 와 항목별 명령을 한 줄로 알린다. upgrade 안내와 따로 나오고 서로 막지 않는다.
+
 **자동으로 채워지는 것:** `.gitignore` 의 첨부 제외 규칙 (`archive/*/attachments/`) 한 줄은 명령을 실행할 때 바로 채우고 `🙈 .gitignore: 첨부 제외 규칙 추가` 를 출력한다 (경로만 묻는 `root` 와 읽기 전용 `check` 는 제외, 다른 줄은 건드리지 않는다). 그 폴더가 이미 ignore 되고 있거나 (상위 repo 의 규칙 포함) `.gitignore` 가 taskspace 가 만든 것이 아니면 (`tasks/*/*/` 줄 없음 — `/tasks/*/*/` 처럼 고쳐 쓴 경우 포함) 건드리지 않는다. 그런 워크스페이스는 `archive/*/attachments/` 를 직접 넣는다. 이 줄이 출력되면 워크스페이스 repo 에 미커밋 변경이 생겼다고 보고에 적는다. 태스크를 옮기거나 `tasks/CLAUDE.md` 를 바꾸는 반영은 `upgrade` 로만 한다.
 
 ```bash
@@ -294,6 +297,19 @@ $TS upgrade
 3. `tasks/INDEX.md` 를 다시 쓴다.
 
 실행 후 무엇을 옮겼는지, `tasks/CLAUDE.md` 를 어떻게 처리했는지, 수동으로 처리해야 할 항목(완료 일시 없는 idle 태스크, 사용자 수정 CLAUDE.md 등)을 보고하고, 워크스페이스 repo 의 변경을 커밋·push 한다 (8절 「워크스페이스 repo 커밋」).
+
+## 9-1. 요구 선언 (requires.txt)
+
+워크스페이스가 "여기서 일하는 장비에 있어야 하는 플러그인·경로" 를 `requires.txt` 로 선언하면, 세션 시작 훅이 필수 항목 중 이 장비에 없는 것을 알린다 — `repos.txt` 가 repo 를 복원하듯 장비의 장치를 복원하는 수단이다. 선언 파일이 없는 워크스페이스에서는 아무 일도 하지 않는다. 형식 · 위치 · 필수와 optional 을 가르는 기준 · 장비에서 끄는 법은 [`references/requires.md`](references/requires.md).
+
+```bash
+$TS requires   # 선언 전체 (optional 포함) 와 이 장비의 상태를 표로. 읽기 전용
+```
+
+- **세션 시작 안내를 받으면**: 사용자가 하던 요청을 먼저 하고, 빠진 것을 한 줄로 알린다. 수락하면 안내에 실린 명령 (`claude plugin install …` · `claude plugin marketplace update … && claude plugin update …` · 선언 파일의 안내문) 을 실행하고, 플러그인은 새 세션부터 적용된다고 알린다. 사용자가 없는 세션 (무인 실행) 에서는 실행하지 않는다
+- **스크립트는 아무것도 설치·수정하지 않는다.** `check` 와 `requires` 는 읽기만 한다
+- **"새 장비 세팅 확인", "뭐가 빠졌는지 봐줘"** 에는 `requires` 를 돌려 `ok` 가 아닌 줄을 보고한다. `optional` 줄은 이 장비에서 쓸 것인지 사용자에게 달렸다 — 설치를 권하지 않고 상태만 알린다
+- **선언 파일을 고칠 때**: 필수 줄은 모든 장비에 필요하고 이미 배포된 것만 넣는다 (아직 없는 플러그인을 필수로 적으면 모든 세션에 안내가 뜬다). 고친 뒤 `requires` 로 `알 수 없는 줄` 이 없는지 확인하고 워크스페이스 repo 에 커밋·push 한다 (8절)
 
 ## 10. 팀·업무 방식이 바뀔 때 — 새 워크스페이스 권고
 

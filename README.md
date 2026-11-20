@@ -35,7 +35,7 @@
 | catchup | `/catchup:catchup` | 이전 Claude Code 세션의 transcript 를 찾아 요약하고 현재 세션으로 이어받기 (HANDOFF.md 없이 세션 이어가기) | |
 | site-audit | `/site-audit:site-audit` | 웹사이트의 기술적 성능 · SEO · AEO 를 Lighthouse 와 Playwright 로 종합 진단 | |
 | worktrees | `/worktrees:worktree-setup` · `/worktrees:worktree-refresh` | git worktree 작업 공간 도구 — 여러 repo 에 걸친 작업의 브랜치·worktree 한 벌 준비 (BRIEF.md 출발 문서 포함), worktree 브랜치를 저장소 상태 판정으로 최신 main 에 맞추기 | |
-| taskspace | 훅 (자동) · `/taskspace:taskspace` · `/taskspace:task-intake` | bare 중앙 저장소 + tasks/<TASK-ID>/ 격리 worktree + notes.md 를 워크스페이스 repo 로 추적 (init/add/new/link/migrate/sync/done/hold/abandon/resume/list/index/upgrade). 끝난 태스크는 archive/<TASK-ID>/ 로 이동, 플러그인 업데이트 반영은 upgrade — 세션 시작 훅이 워크스페이스 안에서 반영할 것이 남았으면 알린다. task-intake 는 오류·알림 원문과 Slack·Notion·Jira 링크를 맡을 태스크를 찾아 (없으면 새로 열어) 그 태스크의 Claude 세션 (현재 tmux 세션의 window) 에 전달 | |
+| taskspace | 훅 (자동) · `/taskspace:taskspace` · `/taskspace:task-intake` | bare 중앙 저장소 + tasks/<TASK-ID>/ 격리 worktree + notes.md 를 워크스페이스 repo 로 추적 (init/add/new/link/migrate/sync/done/hold/abandon/resume/list/index/upgrade). 끝난 태스크는 archive/<TASK-ID>/ 로 이동, 플러그인 업데이트 반영은 upgrade — 세션 시작 훅이 워크스페이스 안에서 반영할 것이 남았으면 알린다. 워크스페이스가 `requires.txt` 로 선언한 필수 플러그인·경로가 장비에 없을 때도 같은 훅이 설치·등록 명령과 함께 알린다 (전체 상태는 requires). task-intake 는 오류·알림 원문과 Slack·Notion·Jira 링크를 맡을 태스크를 찾아 (없으면 새로 열어) 그 태스크의 Claude 세션 (현재 tmux 세션의 window) 에 전달 | |
 | programming | `/programming:server-chassis` | 프로그래밍 기법 스킬 묶음. server-chassis: 프로토콜 서버 (양방향·단방향 통신), 수집 서버·에이전트, 큐 소비자, 워커를 CBD 컴포넌트 (Daemonize · Live Config · CLI · Utility · Backlog · Emergency Notification · Recovery · GC · Plugin Interface · Protocol Handler · Transfer · Storage) 로 조립하고 Contract 로 구간을 잇는 설계·구현·리뷰 | |
 
 ## 플러그인 설치
