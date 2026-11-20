@@ -24,6 +24,8 @@
 # 장비 설정: ~/.config/claude-loop/env (셸 파일 — night · brief · list · approve 가 읽는다)
 #   CLAUDE_LOOP_WORKSPACE=<태스크 워크스페이스 루트>   필수. <루트>/*/tasks/*/notes.md 에서 opt-in 줄을 찾는다
 #   CLAUDE_LOOP_ROOT=<플러그인 폴더>                    선택. 설치본 대신 이 폴더의 러너를 쓴다 (실행 파일이 읽는다)
+#   CLAUDE_LOOP_UPPER_MODEL=<모델 별칭>                 선택. 상위 모델 (예: fable). 아침 보고서를 이 모델로 쓰고, 야간 세션이
+#                                                       구조적 결정 질문의 추천안을 이 모델의 서브에이전트로 쓰게 한다. 없으면 세션·기본 모델
 #   launchd 는 셸 설정을 읽지 않으므로 gh 인증 토큰 (GITHUB_TOKEN) 처럼 필요한 값도 여기서 export 한다
 #
 # 야간 모드 상태 (hook 4개 — night-guard · enforce-deploy-check · loop-verify-gate · ask-precheck — 가 같은 경로를 본다)
@@ -167,6 +169,10 @@ nightMessage() {
 
   if [[ -n "${verify}" ]]; then
     message+=" 검증 명령: ${verify}"
+  fi
+
+  if [[ -n "${CLAUDE_LOOP_UPPER_MODEL:-}" ]]; then
+    message+=" 상위 모델: ${CLAUDE_LOOP_UPPER_MODEL}"
   fi
 
   printf '%s' "${message}"
@@ -339,6 +345,7 @@ collectBriefInput() {
 
 runBrief() {
   local input report
+  local -a modelArgs=()
 
   inWindow "${BRIEF_WINDOW_START}" "${BRIEF_WINDOW_END}" || { log "실행 허용 구간 밖 — 건너뜀"; return 0; }
 
@@ -350,9 +357,14 @@ runBrief() {
     return 0
   fi
 
+  # 보고서의 추천안은 상위 모델이 쓴다 (장비 설정에 있을 때만 — 없으면 기본 모델)
+  if [[ -n "${CLAUDE_LOOP_UPPER_MODEL:-}" ]]; then
+    modelArgs=(--model "${CLAUDE_LOOP_UPPER_MODEL}")
+  fi
+
   # 도구 없이 요약만 한다 (내장 도구 없음 + MCP 설정 없음 + dontAsk → 남은 도구 호출도 모두 거부)
   printf '%s\n' "${input}" \
-    | (cd "${STATE_DIR}" && timeout 600 claude -p --permission-mode dontAsk --tools "" \
+    | (cd "${STATE_DIR}" && timeout 600 claude -p ${modelArgs[@]+"${modelArgs[@]}"} --permission-mode dontAsk --tools "" \
       --strict-mcp-config --mcp-config '{"mcpServers":{}}' \
       --append-system-prompt "$(cat "${BRIEF_PROMPT}")" "표준 입력의 자료로 아침 보고를 써 주세요.") >"${report}" 2>>"${LOG}" \
     || log "요약 생성 실패 — 자료만 저장"

@@ -23,6 +23,7 @@ readonly TREE="${SANDBOX}/tree"
 readonly WORKSPACE="${SANDBOX}/ws"
 readonly TMUX_LOG="${SANDBOX}/tmux.log"
 readonly LAUNCHCTL_LOG="${SANDBOX}/launchctl.log"
+readonly CLAUDE_LOG="${SANDBOX}/claude.log"
 readonly NIGHT_DIR="${FAKE_HOME}/.local/state/claude-loop/night"
 
 trap 'rm -rf "${SANDBOX}"' EXIT
@@ -87,6 +88,12 @@ cat >"${FAKE_BIN}/claude" <<'EOF'
 #!/usr/bin/env bash
 if [[ "$1" == "agents" ]]; then
   echo '[{"name":"task-T1","kind":"interactive","status":"idle","sessionId":"aaaa1111-0000","startedAt":"2026-01-01T00:00:00Z","cwd":"/tmp/t1"}]'
+fi
+EOF
+cat >>"${FAKE_BIN}/claude" <<EOF
+if [[ "\$1" == "-p" ]]; then
+  echo "\$*" | head -1 >>"${CLAUDE_LOG}"
+  echo "가짜 아침 보고"
 fi
 EOF
 
@@ -294,6 +301,28 @@ checkContains "러너: brief 가 야간 로그를 실음" "task-T1: 전달" "${b
 checkContains "러너: brief 질문 대기열" "- 질문: 시험 질문" "${briefOutput}"
 checkContains "러너: brief 지표 절" "fake-metrics" "${briefOutput}"
 checkContains "러너: brief 멈춤 점검 절" "# 멈춤 점검 기록" "${briefOutput}"
+
+if [[ -z "${LEGACY}" ]]; then
+  # --- 상위 모델 (CLAUDE_LOOP_UPPER_MODEL) — 없으면 지금과 같고, 있으면 brief 의 --model 과 야간 메시지에 실린다 ---
+  : >"${CLAUDE_LOG}"
+  runner CLAUDE_LOOP_FORCE=1 -- brief >/dev/null
+  checkContains "상위 모델: 없으면 brief 는 --model 없이" "-p --permission-mode dontAsk" "$(cat "${CLAUDE_LOG}")"
+  checkContains "상위 모델: brief 가 보고서를 씀" "가짜 아침 보고" "$(cat "${FAKE_HOME}/Library/Logs/claude-loop/$(date '+%F')-brief.md")"
+
+  : >"${CLAUDE_LOG}"
+  runner CLAUDE_LOOP_FORCE=1 CLAUDE_LOOP_UPPER_MODEL=fable -- brief >/dev/null
+  checkContains "상위 모델: brief 가 --model 로 넘김" "-p --model fable --permission-mode dontAsk" "$(cat "${CLAUDE_LOG}")"
+
+  : >"${TMUX_LOG}"
+  runner CLAUDE_LOOP_FORCE=1 CLAUDE_LOOP_UPPER_MODEL=fable -- night >/dev/null
+  upperLog=$(cat "${TMUX_LOG}")
+  checkContains "상위 모델: 기존 세션 메시지에 실림" "검증 명령: true 상위 모델: fable" "${upperLog}"
+  checkContains "상위 모델: 새 세션 메시지에 실림 (한글은 %q 가 8진수로 바꿈)" ":\\ fable\\'; exec zsh" "$(grep new-window <<<"${upperLog}")"
+  check "상위 모델: 없을 때 메시지에 없음" 없음 "$(grep -q '상위 모델' <<<"${tmuxLog}" && echo 있음 || echo 없음)"
+  checkContains "상위 모델: 지시문이 메시지의 상위 모델을 읽음" "상위 모델: <별칭>" "$(cat "${TREE}/prompts/night.md")"
+else
+  skipNew "상위 모델 (CLAUDE_LOOP_UPPER_MODEL)"
+fi
 
 runner -- end >/dev/null
 check "러너: end 가 야간 상태를 지움" 없음 "$([[ -e "${FAKE_HOME}/.local/state/claude-loop/night/active" ]] && echo 있음 || echo 없음)"
