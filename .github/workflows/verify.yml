@@ -1,0 +1,19 @@
+name: verify
+
+# AGENTS.md 「검증 명령」 네 가지 (매니페스트 JSON · 버전 일치 · 스킬 내부 링크 · 플러그인 시험).
+# 배포는 하지 않는다. 훅 플러그인이 macOS 전용이고 시험이 /bin/bash 3.2 호환을 함께 보므로 macOS 러너에서 돈다.
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: macos-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: 검증 명령
+        run: bash scripts/verify.sh

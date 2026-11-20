@@ -16,6 +16,7 @@
       "author": {
         "name": "socoolbear"
       },
+      "license": "MIT",
       "category": "project-infrastructure",
       "tags": ["harness", "architecture", "adr", "glossary", "lessons", "knowledge", "enforcement", "maintain", "reflect", "self-check", "lightweight"]
     },
@@ -27,6 +28,7 @@
       "author": {
         "name": "socoolbear"
       },
+      "license": "MIT",
       "category": "writing",
       "tags": ["documents", "resume", "career", "writing"]
     },
@@ -38,6 +40,7 @@
       "author": {
         "name": "socoolbear"
       },
+      "license": "MIT",
       "category": "developer-productivity",
       "tags": ["sessions", "child-session", "brief", "side-task", "fork", "tmux", "herdr", "messaging", "multi-session"]
     },
@@ -49,6 +52,7 @@
       "author": {
         "name": "socoolbear"
       },
+      "license": "MIT",
       "category": "developer-productivity",
       "tags": ["catchup", "session", "transcript", "handoff", "resume-session"]
     },
@@ -60,6 +64,7 @@
       "author": {
         "name": "socoolbear"
       },
+      "license": "MIT",
       "category": "developer-productivity",
       "tags": ["worktree", "git", "branch", "sync", "refresh"]
     },
@@ -71,6 +76,7 @@
       "author": {
         "name": "socoolbear"
       },
+      "license": "MIT",
       "category": "developer-productivity",
       "tags": ["taskspace", "worktree", "bare", "git", "multi-repo", "task", "notes"]
     },
@@ -82,6 +88,7 @@
       "author": {
         "name": "socoolbear"
       },
+      "license": "MIT",
       "category": "development",
       "tags": ["programming", "server", "protocol", "cbd", "daemon", "worker", "consumer", "graceful-shutdown", "idempotency", "backpressure", "plugin-interface", "kubernetes", "systemd"]
     },
@@ -93,6 +100,7 @@
       "author": {
         "name": "socoolbear"
       },
+      "license": "MIT",
       "category": "developer-productivity",
       "tags": ["always-on", "deploy", "guard", "hooks", "confirmation", "qa"]
     },
@@ -103,6 +111,7 @@
       "author": {
         "name": "socoolbear"
       },
+      "license": "MIT",
       "category": "developer-productivity",
       "tags": ["always-on", "hooks", "workflow", "stop-gate", "plan-review", "agents", "commands"]
     }

@@ -27,6 +27,11 @@ trap 'rm -rf "${SANDBOX}"' EXIT
 failures=0
 checks=0
 
+# nowMs — 지금 시각 (밀리초). 초 단위로 재면 1.35초가 1초나 2초로 찍혀 2초 기준 시험이 흔들린다
+nowMs() {
+  perl -MTime::HiRes=time -e 'printf "%d\n", time * 1000'
+}
+
 check() {
   local label="$1" expected="$2" actual="$3"
 
@@ -513,21 +518,21 @@ testSpeed() {
     printf '%20000s\n' "" >>"${DECLARED}"
   done
   printf 'plugin missing@m\n' >>"${DECLARED}"
-  started="$(date +%s)"
+  started="$(nowMs)"
   out="$(runTs "${GROUP}" check 2>&1)"
-  elapsed=$(( $(date +%s) - started ))
+  elapsed=$(( $(nowMs) - started ))
   checkContains "공백만 2만 자인 줄 199개 뒤의 줄도 읽음" "missing@m 미설치" "${out}"
-  check "공백만 2만 자인 줄 199개 · check 가 2초 안" "통과" "$([[ "${elapsed}" -lt 2 ]] && echo 통과 || echo "${elapsed}초")"
+  check "공백만 2만 자인 줄 199개 · check 가 2초 안" "통과" "$([[ "${elapsed}" -lt 2000 ]] && echo 통과 || echo "${elapsed}ms")"
 
   : >"${DECLARED}"
   for index in $(seq 1 25); do
     printf 'plugin absent%s@m 1.0.0\npath ~/nothing-%s -- 안내 %s\n' "${index}" "${index}" "${index}" >>"${DECLARED}"
   done
 
-  started="$(date +%s)"
+  started="$(nowMs)"
   runTs "${GROUP}/tasks/T-1" check >/dev/null 2>&1
-  elapsed=$(( $(date +%s) - started ))
-  check "선언 50줄 · check 가 2초 안 (훅 제한 5초)" "통과" "$([[ "${elapsed}" -lt 2 ]] && echo 통과 || echo "${elapsed}초")"
+  elapsed=$(( $(nowMs) - started ))
+  check "선언 50줄 · check 가 2초 안 (훅 제한 5초)" "통과" "$([[ "${elapsed}" -lt 2000 ]] && echo 통과 || echo "${elapsed}ms")"
 }
 
 setUp
