@@ -343,6 +343,12 @@ collectBriefInput() {
       (map(select(.asks)) | .[-8:][] | "- \(.tail[-80:])")' "${STATE_DIR}/stop-gate/log.jsonl" 2>/dev/null || echo "(기록 없음)"
 }
 
+# 알림에 실을 보고서 앞부분 — 바이트가 아니라 글자 120개로 자른다 (바이트로 자르면 한글 중간이 잘려 문구가 깨진다).
+# launchd 는 로캘을 주지 않으므로 셸 로캘에 기대지 않고 perl 이 UTF-8 로 읽는다. 줄바꿈은 공백으로, 따옴표는 뺀다 (osascript 문자열)
+briefSummary() {
+  perl -CSD -0777 -ne 's/\n/ /g; tr/"//d; print substr($_, 0, 120)' "$1"
+}
+
 runBrief() {
   local input report
   local -a modelArgs=()
@@ -374,7 +380,7 @@ runBrief() {
   fi
 
   log "보고서: ${report}"
-  notify "아침 보고가 준비됐어요 — $(head -c 120 "${report}" | tr '\n' ' ' | tr -d '"')"
+  notify "아침 보고가 준비됐어요 — $(briefSummary "${report}")"
   runEnd
 }
 

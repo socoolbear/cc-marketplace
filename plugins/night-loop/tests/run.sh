@@ -24,6 +24,7 @@ readonly WORKSPACE="${SANDBOX}/ws"
 readonly TMUX_LOG="${SANDBOX}/tmux.log"
 readonly LAUNCHCTL_LOG="${SANDBOX}/launchctl.log"
 readonly CLAUDE_LOG="${SANDBOX}/claude.log"
+readonly OSASCRIPT_LOG="${SANDBOX}/osascript.log"
 readonly NIGHT_DIR="${FAKE_HOME}/.local/state/claude-loop/night"
 
 trap 'rm -rf "${SANDBOX}"' EXIT
@@ -93,7 +94,8 @@ EOF
 cat >>"${FAKE_BIN}/claude" <<EOF
 if [[ "\$1" == "-p" ]]; then
   echo "\$*" | head -1 >>"${CLAUDE_LOG}"
-  echo "가짜 아침 보고"
+  echo "# 가짜 아침 보고 $(printf '가%.0s' {1..60})"
+  echo "둘째 줄 \"따옴표\""
 fi
 EOF
 
@@ -112,7 +114,10 @@ cat >"${FAKE_BIN}/launchctl" <<EOF
 printf '%s\n' "\$*" >>"${LAUNCHCTL_LOG}"
 EOF
 
-printf '#!/usr/bin/env bash\nexit 0\n' >"${FAKE_BIN}/osascript"
+cat >"${FAKE_BIN}/osascript" <<EOF
+#!/usr/bin/env bash
+printf '%s\n' "\$2" >>"${OSASCRIPT_LOG}"
+EOF
 printf '#!/usr/bin/env bash\necho "[]"\n' >"${FAKE_BIN}/gh"
 printf '#!/usr/bin/env bash\necho "fake-metrics"\n' >"${FAKE_BIN}/loop-metrics"
 chmod +x "${FAKE_BIN}"/*
@@ -308,6 +313,15 @@ if [[ -z "${LEGACY}" ]]; then
   runner CLAUDE_LOOP_FORCE=1 -- brief >/dev/null
   checkContains "상위 모델: 없으면 brief 는 --model 없이" "-p --permission-mode dontAsk" "$(cat "${CLAUDE_LOG}")"
   checkContains "상위 모델: brief 가 보고서를 씀" "가짜 아침 보고" "$(cat "${FAKE_HOME}/Library/Logs/claude-loop/$(date '+%F')-brief.md")"
+
+  # --- 아침 알림 문구 — 보고서 앞부분을 바이트가 아니라 글자 단위로 자른다 ---
+  notice=$(perl -ne 'print "$1\n" if /^display notification "아침 보고가 준비됐어요 — (.*)" with title/' "${OSASCRIPT_LOG}" | tail -1)
+  check "알림: 한글이 깨지지 않음 (UTF-8 로 읽힘)" ok "$(perl -MEncode -e 'eval { decode("UTF-8", $ARGV[0], Encode::FB_CROAK); print "ok" } or print "broken"' "${notice}")"
+  check "알림: 앞 120 글자" 120 "$(perl -CA -e 'print length($ARGV[0])' "${notice}")"
+  checkContains "알림: 줄바꿈은 공백으로" "가가 둘째 줄" "${notice}"
+  check "알림: 따옴표를 뺌" 없음 "$(grep -q '"' <<<"${notice}" && echo 있음 || echo 없음)"
+  utf8Brief=$(runner CLAUDE_LOOP_FORCE=1 LANG=ko_KR.UTF-8 LC_ALL=ko_KR.UTF-8 -- brief)   # grep -q 로 바로 받으면 pipefail 이 SIGPIPE 를 실패로 봐 늘 통과한다
+  check "알림: UTF-8 로캘에서도 오류 없음" 없음 "$(grep -q 'Illegal byte' <<<"${utf8Brief}" && echo 있음 || echo 없음)"
 
   : >"${CLAUDE_LOG}"
   runner CLAUDE_LOOP_FORCE=1 CLAUDE_LOOP_UPPER_MODEL=fable -- brief >/dev/null
