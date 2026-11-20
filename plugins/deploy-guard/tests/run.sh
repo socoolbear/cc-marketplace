@@ -309,7 +309,7 @@ testMarkSession() {
   local marker="${WORK}/tmp/claude-plugin-sessions/deploy-guard-abc-123"
 
   runHook "${PLUGIN_HOOKS}/mark-session.sh" '{"session_id":"abc-123","hook_event_name":"SessionStart"}'
-  expect "세션 표시 — 표시 파일을 남긴다" test "${RC}" == 0 -a -f "${marker}"
+  expect "세션 표시 — 표시 파일에 플러그인 폴더 경로를 적는다" test "${RC}" == 0 -a "$(cat "${marker}" 2>/dev/null)" == "${PLUGIN_ROOT}"
   runHook "${PLUGIN_HOOKS}/mark-session.sh" '{"session_id":"../escape"}'
   expect "세션 표시 — 이상한 세션 ID 는 무시" test "${RC}" == 0 -a ! -e "${WORK}/tmp/escape"
   runHook "${PLUGIN_HOOKS}/mark-session.sh" 'not json'

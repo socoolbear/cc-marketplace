@@ -1,0 +1,127 @@
+#!/usr/bin/env bash
+#
+# workstyle — 세션 밖에서 부르는 명령.
+#
+#   workstyle board            열려 있는 세션마다 상태와 상태 꼬리표 (지금 / 사용자 몫 / 다음) 를 한 화면에 보여준다 (상황판).
+#                              꼬리표 파일은 멈춤 점검 훅 (hooks/stop-gate.sh) 이 턴이 끝날 때 쓴다
+#   workstyle metrics [days]   사람 개입 지표 (bin/loop-metrics)
+#   workstyle install          고정 경로 실행 파일 (~/.local/bin/workstyle · ~/.local/bin/loop-metrics) 을 만든다. 장비마다 한 번
+#   workstyle uninstall        위 실행 파일을 지운다
+#
+# 상태 폴더 ~/.local/state/claude-loop/ 는 night-loop 플러그인과 함께 쓴다 (board/ · stop-gate/ · ask-classify/ · disabled).
+
+set -euo pipefail
+
+readonly PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+readonly BOARD_DIR="${HOME}/.local/state/claude-loop/board"
+readonly LAUNCHER_DIR="${WORKSTYLE_BIN_DIR:-${HOME}/.local/bin}"
+readonly LAUNCHER_MARK="# workstyle install 이 만든 실행 파일"
+readonly LAUNCHER_NAMES=(workstyle loop-metrics)
+
+runBoard() {
+  local name status sessionId cwd file age waiting
+  local separator=$'\x1f'
+  local now
+
+  now=$(date +%s)
+
+  claude agents --json 2>/dev/null \
+    | jq -r '.[] | select(.kind == "interactive") | [(.name // ""), .status, .sessionId, .cwd] | join("\u001f")' \
+    | while IFS="${separator}" read -r name status sessionId cwd; do
+        file="${BOARD_DIR}/${sessionId}.md"
+        waiting=1
+
+        # 사용자 몫이 "없음" 이 아닌 세션을 위로 올린다 (정렬 키 0)
+        if [[ -f "${file}" ]] && grep -qE '^\*\*사용자 몫:?\*\*' "${file}" && ! grep -qE '^\*\*사용자 몫:?\*\*[^가-힣A-Za-z0-9]*없음' "${file}"; then
+          waiting=0
+        fi
+
+        printf '%s%s%s%s%s%s%s%s%s\n' "${waiting}" "${separator}" "${name:-${cwd##*/}}" "${separator}" "${status}" "${separator}" "${sessionId}" "${separator}" "${cwd}"
+      done \
+    | sort -t "${separator}" -k1,1 -k2,2 \
+    | while IFS="${separator}" read -r waiting name status sessionId cwd; do
+        file="${BOARD_DIR}/${sessionId}.md"
+
+        if [[ ! -f "${file}" ]]; then
+          printf '\n■ %s [%s] — 꼬리표 없음 (%s)\n' "${name}" "${status}" "${cwd/#${HOME}/~}"
+          continue
+        fi
+
+        age=$(( (now - $(stat -f %m "${file}")) / 60 ))
+        printf '\n■ %s [%s] — %s분 전%s\n' "${name}" "${status}" "${age}" "$([[ "${waiting}" == "0" ]] && echo ' 🔔 사용자 몫')"
+        sed 's/^/  /' "${file}"
+      done
+}
+
+# 설치본 경로는 버전마다 바뀐다. 고정 경로에는 실행 때마다 설치 기록에서 플러그인 폴더를 찾아 부르는 작은 스크립트를 둔다
+writeLauncher() {   # writeLauncher <이름>
+  local name="$1"
+  local launcher="${LAUNCHER_DIR}/${name}"
+
+  if [[ -e "${launcher}" || -L "${launcher}" ]] && ! grep -qF "${LAUNCHER_MARK}" "${launcher}" 2>/dev/null && [[ ! -L "${launcher}" ]]; then
+    echo "workstyle: ${launcher} 가 이미 있고 이 명령이 만든 파일이 아닙니다 — 건드리지 않습니다" >&2
+    return 1
+  fi
+
+  rm -f "${launcher}"   # 예전 심링크를 따라가 대상 파일을 덮어쓰지 않게 먼저 지운다
+  cat >"${launcher}" <<LAUNCHER
+#!/usr/bin/env bash
+${LAUNCHER_MARK} — 직접 고치지 않는다
+set -euo pipefail
+
+export PATH="\${PATH}:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+
+root="\${WORKSTYLE_ROOT:-}"
+
+if [[ -z "\${root}" ]]; then
+  root=\$(jq -r '[.plugins | to_entries[] | select(.key | startswith("workstyle@")) | .value[] | .installPath] | last // empty' "\${HOME}/.claude/plugins/installed_plugins.json" 2>/dev/null || true)
+fi
+
+if [[ -z "\${root}" || ! -x "\${root}/bin/${name}" ]]; then
+  echo "${name}: workstyle 플러그인을 찾지 못했습니다 (\${root:-설치 기록 없음})" >&2
+  exit 1
+fi
+
+exec "\${root}/bin/${name}" "\$@"
+LAUNCHER
+  chmod +x "${launcher}"
+  echo "만듦: ${launcher}"
+}
+
+runInstall() {
+  local name
+
+  mkdir -p "${LAUNCHER_DIR}"
+
+  for name in "${LAUNCHER_NAMES[@]}"; do
+    writeLauncher "${name}"
+  done
+}
+
+runUninstall() {
+  local name launcher
+
+  for name in "${LAUNCHER_NAMES[@]}"; do
+    launcher="${LAUNCHER_DIR}/${name}"
+
+    if grep -qF "${LAUNCHER_MARK}" "${launcher}" 2>/dev/null; then
+      rm -f "${launcher}"
+      echo "지움: ${launcher}"
+    fi
+  done
+}
+
+main() {
+  case "${1:-}" in
+    board) runBoard ;;
+    metrics) shift; exec "${PLUGIN_ROOT}/bin/loop-metrics" "$@" ;;
+    install) runInstall ;;
+    uninstall) runUninstall ;;
+    *)
+      echo "사용법: workstyle board | metrics [days] | install | uninstall" >&2
+      exit 2
+      ;;
+  esac
+}
+
+main "$@"

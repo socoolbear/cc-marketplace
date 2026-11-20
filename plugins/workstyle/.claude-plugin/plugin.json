@@ -1,0 +1,4 @@
+{
+  "name": "workstyle",
+  "description": "일하는 방식 — 계획 검증 · 질문 전 점검 · 멈춤 점검 (상태 꼬리표) · 컨텍스트 알림 · compact 복원 · 팀 정리 훅, 폴백 서브에이전트 (impl-dev · qa-runner), 명령 (/workstyle:now · /workstyle:handoff), 상황판 (workstyle board). 켜 두면 모든 세션의 동작이 바뀐다. macOS 전용"
+}

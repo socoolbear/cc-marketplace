@@ -5,7 +5,7 @@ socoolbear 의 개인용 Claude Code 플러그인 마켓플레이스. 플러그�
 ## 검증 명령 (완료 주장 전 반드시 실행)
 
 - 매니페스트 JSON 파싱: `for f in .claude-plugin/marketplace.json plugins/*/.claude-plugin/plugin.json; do python3 -m json.tool "$f" >/dev/null || echo "INVALID $f"; done`
-- 버전 일치: 각 `plugins/<n>/.claude-plugin/plugin.json` 의 `version` == `marketplace.json` 의 동명 플러그인 `version`
+- 버전 일치: 각 `plugins/<n>/.claude-plugin/plugin.json` 의 `version` == `marketplace.json` 의 동명 플러그인 `version` (예외: `workstyle` 은 두 곳 모두 `version` 을 두지 않는다 — 아래 경계)
 - 스킬 내부 링크 실재: 각 `skills/*/SKILL.md` 와 그 참조 파일의 상대 경로가 실재하는지
 - 플러그인 시험: `for t in plugins/*/tests/run.sh; do bash "$t" >/dev/null || echo "FAIL $t"; done`
 
@@ -16,6 +16,7 @@ socoolbear 의 개인용 Claude Code 플러그인 마켓플레이스. 플러그�
 - Always: 스킬 자료는 `skills/<skill>/` 안에 둔다 (`references/`, `scripts/`) — 스킬 디렉토리 밖 참조 금지. 예외: Claude Code 가 위치를 정한 `hooks/hooks.json`·`evals/` 는 플러그인 루트
 - Always: 스킬이 없는 훅·명령 플러그인은 플러그인 루트에 역할별 폴더를 둔다 — 훅 스크립트는 `hooks/`, 세션 밖에서도 부르는 실행 파일은 `bin/`, 모델에 넘기는 지시문은 `prompts/`, 시험은 `tests/` (선례: `plugins/night-loop`)
 - Always: 훅·실행 파일을 바꾸면 그 플러그인의 `tests/run.sh` 를 돌린다 (있을 때)
+- Always: `workstyle` 에는 `version` 을 넣지 않는다 (plugin.json · marketplace.json 둘 다). 자주 고치는 플러그인이라 커밋 해시를 버전으로 쓴다 (2026-11-20 사용자 결정) — 고친 뒤 push 하면 플러그인 갱신 때 반영되고, 버전 bump 규칙은 이 플러그인에 적용하지 않는다
 - Never: 플러그인 소스 (스크립트·SKILL.md·references·README·매니페스트) 에 특정 프로젝트·회사 이름이나 실제 경로를 남기기 — 예시는 `.env`·`vendor-src/` 같은 일반 이름만. 스킬이 사용자 워크스페이스에 만드는 산출물 (notes.md 등) 은 제약 없음
 - Never: **생성 파일** (아래 표) 을 이 repo 에서 직접 편집하기 — 다음 sync 때 경고 없이 덮어써진다
 - Ask first: 플러그인 삭제, 마켓플레이스 이름·소유자 변경

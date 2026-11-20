@@ -63,7 +63,7 @@ claude-loop list                   # opt-in 줄과 승인 상태
 | `claude-loop night` · `brief` | launchd 가 부른다. `CLAUDE_LOOP_DRY=1` 은 판정만 출력, `CLAUDE_LOOP_FORCE=1` 은 실행 허용 구간 (night 00~06시, brief 07~11시) 을 무시 |
 | `claude-loop end` | 야간 모드를 끝낸다 (상태 파일 정리). brief 가 끝에 부른다 |
 | `claude-loop list` · `approve <세션>` | opt-in 목록 · 검증 명령 승인 |
-| `claude-loop board` | 열려 있는 세션의 상태 꼬리표를 한 화면에 보여준다 (꼬리표 파일을 쓰는 멈춤 점검 훅이 따로 있어야 내용이 찬다) |
+| `claude-loop board` | `workstyle` 플러그인의 상황판 (`workstyle board`) 을 넘겨 부른다 — 상황판과 꼬리표 파일을 쓰는 멈춤 점검 훅은 그 플러그인에 있다 |
 | `claude-loop install` · `uninstall` | 장비 등록 · 해제 |
 
 끄기: `touch ~/.local/state/claude-loop/night.disabled` (night 만), `touch ~/.local/state/claude-loop/disabled` (night · brief 전부).
