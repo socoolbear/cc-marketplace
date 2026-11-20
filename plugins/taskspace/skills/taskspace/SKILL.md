@@ -1,6 +1,6 @@
 ---
 name: taskspace
-description: bare 저장소 (`.bares/`) 로 여러 repo 를 중앙 등록해 두고, 이슈 단위 TASK-ID 로 `tasks/<TASK-ID>/` 아래에 repo 별 worktree 와 영구 보존 notes.md 를 격리해 관리하는 taskspace 워크스페이스 전용 스킬. "taskspace", "TASK-ID 로 작업 시작", "bare 저장소 등록", "tasks/ 아래에 worktree", "taskspace 워크스페이스 최초 세팅", "태스크 워크스페이스 정리 (done)", "태스크 보류 (hold)", "태스크 폐기 (abandon)", "보류·폐기한 태스크 재개 (resume)", "태스크 worktree 에 최신 main 반영 (sync)", "taskspace 목록", "태스크 색인 (index)", "지난 태스크 찾기", "끝난 태스크를 archive/ 로 옮기기", "스킬 업데이트 반영 (upgrade)", "팀 이동·업무 방식 변경으로 새 워크스페이스 만들기·태스크 이관", "워크스페이스를 새 버전 구조로", "기존 체크아웃의 gitignore 된 로컬 파일을 .local/ 로 가져오기 (migrate)", ".env·키·참조 소스처럼 gitignore 된 필수 파일 공유" 같은 요청에 사용한다. `.bares/` 구조가 아닌 일반 우산 워크스페이스에 그때그때 worktree 만 깔아 달라는 요청은 이 스킬이 아니라 `worktree-setup` 이다. 오류·알림 원문이나 Slack·Notion·Jira 링크를 맡을 태스크와 세션으로 보내 달라는 요청은 `task-intake` 다.
+description: bare 저장소 (`.bares/`) 로 여러 repo 를 중앙 등록해 두고, 이슈 단위 TASK-ID 로 `tasks/<TASK-ID>/` 아래에 repo 별 worktree 와 영구 보존 notes.md 를 격리해 관리하는 taskspace 워크스페이스 전용 스킬. "taskspace", "TASK-ID 로 작업 시작", "bare 저장소 등록", "tasks/ 아래에 worktree", "taskspace 워크스페이스 최초 세팅", "태스크 워크스페이스 정리 (done)", "태스크 보류 (hold)", "태스크 폐기 (abandon)", "보류·폐기한 태스크 재개 (resume)", "태스크 worktree 에 최신 main 반영 (sync)", "taskspace 목록", "태스크 색인 (index)", "지난 태스크 찾기", "끝난 태스크를 archive/ 로 옮기기", "스킬 업데이트 반영 (upgrade)", "팀 이동·업무 방식 변경으로 새 워크스페이스 만들기·태스크 이관", "워크스페이스를 새 버전 구조로", "기존 체크아웃의 gitignore 된 로컬 파일을 .local/ 로 가져오기 (migrate)", ".env·키·참조 소스처럼 gitignore 된 필수 파일 공유" 같은 요청에 사용한다. 오류·알림 원문이나 Slack·Notion·Jira 링크를 맡을 태스크와 세션으로 보내 달라는 요청은 `task-intake` 다.
 ---
 
 # taskspace — bare 저장소 + tasks/<TASK-ID>/ 격리 작업 환경
@@ -40,7 +40,7 @@ description: bare 저장소 (`.bares/`) 로 여러 repo 를 중앙 등록해 두
 루트는 `$TS root` 로 판별한다 (`TASKSPACE_ROOT` 환경변수 > cwd 부터 상위로 `.bares/` 또는 `repos.txt` 탐색 — clone 직후엔 `.bares/` 가 없어서 `repos.txt` 가 마커다). **루트를 찾지 못하면 taskspace 워크스페이스가 아직 없다는 뜻이다** — 추측으로 `.bares/` 를 만들지 말고 사용자에게 두 갈래를 제시해 고르게 한다:
 
 - (a) 여기 또는 지정한 위치에 taskspace 를 최초 세팅한다 → 2절 (init)
-- (b) `.bares/` 구조 없이 일반 우산 워크스페이스에 그때그때 worktree 만 필요하면 `worktree-setup` 스킬을 대신 쓴다
+- (b) `.bares/` 구조 없이 그때그때 worktree 만 필요하면 taskspace 를 쓰지 않고 그 repo 에서 `git worktree add` 로 만든다
 
 ## 2. 최초 세팅 (init)
 
@@ -125,7 +125,7 @@ git -C <bare> ls-tree -r --name-only origin/<기본브랜치> \
 git -C <bare> show origin/<기본브랜치>:<path>
 ```
 
-모노레포는 앱 디렉토리 규칙이 루트 규칙보다 우선한다(`worktree-setup` 3절과 같은 원칙). 규칙이 `feat/<설명>` 처럼 TASK-ID 만으로 못 만드는 형식이면 설명을 사용자에게 받는다. 규칙이 있으면 `<repo>=<branch>`, 없으면 기본값 `feature/<TASK-ID>[-<슬러그>]` 를 쓴다.
+모노레포는 앱 디렉토리 규칙이 루트 규칙보다 우선한다. 규칙이 `feat/<설명>` 처럼 TASK-ID 만으로 못 만드는 형식이면 설명을 사용자에게 받는다. 규칙이 있으면 `<repo>=<branch>`, 없으면 기본값 `feature/<TASK-ID>[-<슬러그>]` 를 쓴다.
 
 ID 가 번호형(`001`·`task-001`)이면 브랜치에 슬러그가 필수다 (순수 숫자 ID 는 스크립트가 거부한다). 사용자에게 **영문 kebab-case 슬러그**와 **사람용 제목**(한국어 가능)을 받는다. 앱 규칙 우선 원칙은 그대로 — 앱 규칙으로 `<repo>=<branch>` 를 쓰더라도 슬러그는 notes 기록용으로 받는다.
 

@@ -33,24 +33,13 @@
     {
       "name": "sessions",
       "source": "./plugins/sessions",
-      "description": "Claude Code 세션 관련 도구 묶음. child-session: 태스크를 흐름별로 나눠 브리프 파일을 받아 일하는 새 세션을 부모 tmux window 의 pane 으로 (다른 pane 이 이미 3개면 새 window 로, tmux 밖의 Herdr 터미널에서는 부모 터미널에 딸린 Herdr 터미널로) 띄우고, 보고·규칙 전파·닫기를 부모가 관리. side-task: 지금 대화를 이어받은 분기 세션을 같은 자리 규칙으로 띄워 곁가지 작업을 맡기고, 시작·공유·질문·완료를 SendMessage 로 보고받은 뒤 부모가 닫기를 판단. 둘 다 닫기 전에 세션 기록을 남기고 후속 문의 때 그 기록으로 다시 연다. crosstalk: [deprecated → 공식 SendMessage / ListAgents] 같은 머신의 다른 세션과 UDS (유닉스 도메인 소켓) 로 메시지를 주고받는 세션 간 메시징",
-      "version": "1.6.0",
+      "description": "Claude Code 세션 관련 도구 묶음. child-session: 태스크를 흐름별로 나눠 브리프 파일을 받아 일하는 새 세션을 부모 tmux window 의 pane 으로 (다른 pane 이 이미 3개면 새 window 로, tmux 밖의 Herdr 터미널에서는 부모 터미널에 딸린 Herdr 터미널로) 띄우고, 보고·규칙 전파·닫기를 부모가 관리. side-task: 지금 대화를 이어받은 분기 세션을 같은 자리 규칙으로 띄워 곁가지 작업을 맡기고, 시작·공유·질문·완료를 SendMessage 로 보고받은 뒤 부모가 닫기를 판단. 둘 다 닫기 전에 세션 기록을 남기고 후속 문의 때 그 기록으로 다시 연다.",
+      "version": "1.7.0",
       "author": {
         "name": "socoolbear"
       },
       "category": "developer-productivity",
-      "tags": ["sessions", "child-session", "brief", "side-task", "fork", "tmux", "herdr", "crosstalk", "messaging", "uds", "unix-socket", "multi-session"]
-    },
-    {
-      "name": "snippets",
-      "source": "./plugins/snippets",
-      "description": "코드베이스 → 재사용 가능한 snippet 추출. gitleaks 보안 스캐닝, README 자동 생성, local / private gist / repo push 출력 옵션",
-      "version": "0.2.0",
-      "author": {
-        "name": "socoolbear"
-      },
-      "category": "developer-productivity",
-      "tags": ["snippets", "extraction", "code-reuse", "github", "gist", "security-scanning", "dev-templates"]
+      "tags": ["sessions", "child-session", "brief", "side-task", "fork", "tmux", "herdr", "messaging", "multi-session"]
     },
     {
       "name": "catchup",
@@ -64,48 +53,26 @@
       "tags": ["catchup", "session", "transcript", "handoff", "resume-session"]
     },
     {
-      "name": "site-audit",
-      "source": "./plugins/site-audit",
-      "description": "웹사이트의 기술적 성능 · SEO · AEO 를 Lighthouse 와 Playwright 로 종합 진단하는 스킬",
-      "version": "1.0.0",
-      "author": {
-        "name": "socoolbear"
-      },
-      "category": "web-tools",
-      "tags": ["site-audit", "lighthouse", "seo", "aeo", "performance", "playwright"]
-    },
-    {
       "name": "worktrees",
       "source": "./plugins/worktrees",
-      "description": "git worktree 작업 공간 도구 묶음. worktree-setup: 여러 repo 에 걸친 작업의 브랜치·worktree 한 벌 준비 + BRIEF.md 출발 문서. worktree-refresh: worktree 브랜치를 저장소 상태 판정(리셋/동기화)으로 최신 기본 브랜치에 맞추기",
-      "version": "1.0.0",
+      "description": "git worktree 작업 공간 도구 묶음. worktree-refresh: worktree 브랜치를 저장소 상태 판정(리셋/동기화)으로 최신 기본 브랜치에 맞추기",
+      "version": "1.1.0",
       "author": {
         "name": "socoolbear"
       },
       "category": "developer-productivity",
-      "tags": ["worktree", "git", "multi-repo", "branch", "workspace", "brief"]
+      "tags": ["worktree", "git", "branch", "sync", "refresh"]
     },
     {
       "name": "taskspace",
       "source": "./plugins/taskspace",
       "description": "bare 중앙 저장소 + tasks/<TASK-ID>/ 격리 다중 repo 작업 환경. 최초 세팅(init)부터 repo 등록(add), 태스크별 worktree 생성(new)·로컬 파일 심링크(link)·기존 체크아웃에서 가져오기(migrate)·기본 브랜치 반영(sync)·정리(done)·보류(hold)·폐기(abandon)·재개(resume)·목록(list)·색인(index)·업데이트 반영(upgrade)까지 단일 스킬로 관리. 끝난 태스크는 archive/<TASK-ID>/ 로 이동. 워크스페이스가 requires.txt 로 선언한 필수 플러그인·경로가 장비에 없으면 세션 시작 때 알림. task-intake 스킬은 오류·알림 원문과 Slack·Notion·Jira 링크를 맡을 태스크(없으면 새로 생성)의 Claude 세션으로 전달",
-      "version": "2.13.0",
+      "version": "2.14.0",
       "author": {
         "name": "socoolbear"
       },
       "category": "developer-productivity",
       "tags": ["taskspace", "worktree", "bare", "git", "multi-repo", "task", "notes"]
-    },
-    {
-      "name": "claude-notify",
-      "source": "./plugins/claude-notify",
-      "description": "Claude Code 알림 훅 (macOS) — 터미널 foreground / 화면 잠금 상태를 감지해 terminal-notifier (로컬) 와 ntfy (모바일 푸시) 중 알맞은 채널을 자동 선택. 설치만으로 훅이 붙고, /notify-setup 으로 초기 설정, /notify-doctor 로 진단",
-      "version": "1.0.0",
-      "author": {
-        "name": "socoolbear"
-      },
-      "category": "developer-productivity",
-      "tags": ["always-on", "notification", "hooks", "macos", "ntfy", "terminal-notifier", "push"]
     },
     {
       "name": "programming",

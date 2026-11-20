@@ -2,6 +2,14 @@
 
 최신이 위. 형식은 `.claude/skills/evolve/SKILL.md` 의 "결정 기록" 절.
 
+## 2026-11-21 — crosstalk 스킬 삭제 (1.7.0)
+
+자료: 사용 흔적 — 최근 30일 대화 기록에서 crosstalk 스킬 호출 · 슬래시 명령 모두 0. 2026-10-06 회차에서 deprecate 한 뒤 공식 `SendMessage` · `ListAgents` 로 옮겨 탔다.
+
+| 판정 | 항목 | 근거 | 재검토 조건 |
+|---|---|---|---|
+| 제거 | crosstalk 스킬 (`skills/crosstalk/` 전체) | 공식 세션 간 메시징이 대체했고 deprecate 뒤 쓰지 않았다 (2026-11-21 사용자 승인). 플러그인 설명 · 태그 · README 의 소개도 함께 걷어냄 | — |
+
 ## 2026-11-19 — tmux 밖의 Herdr 터미널에서도 하위 세션을 띄움 (1.5.0)
 
 자료: 사용자 요청 — 메신저 쓰레드에 연결된 태스크 세션이 작업 중에도 답하도록, 그 세션이 일을 하위 세션에 맡기게 하자는 것. 그 태스크 세션은 tmux 가 아니라 Herdr 터미널 (herdr-core, CLI `hc`) 에서 돌아 `spawn.sh` 가 종료코드 3 으로 멈췄다. `hc --skill` (사용 안내), `hc run --help`, Herdr 앱의 에이전트 안내 문서 (sub-agent·부모 탭 규칙), `hc` 0.1.17 실측.

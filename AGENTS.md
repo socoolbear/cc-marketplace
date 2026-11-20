@@ -27,11 +27,9 @@ socoolbear 의 개인용 Claude Code 플러그인 마켓플레이스. 플러그�
 
 | 생성 파일 | 원본 | 갱신 방법 |
 |---|---|---|
-| `plugins/claude-notify/bin/claude-notify.mjs` | `~/code/portfolio/claude-notify` 의 `src/` | 원본 repo 에서 `make plugin-sync` |
+| (지금은 없음) | | |
 
 동작을 바꿔야 하면 **원본 repo 의 소스를 고치고 갱신 명령으로 가져온 뒤**, 이 repo 에서는 커밋만 한다. 원본만 고치고 갱신 명령을 빠뜨리면 플러그인에는 반영되지 않는다.
-
-`claude-notify` 플러그인에서 이 repo 가 직접 고칠 파일은 `hooks/hooks.json` 과 `commands/*.md` 뿐이다.
 
 ## 진화
 
