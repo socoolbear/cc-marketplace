@@ -45,7 +45,7 @@
       "name": "snippets",
       "source": "./plugins/snippets",
       "description": "코드베이스 → 재사용 가능한 snippet 추출. gitleaks 보안 스캐닝, README 자동 생성, local / private gist / repo push 출력 옵션",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "author": {
         "name": "socoolbear"
       },
@@ -89,7 +89,7 @@
       "name": "taskspace",
       "source": "./plugins/taskspace",
       "description": "bare 중앙 저장소 + tasks/<TASK-ID>/ 격리 다중 repo 작업 환경. 최초 세팅(init)부터 repo 등록(add), 태스크별 worktree 생성(new)·로컬 파일 심링크(link)·기존 체크아웃에서 가져오기(migrate)·기본 브랜치 반영(sync)·정리(done)·보류(hold)·폐기(abandon)·재개(resume)·목록(list)·색인(index)·업데이트 반영(upgrade)까지 단일 스킬로 관리. 끝난 태스크는 archive/<TASK-ID>/ 로 이동. 워크스페이스가 requires.txt 로 선언한 필수 플러그인·경로가 장비에 없으면 세션 시작 때 알림. task-intake 스킬은 오류·알림 원문과 Slack·Notion·Jira 링크를 맡을 태스크(없으면 새로 생성)의 Claude 세션으로 전달",
-      "version": "2.12.0",
+      "version": "2.13.0",
       "author": {
         "name": "socoolbear"
       },
@@ -122,7 +122,7 @@
       "name": "deploy-guard",
       "source": "./plugins/deploy-guard",
       "description": "배포 확인 장치 — 운영 배포를 일으키는 push · 머지 · workflow 실행을 첫 실행에 점검 목록으로 막고 다시 실행하면 확인창을 띄운다 (배포 점검 훅). 배포 명령 뒤에는 직접 QA 를 알린다 (QA 알림 훅). 절차는 deploy 스킬, 대상은 저장소 밖 파일 ~/.config/claude/deploy-targets 에서 읽는다. macOS 전용",
-      "version": "1.1.0",
+      "version": "1.2.0",
       "author": {
         "name": "socoolbear"
       },

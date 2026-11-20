@@ -301,19 +301,8 @@ testHooksJson() {
   OUT=$(jq -c '[.hooks.PreToolUse[0].matcher, .hooks.PreToolUse[0].hooks[0].timeout, .hooks.PostToolUse[0].matcher, .hooks.PostToolUse[0].hooks[0].timeout]' "${hooks_json}")
   ERR=""
   expect "hooks.json — matcher · timeout" test "${OUT}" == '["Bash|mcp__github__merge_pull_request",5,"Bash",5]'
-  OUT=$(jq -r '[.hooks.PreToolUse[].hooks[].command, .hooks.PostToolUse[].hooks[].command, .hooks.SessionStart[].hooks[].command] | join(" ")' "${hooks_json}")
-  expect "hooks.json — 훅 스크립트 세 개를 부른다" test "${OUT}" == 'bash "${CLAUDE_PLUGIN_ROOT}/hooks/enforce-deploy-check.sh" bash "${CLAUDE_PLUGIN_ROOT}/hooks/remind-deploy-qa.sh" bash "${CLAUDE_PLUGIN_ROOT}/hooks/mark-session.sh"'
-}
-
-testMarkSession() {
-  local marker="${WORK}/tmp/claude-plugin-sessions/deploy-guard-abc-123"
-
-  runHook "${PLUGIN_HOOKS}/mark-session.sh" '{"session_id":"abc-123","hook_event_name":"SessionStart"}'
-  expect "세션 표시 — 표시 파일에 플러그인 폴더 경로를 적는다" test "${RC}" == 0 -a "$(cat "${marker}" 2>/dev/null)" == "${PLUGIN_ROOT}"
-  runHook "${PLUGIN_HOOKS}/mark-session.sh" '{"session_id":"../escape"}'
-  expect "세션 표시 — 이상한 세션 ID 는 무시" test "${RC}" == 0 -a ! -e "${WORK}/tmp/escape"
-  runHook "${PLUGIN_HOOKS}/mark-session.sh" 'not json'
-  expect "세션 표시 — 깨진 입력도 exit 0" test "${RC}" == 0
+  OUT=$(jq -r '[.hooks.PreToolUse[].hooks[].command, .hooks.PostToolUse[].hooks[].command] | join(" ")' "${hooks_json}")
+  expect "hooks.json — 훅 스크립트 두 개를 부른다" test "${OUT}" == 'bash "${CLAUDE_PLUGIN_ROOT}/hooks/enforce-deploy-check.sh" bash "${CLAUDE_PLUGIN_ROOT}/hooks/remind-deploy-qa.sh"'
 }
 
 main() {
@@ -332,7 +321,6 @@ main() {
     testDiffAgainstLegacy
   else
     testHooksJson
-    testMarkSession
   fi
 
   echo "---"

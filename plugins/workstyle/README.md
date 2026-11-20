@@ -10,7 +10,6 @@
 | 컨텍스트 알림 `hooks/context-guard.sh` (PostToolUse) · compact 복원 `hooks/compact-restore.sh` (SessionStart — compact) | 컨텍스트가 차면 진행 문서 (`.prompts/PROGRESS-<세션 앞 8자>.md`) 를 쓰게 알리고, compact 뒤 그 문서를 다시 싣는다 |
 | 팀 정리 `hooks/team-cleanup-check.sh` (Stop) | 일이 끝난 팀이 남아 있으면 알린다 |
 | 취향 규칙 `rules/` + 규칙 맞추기 `hooks/sync-rules.sh` (SessionStart) | 매 세션 실리는 지시문 (`AGENTS.md` · `workflow-table.md` · `coding-style.md`) 과 그것이 가리키는 문서 (`docs/`). 훅이 고정 폴더 `~/.claude/workstyle` 에 사본을 맞추고, 전역 지시 파일이 거기서 불러온다 |
-| 세션 표시 `hooks/mark-session.sh` (SessionStart) | 이 세션에 플러그인 훅이 실렸다는 표시를 `${TMPDIR}/claude-plugin-sessions/` 에 남긴다 — 같은 장치를 설정 파일의 훅으로 돌리던 장비가 옮겨 올 때 설정 쪽 훅이 이 표시를 보고 물러난다 |
 | 에이전트 `workstyle:impl-dev` · `workstyle:qa-runner` | 프로젝트 전용 에이전트가 없을 때 쓰는 폴백 (구현 · 시험 실행) |
 | 명령 `/workstyle:now` · `/workstyle:handoff` · `/workstyle:setup` | 진행 상황 보고 후 이어가기 · 인계 문서 작성 · 장비 설정 |
 | 실행 파일 `workstyle board` · `workstyle metrics [days]` | 열려 있는 세션의 상태 꼬리표를 한 화면에 (상황판) · 사람 개입 지표 |

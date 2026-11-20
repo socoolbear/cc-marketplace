@@ -6,7 +6,6 @@
 |---|---|
 | 배포 점검 훅 `hooks/enforce-deploy-check.sh` (PreToolUse — Bash · GitHub MCP 머지) | 배포를 일으키는 push · 머지 · workflow 실행을 첫 실행에 점검 목록으로 막고, 다시 실행하면 운영 대상은 확인창을 띄운다 |
 | QA 알림 훅 `hooks/remind-deploy-qa.sh` (PostToolUse — Bash) | 배포 명령 직후 "묻지 않고 직접 QA" 를 알린다 |
-| 세션 표시 훅 `hooks/mark-session.sh` (SessionStart) | 이 세션에 플러그인 훅이 실렸다는 표시를 `${TMPDIR}/claude-plugin-sessions/` 에 남긴다 — 같은 장치를 설정 파일의 훅으로 돌리던 장비가 옮겨 올 때 설정 쪽 훅이 이 표시를 보고 물러난다 |
 | 스킬 `deploy-guard:deploy` | 배포 절차 — 운영 배포 판단, 확인을 받는 것과 받지 않는 것, dev · 운영 점검 목록, 직접 QA, 훅 동작 |
 | 명령 `/deploy-guard:setup` | 장비마다 한 번 — 정책 파일 자리 잡기 |
 

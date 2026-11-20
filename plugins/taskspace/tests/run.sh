@@ -192,6 +192,11 @@ testPlugins() {
   out="$(runTs "${GROUP}" requires 2>&1)"
   checkContains "설치 버전이 숫자가 아님 → 목록에는 표시" "버전 비교 불가" "${out}"
 
+  printf 'plugin odd@m\n' >"${DECLARED}"
+  out="$(runTs "${GROUP}" requires 2>&1)"
+  checkContains "최소 버전 없음 + 설치 버전이 숫자가 아님 (커밋 해시) → ok" " ok" "$(grep -F 'odd@m' <<<"${out}")"
+  checkLacks "최소 버전 없음 + 설치 버전이 숫자가 아님 → 버전 비교 불가가 아님" "버전 비교 불가" "${out}"
+
   printf 'plugin other@m\n' >"${DECLARED}"
   out="$(runTs "${GROUP}" check 2>&1)"
   checkContains "다른 프로젝트 범위로만 설치 → 미설치" "other@m 미설치" "${out}"

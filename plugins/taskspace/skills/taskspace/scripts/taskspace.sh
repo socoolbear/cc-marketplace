@@ -1799,7 +1799,7 @@ requires_entries() {
 }
 
 # 설치 기록에서 플러그인 상태를 뽑는다. 인자는 <이름@마켓> <최소 버전> 쌍. 인자 순서대로 한 줄씩: <대상>␟<상태>␟<설치 버전>
-# 상태: ok · missing · low · unknown (설치 버전을 숫자로 읽을 수 없음). 실패하면 0 이 아닌 종료코드 (호출 쪽이 판정 불가로 처리)
+# 상태: ok · missing · low · unknown (최소 버전이 있는데 설치 버전을 숫자로 읽을 수 없음 — 최소 버전이 없으면 설치만 돼 있으면 ok). 실패하면 0 이 아닌 종료코드 (호출 쪽이 판정 불가로 처리)
 requires_plugin_status() {
   local installed=$1
   shift
@@ -1823,8 +1823,8 @@ requires_plugin_status() {
     | if ($versions | length) == 0 then [$target, "missing", ""]
       else
         ([ $versions[] | {text: ., nums: nums} | select(.nums != null) ] | max_by(.nums | pad)) as $best
-        | if $best == null then [$target, "unknown", $versions[0]]
-          elif $need == "" then [$target, "ok", $best.text]
+        | if $need == "" then [$target, "ok", ($best.text // $versions[0])]
+          elif $best == null then [$target, "unknown", $versions[0]]
           elif ($best.nums | pad) < ($need | nums | pad) then [$target, "low", $best.text]
           else [$target, "ok", $best.text]
           end

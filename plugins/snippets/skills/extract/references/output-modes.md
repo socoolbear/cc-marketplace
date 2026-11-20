@@ -122,7 +122,6 @@ git push
 
 - 제목 줄: `snippets: <slug> 추가` (한국어, 50 자 이내)
 - 본문: 1 줄 — 제목 + 출처 축약 (예: `Laravel Eloquent N+1 회피 패턴 — github.com/owner/repo`)
-- Co-Authored-By 푸터 (글로벌 컨벤션 — `~/.dotfiles/claude/AGENTS.md` 의 commit-and-push 스킬 패턴)
 
 ### 4-4. 최종 확인
 

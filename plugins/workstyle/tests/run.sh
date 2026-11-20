@@ -200,7 +200,7 @@ testDiffAgainstLegacy() {
 
 testHooksJson() {
   local actual
-  local expected='PostToolUse||context-guard.sh|5 PreToolUse|AskUserQuestion|ask-precheck.sh|5 PreToolUse|ExitPlanMode|enforce-plan-review.sh|5 SessionStart||mark-session.sh|5 SessionStart||sync-rules.sh|10 SessionStart|compact|compact-restore.sh|10 Stop||stop-gate.sh|5 Stop||team-cleanup-check.sh|5'
+  local expected='PostToolUse||context-guard.sh|5 PreToolUse|AskUserQuestion|ask-precheck.sh|5 PreToolUse|ExitPlanMode|enforce-plan-review.sh|5 SessionStart||sync-rules.sh|10 SessionStart|compact|compact-restore.sh|10 Stop||stop-gate.sh|5 Stop||team-cleanup-check.sh|5'
 
   actual=$(jq -r '.hooks | to_entries[] | .key as $event | .value[] | (.matcher // "") as $matcher | .hooks[] | "\($event)|\($matcher)|\(.command | capture("hooks/(?<file>[a-z-]+\\.sh)").file)|\(.timeout)"' \
     "${PLUGIN_ROOT}/hooks/hooks.json" | sort | tr '\n' ' ' | sed 's/ $//')
@@ -210,21 +210,6 @@ testHooksJson() {
   else
     fail "hooks.json — 이벤트 · matcher · timeout" "${actual}"
   fi
-}
-
-testMarkSession() {
-  local marker="${WORK}/new/tmp/claude-plugin-sessions/workstyle-abc-123"
-
-  runIn "${WORK}/new" "${PLUGIN_HOOKS}/mark-session.sh" '{"session_id":"abc-123"}'
-
-  if [[ ${RC} == 0 && "$(cat "${marker}" 2>/dev/null)" == "${PLUGIN_ROOT}" ]]; then
-    ok "세션 표시 — 플러그인 폴더 경로를 적는다"
-  else
-    fail "세션 표시 — 플러그인 폴더 경로를 적는다" "rc=${RC} $(cat "${marker}" 2>&1)"
-  fi
-
-  runIn "${WORK}/new" "${PLUGIN_HOOKS}/mark-session.sh" '{"session_id":"../escape"}'
-  [[ ${RC} == 0 && ! -e "${WORK}/new/tmp/escape" ]] && ok "세션 표시 — 이상한 세션 ID 는 무시" || fail "세션 표시 — 이상한 세션 ID 는 무시" "rc=${RC}"
 }
 
 # runSync <HOME> — sync-rules.sh 를 격리한 HOME 에서 돌린다 (설치본 rules/ 대신 시험용 플러그인 폴더를 쓴다)
@@ -418,7 +403,6 @@ main() {
     testDiffAgainstLegacy
   else
     testHooksJson
-    testMarkSession
     testBin
     testBacktest
     testSyncRules
