@@ -1,0 +1,5 @@
+{
+  "name": "deploy-guard",
+  "description": "배포 확인 장치 — 운영 배포를 일으키는 push · 머지 · workflow 실행을 첫 실행에 점검 목록으로 막고 다시 실행하면 확인창을 띄운다 (배포 점검 훅). 배포 명령 뒤에는 직접 QA 를 알린다 (QA 알림 훅). 절차는 deploy 스킬, 대상은 저장소 밖 파일 ~/.config/claude/deploy-targets 에서 읽는다. macOS 전용",
+  "version": "1.0.0"
+}

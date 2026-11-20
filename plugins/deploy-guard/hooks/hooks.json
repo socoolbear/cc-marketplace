@@ -1,0 +1,40 @@
+{
+  "description": "배포 확인 훅 — 운영 배포 명령을 실행 전에 막고 확인창을 띄우며 (배포 점검), 배포 명령 뒤에 직접 QA 를 알린다 (QA 알림)",
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/mark-session.sh\"",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash|mcp__github__merge_pull_request",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/enforce-deploy-check.sh\"",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/remind-deploy-qa.sh\"",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}
