@@ -5,6 +5,9 @@ name: verify
 on:
   push:
   pull_request:
+  schedule:
+    - cron: "0 1 * * 1"   # 매주 월요일 01:00 UTC (한국 10:00) — 러너 이미지 · Claude Code 같은 저장소 밖 변화로 깨진 것을 push 없이도 잡는다
+  workflow_dispatch:
 
 permissions:
   contents: read

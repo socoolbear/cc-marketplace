@@ -4,7 +4,7 @@ socoolbear 의 개인용 Claude Code 플러그인 마켓플레이스. 플러그�
 
 ## 검증 명령 (완료 주장 전 반드시 실행)
 
-`bash scripts/verify.sh` 가 아래 다섯 가지를 한 번에 돈다. push · PR 때 GitHub Actions (`.github/workflows/verify.yml`, macOS 러너) 도 같은 스크립트를 돈다.
+`bash scripts/verify.sh` 가 아래 다섯 가지를 한 번에 돈다. push · PR 때 GitHub Actions (`.github/workflows/verify.yml`, macOS 러너) 도 같은 스크립트를 돈다. 주 1회 (월 10:00 KST) 예약 실행과 손 실행 (`workflow_dispatch`) 도 있다 — 예약 실행이 실패하면 GitHub 가 cron 줄을 마지막으로 고친 사람에게 알린다 (계정의 Actions 알림 설정을 따름). 공개 저장소라 60일 동안 활동이 없으면 GitHub 가 예약을 끈다 (Actions 탭에서 다시 켬). 끄려면 Actions 탭에서 이 workflow 를 Disable.
 
 - 매니페스트 JSON 파싱: `.claude-plugin/marketplace.json` 과 각 `plugins/*/.claude-plugin/plugin.json`
 - 버전 일치: 각 `plugins/<n>/.claude-plugin/plugin.json` 의 `version` == `marketplace.json` 의 동명 플러그인 `version`, 목록과 폴더가 같은지 (예외: `workstyle` 은 두 곳 모두 `version` 을 두지 않는다 — 아래 경계)
