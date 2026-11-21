@@ -19,7 +19,7 @@
 | 플러그인 | 진입점 | 설명 | 출처 |
 |---------|--------|------|------|
 | deploy-guard | 훅 (자동) · 스킬 `deploy` · `/deploy-guard:setup` | 배포 확인 장치 — 운영 배포를 일으키는 push · 머지 · workflow 실행을 첫 실행에 점검 목록으로 막고 다시 실행하면 확인창을 띄운다. 배포 뒤에는 직접 QA 를 알린다. 대상은 저장소 밖 비공개 파일에서 읽는다 | |
-| workstyle | 훅 (자동) · `/workstyle:now` · `/workstyle:handoff` · `/workstyle:setup` · `workstyle board` | 일하는 방식 — 계획 검증 · 질문 전 점검 · 멈춤 점검 (상태 꼬리표) · 컨텍스트 알림 훅, 폴백 서브에이전트, 상황판. 버전 없이 커밋으로 갱신 | |
+| workstyle | 훅 (자동) · `/workstyle:handoff` · `/workstyle:setup` · `workstyle board` | 일하는 방식 — 계획 검증 · 질문 전 점검 · 멈춤 점검 (상태 꼬리표) · 컨텍스트 알림 훅, 폴백 서브에이전트, 상황판. 버전 없이 커밋으로 갱신 | |
 
 ### 부르는 도구
 

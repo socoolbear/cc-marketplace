@@ -21,7 +21,7 @@ argument-hint: "[이름] — 주면 .prompts/HANDOFF-<이름>.md 에 저장 (같
 
 인자: `$ARGUMENTS`
 
-같은 폴더에서 여러 세션이 돌 때 서로 덮어쓰지 않도록 이름을 받는다 (`term-session save --handoff` 가 claude 이름을 넘긴다).
+같은 폴더에서 여러 세션이 돌 때 서로 덮어쓰지 않도록 이름을 받는다.
 
 ---
 

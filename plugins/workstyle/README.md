@@ -11,7 +11,7 @@
 | 팀 정리 `hooks/team-cleanup-check.sh` (Stop) | 일이 끝난 팀이 남아 있으면 알린다 |
 | 취향 규칙 `rules/` + 규칙 맞추기 `hooks/sync-rules.sh` (SessionStart) | 매 세션 실리는 지시문 (`AGENTS.md` · `workflow-table.md` · `coding-style.md`) 과 그것이 가리키는 문서 (`docs/`). 훅이 고정 폴더 `~/.claude/workstyle` 에 사본을 맞추고, 전역 지시 파일이 거기서 불러온다 |
 | 에이전트 `workstyle:impl-dev` · `workstyle:qa-runner` | 프로젝트 전용 에이전트가 없을 때 쓰는 폴백 (구현 · 시험 실행) |
-| 명령 `/workstyle:now` · `/workstyle:handoff` · `/workstyle:setup` | 진행 상황 보고 후 이어가기 · 인계 문서 작성 · 장비 설정 |
+| 명령 `/workstyle:handoff` · `/workstyle:setup` | 인계 문서 작성 · 장비 설정 |
 | 실행 파일 `workstyle board` · `workstyle metrics [days]` | 열려 있는 세션의 상태 꼬리표를 한 화면에 (상황판) · 사람 개입 지표 |
 | 실행 파일 `workstyle backtest collect · judge · report` (`bin/ask-backtest`) | 질문 대조 — 과거 질문 창의 질문을 모델이 세 번 따로 고르게 하고 사용자의 실제 답과 견준다. 질문을 사람 대신 승인하는 판정 방식을 실제 질문에 붙이기 전에 재는 용도 (아래 「질문 대조」) |
 
