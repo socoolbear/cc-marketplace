@@ -240,19 +240,6 @@ testApprovedSessions() {
   fi
 }
 
-testNightMode() {
-  local night_dir="${WORK}/home/.local/state/claude-loop/night"
-
-  mkdir -p "${night_dir}"
-  newSession
-  touch "${night_dir}/${SESSION}"
-  check 'git push origin main'
-  expect "야간 모드 — 운영 push 는 처음부터 확인창" isAsk '[야간 모드 배포 차단]'
-  check 'git push origin dev'
-  expect "야간 모드 — dev push 도 확인창" isAsk '[야간 모드 배포 차단]'
-  rm -rf "${WORK}/home/.local"
-}
-
 testEmptyMachine() {
   # 정책 파일이 하나도 없는 장비 — CLAUDE_DEPLOY_TARGETS 를 주지 않고 빈 HOME 의 기본 경로를 읽게 한다
   newSession
@@ -315,7 +302,6 @@ main() {
   testProdCommand
   testBrokenTargets
   testApprovedSessions
-  testNightMode
   testEmptyMachine
   testRemind
 

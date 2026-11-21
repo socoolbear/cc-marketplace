@@ -5,7 +5,7 @@
 | 구성 | 하는 일 |
 |---|---|
 | 계획 검증 `hooks/enforce-plan-review.sh` (PreToolUse — ExitPlanMode) | 최신 계획서에 「적대적 검증」 절이 없으면 계획 승인 요청을 막는다 |
-| 질문 전 점검 `hooks/ask-precheck.sh` (PreToolUse — AskUserQuestion) | 세션의 첫 질문과 실행 승인 질문을 막고 「꼭 묻는 목록」 으로 걸러내게 한다. 야간 모드에서는 매번 막는다. 통과한 질문은 `ask-classify.sh` 가 분류해 기록한다 |
+| 질문 전 점검 `hooks/ask-precheck.sh` (PreToolUse — AskUserQuestion) | 세션의 첫 질문과 실행 승인 질문을 막고 「꼭 묻는 목록」 으로 걸러내게 한다. 통과한 질문은 `ask-classify.sh` 가 분류해 기록한다 |
 | 멈춤 점검 `hooks/stop-gate.sh` (Stop) | 상태 꼬리표 (지금 / 사용자 몫 / 다음) · 본문 길이 · 묻는 말로 끝내기를 점검하고, 꼬리표를 상황판 파일로 남긴다 |
 | 컨텍스트 알림 `hooks/context-guard.sh` (PostToolUse) · compact 복원 `hooks/compact-restore.sh` (SessionStart — compact) | 컨텍스트가 차면 진행 문서 (`.prompts/PROGRESS-<세션 앞 8자>.md`) 를 쓰게 알리고, compact 뒤 그 문서를 다시 싣는다 |
 | 팀 정리 `hooks/team-cleanup-check.sh` (Stop) | 일이 끝난 팀이 남아 있으면 알린다 |
@@ -61,7 +61,6 @@ macOS (`md5` · `stat -f`), `jq`, `git`. 버전은 따로 올리지 않습니다
 | `stop-gate/{mode,owed-mode,next-mode,length-mode}` · `stop-gate/log.jsonl` | 사용자 · 멈춤 점검 | 멈춤 점검 |
 | `ask-classify/{judge,log.jsonl}` | 사용자 · 질문 분류 | 질문 분류 · 지표 |
 | `disabled` | 사용자 | 멈춤 점검 |
-| `night/…` | 없음 (야간 루프를 내린 뒤로 쓰는 쪽이 없다) | 질문 전 점검 (야간 모드 판정 — 지금은 늘 낮으로 본다) |
 
 ## 질문 대조
 

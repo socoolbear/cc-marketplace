@@ -3,15 +3,13 @@
 # 근거: 대형 태스크 하나의 14일 질문 229건 중 실행 승인 37건 · 선례로 답이 나오는 기술 선택 93건 · 반복 약 19건 (2026-11-17 분석).
 # 기준은 ~/.claude/workstyle/docs/workflow.md §7.
 #
-#   - 낮: 세션의 첫 질문만 1회 차단하고 점검 목록을 보여준다. 걸러낸 뒤 다시 부르면 통과
+#   - 세션의 첫 질문만 1회 차단하고 점검 목록을 보여준다. 걸러낸 뒤 다시 부르면 통과
 #   - 실행 승인 질문 (커밋·push·PR·dev 배포 낱말이 있고 운영 낱말이 없는 질문) 은 매번 차단 — 세션당 1회 점검만으로는
 #     며칠 가는 세션에서 "커밋할까요?" 가 다시 나갔다 (2026-11-18 집계)
-#   - 야간 모드 (claude-loop 가 일을 맡긴 세션): 매번 차단 — 밤에는 묻지 않고 질문 대기열에 남긴다
 #   - AGENT_BOT=1 (Slack 봇 세션): 건너뛴다
 #   - 통과시키는 질문은 ask-classify.sh 에 넘겨 Jev 분류와 함께 기록한다 (기록만, 2026-11-18 사용자 결정)
 set -uo pipefail
 
-NIGHT_DIR="${HOME}/.local/state/claude-loop/night"
 STATE_DIR="${TMPDIR:-/tmp}/claude-ask-precheck"
 EXECUTION_WORDS='커밋|commit|푸시|push|PR ?[을를]? ?(올|만들|생성)|dev ?(에 )?배포'
 PRODUCTION_WORDS='운영|prod|master|main|재시작|[Ss]ync|롤백|force|삭제'
@@ -24,16 +22,6 @@ input=$(cat)
 session_id=$(jq -r '.session_id // empty' <<<"${input}" 2>/dev/null) || exit 0
 
 [[ -n "${session_id}" ]] || exit 0
-
-if [[ -f "${NIGHT_DIR}/${session_id}" ]] \
-  || [[ "${CLAUDE_NIGHT:-}" == "1" && -f "${NIGHT_DIR}/active" && ! -f "${NIGHT_DIR}/released/${session_id}" ]]; then
-  cat >&2 <<'EOF'
-[야간 질문 금지] 밤에는 사용자에게 묻지 않는다.
-- 태스크 notes.md 의 「질문 대기열」 에 질문 / 추천안 / 근거 / 상태(대기) 로 남기고, 그 질문과 무관한 일을 계속한다
-- 더 할 일이 없으면 진행 문서의 「야간 결과」 에 멈춘 이유를 적고 끝낸다
-EOF
-  exit 2
-fi
 
 question_text=$(jq -r '[.tool_input.questions[]? | (.header // ""), (.question // "")] | join(" ")' <<<"${input}" 2>/dev/null) || question_text=""
 

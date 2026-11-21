@@ -31,7 +31,6 @@ macOS (`md5`), `jq`, `git`, `gh`.
 |---|---|
 | `AGENT_BOT=1` (봇 세션) | 운영 대상도 다시 실행하면 통과 — 메신저의 사용자 본인 요청을 확인으로 본다. `prod-command` 는 확인창 |
 | `CLAUDE_DEPLOY_APPROVED_SESSION` 에 값이 있음 (봇이 쓰레드에 연결해 띄운 세션) | 위와 같다. repo 를 확정하지 못한 대상은 확인창 |
-| 야간 모드 (`~/.local/state/claude-loop/night/<세션 ID>` 또는 `CLAUDE_NIGHT=1` — `night-loop` 플러그인과의 약속) | dev 를 포함해 처음부터 확인창 |
 | `CLAUDE_DEPLOY_TARGETS` · `CLAUDE_DEPLOY_QA_PATTERNS` | 정책 파일 경로 재정의 (시험용) |
 
 첫 실행을 기억하는 상태 파일은 `${TMPDIR}/claude-deploy-check/` 에 세션 · 대상별로 생깁니다.

@@ -18,14 +18,13 @@
 #   - 봇이 Slack 쓰레드에 연결해 띄운 태스크 세션 (CLAUDE_DEPLOY_APPROVED_SESSION 에 값이 있음) 도 운영을 다시 실행하면 통과한다
 #     (2026-11-20 사용자 결정 — Slack 에서 대상을 짚어 요청한 뒤 터미널 확인창까지 눌러야 해 확인이 두 번이었다).
 #     그 세션의 입력은 허용 사용자 본인의 Slack 답글과 터미널 입력뿐이다. repo 미확인과 prod-command 는 이 세션도 확인창을 띄운다
-#   - 야간 모드 (claude-loop 가 일을 맡긴 세션) 는 운영·dev·미분류 모두 처음부터 ask — 밤에는 dev 배포 점검을 할 수 없다
 #   - prod-command 에 걸린 명령은 점검 목록 없이 처음부터 ask (2026-11-18 사용자 결정) — 변경 내용 보고는 그 repo 의 배포 절차가 맡는다.
 #     봇 세션도 예외 없이 ask 라 자동 거부된다 — 자리에 사람이 없을 때 git 밖 운영 배포가 나가지 않게
 #
 # 한계: 명령 문자열만 보므로 판단은 deploy 스킬의 원칙을 따른다.
 # - push 는 git 이 명령 자리 (아래 COMMAND_START, VAR=값 접두 허용) 에 올 때만 잡는다.
 #   브랜치가 명령에 없거나 HEAD 면 cwd 의 현재 브랜치로 정한다. --all · 셸 래퍼 (bash -c 등) 는 잡히지 않고,
-#   커밋 메시지·heredoc 안의 같은 문자열은 잡힐 수 있다. 야간 모드의 래퍼·우회 경로는 night-guard.sh 가 막는다
+#   커밋 메시지·heredoc 안의 같은 문자열은 잡힐 수 있다
 # - workflow 실행은 입력값이 production·prod 면 운영, 아니면 development · stage · 비공개 dev-workflow 단어가 명시된 것만 dev, 나머지는 운영으로 본다
 # - ArgoCD Sync 는 브라우저로 해서 잡히지 않는다
 set -euo pipefail
@@ -185,16 +184,6 @@ resolve_push_dir() {
   fi
 
   return 0
-}
-
-# claude-loop 가 일을 맡긴 세션인가 — 판정은 night-guard.sh 와 같다
-# (기존 세션은 상태 파일, 새로 연 세션은 CLAUDE_NIGHT=1 이고 사람이 돌아와 풀지 않았을 때)
-is_night_mode() {
-  local night_dir="${HOME}/.local/state/claude-loop/night"
-
-  [[ -n "${session_id}" ]] || return 1
-  [[ -f "${night_dir}/${session_id}" ]] \
-    || [[ "${CLAUDE_NIGHT:-}" == "1" && -f "${night_dir}/active" && ! -f "${night_dir}/released/${session_id}" ]]
 }
 
 # 사용자 본인의 Slack 요청을 운영 배포 확인으로 보는 세션인가 — 봇 세션, 봇이 Slack 쓰레드에 연결해 띄운 태스크 세션
@@ -410,10 +399,6 @@ is_prod_command && prod_command_hit=1
 
 if [[ "${kind}" == "none" && -z "${prod_command_hit}" ]]; then
   exit 0
-fi
-
-if is_night_mode; then
-  emit_ask "[야간 모드 배포 차단] ${label:-prod-command} → ${repo:-?}:${branch:-?} (${kind}). 밤에는 dev·운영 배포를 하지 않는다 — 아침에 사용자가 판단"
 fi
 
 # prod-command 만 걸렸으면 점검 목록 없이 바로 확인창. 같은 명령에 git 운영 배포도 있으면 아래 운영 흐름 (첫 실행 점검 목록) 을 탄다

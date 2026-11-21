@@ -112,8 +112,6 @@ eachRoot() {
 writePlan() { printf '%s\n' "$@" >"${ROOT}/proj/.claude/plan/plan.md"; }
 removePlan() { rm -f "${ROOT}/proj/.claude/plan/plan.md"; }
 writeProgress() { printf 'session: prog1234\n## 목표\n시험\n' >"${ROOT}/proj/.prompts/PROGRESS-prog1234.md"; }
-writeNight() { mkdir -p "${ROOT}/home/.local/state/claude-loop/night" && touch "${ROOT}/home/.local/state/claude-loop/night/$1"; }
-clearNight() { rm -rf "${ROOT}/home/.local/state/claude-loop/night"; }
 writeDisabled() { mkdir -p "${ROOT}/home/.local/state/claude-loop" && touch "${ROOT}/home/.local/state/claude-loop/disabled"; }
 writeGateMode() { mkdir -p "${ROOT}/home/.local/state/claude-loop/stop-gate" && echo "$1" >"${ROOT}/home/.local/state/claude-loop/stop-gate/mode"; }
 clearGateMode() { rm -f "${ROOT}/home/.local/state/claude-loop/stop-gate/mode"; }
@@ -141,9 +139,6 @@ testAskPrecheck() {
   check "질문 점검 — 다시 물으면 통과" ask-precheck 0 '' "$(askInput ask-1 '방식' '어느 방식으로 할까요?')"
   check "질문 점검 — 실행 승인 질문은 차단" ask-precheck 2 '[실행 승인 질문 금지]' "$(askInput ask-1 '커밋' '커밋할까요?')"
   check "질문 점검 — 봇 세션은 건너뜀" ask-precheck 0 '' "$(askInput ask-2 '방식' '어느 방식으로 할까요?')" AGENT_BOT=1
-  eachRoot writeNight ask-3
-  check "질문 점검 — 야간 모드는 차단" ask-precheck 2 '' "$(askInput ask-3 '방식' '어느 방식으로 할까요?')"
-  eachRoot clearNight
   check "질문 점검 — 깨진 입력" ask-precheck 0 '' 'not json'
 }
 
