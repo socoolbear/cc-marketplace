@@ -92,8 +92,18 @@ classifyWithJev() {
 }
 
 # 설정 · 훅 · MCP · 도구를 모두 뺀 Claude 한 번. 분류 이름 하나를 출력한다 (못 알아들으면 빈 줄)
+# timeout 명령이 없는 장비 (옛 macOS 등) 에서도 판정이 조용히 0건이 되지 않게, 없으면 시간 제한 없이 부른다
+runWithTimeout() {
+  if command -v timeout >/dev/null 2>&1; then
+    timeout "${LLM_TIMEOUT}" "$@"
+    return
+  fi
+
+  "$@"
+}
+
 askLlmOnce() {
-  timeout "${LLM_TIMEOUT}" claude -p "${1}" --model "${LLM_MODEL}" --no-session-persistence --tools "" --disable-slash-commands \
+  runWithTimeout claude -p "${1}" --model "${LLM_MODEL}" --no-session-persistence --tools "" --disable-slash-commands \
       --system-prompt "You are a classifier. Reply with exactly one label and nothing else." \
       --strict-mcp-config --mcp-config '{"mcpServers":{}}' --setting-sources "" --output-format json </dev/null 2>/dev/null \
     | jq -r '.result // "" | ascii_downcase' 2>/dev/null \
