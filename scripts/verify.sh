@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# AGENTS.md 「검증 명령」 네 가지를 한 번에 돈다. 로컬과 GitHub Actions 가 같이 쓴다.
+# AGENTS.md 「검증 명령」 다섯 가지를 한 번에 돈다. 로컬과 GitHub Actions 가 같이 쓴다.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -57,6 +57,69 @@ for item in broken:
     print(item)
 
 sys.exit(1 if broken else 0)
+PY
+
+echo "== 임시 폴더 지우기 보호"
+# mktemp 로 만든 경로를 rm -r 하는 셸 파일은 mktemp 실패를 막아야 한다. 막지 않으면 빈 값이 되어
+# 지금 폴더 (저장소) 를 지운다 (2026-11-21 시험 스크립트에서 실제 발생). 통과 조건 중 하나:
+#   ⓐ 대입 줄에 || 실패 처리  ⓑ 다음 3줄 안에 -n/-z "${X}" 또는 ${X:?} 검사  ⓒ set -e 파일의 단순 대입 X=$(mktemp …)
+# 한계: rm 줄에 직접 나온 변수만 본다. 파생 변수 (ROOT="${X}/…") 를 지우는 줄은 추적하지 않는다.
+python3 - <<'PY' || fail "임시 폴더 지우기 보호"
+import re, subprocess, sys
+
+tracked = subprocess.run(["git", "ls-files"], capture_output=True, text=True).stdout.split()
+rm_pattern = re.compile(r"\brm\s+-[A-Za-z]*r[A-Za-z]*\b(.*)")
+variable_pattern = re.compile(r"\$\{?([A-Za-z_][A-Za-z0-9_]*)")
+problems = []
+
+
+def is_shell(path):
+    if path.endswith(".sh"):
+        return True
+
+    if "/bin/" not in path and "/hooks/" not in path:
+        return False
+
+    try:
+        return re.match(r"#!.*\b(ba|z)?sh\b", open(path, encoding="utf-8").readline()) is not None
+    except (OSError, UnicodeDecodeError):
+        return False
+
+
+def is_guarded(lines, index, name, strict_errexit):
+    assignment = lines[index]
+
+    if "||" in assignment:
+        return True
+
+    check = re.compile(r"-[nz]\s+\"?\$\{?" + name + r"\}?\"?|\$\{" + name + r":\?")
+
+    if any(check.search(line) for line in lines[index + 1:index + 4]):
+        return True
+
+    simple = re.compile(r"\b" + name + r"=\"?\$\(mktemp[^()]*\)\"?\s*(#.*)?$")
+
+    return strict_errexit and simple.search(assignment.strip()) is not None
+
+
+for path in filter(is_shell, tracked):
+    try:
+        lines = open(path, encoding="utf-8").read().splitlines()
+    except (OSError, UnicodeDecodeError):
+        continue
+
+    strict_errexit = any(re.match(r"\s*set\s+-[a-z]*e", line) for line in lines)
+    removed = {name for line in lines for match in rm_pattern.finditer(line) for name in variable_pattern.findall(match.group(1))}
+
+    for name in sorted(removed):
+        for index, line in enumerate(lines):
+            if re.search(r"\b" + name + r"=", line) and "mktemp" in line and not is_guarded(lines, index, name, strict_errexit):
+                problems.append(f"{path}:{index + 1}: {name} 를 mktemp 로 만들고 rm -r 하는데 실패 처리가 없다")
+
+for problem in problems:
+    print(problem)
+
+sys.exit(1 if problems else 0)
 PY
 
 echo "== 플러그인 시험"

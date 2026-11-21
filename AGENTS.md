@@ -4,11 +4,12 @@ socoolbear 의 개인용 Claude Code 플러그인 마켓플레이스. 플러그�
 
 ## 검증 명령 (완료 주장 전 반드시 실행)
 
-`bash scripts/verify.sh` 가 아래 네 가지를 한 번에 돈다. push · PR 때 GitHub Actions (`.github/workflows/verify.yml`, macOS 러너) 도 같은 스크립트를 돈다.
+`bash scripts/verify.sh` 가 아래 다섯 가지를 한 번에 돈다. push · PR 때 GitHub Actions (`.github/workflows/verify.yml`, macOS 러너) 도 같은 스크립트를 돈다.
 
 - 매니페스트 JSON 파싱: `.claude-plugin/marketplace.json` 과 각 `plugins/*/.claude-plugin/plugin.json`
 - 버전 일치: 각 `plugins/<n>/.claude-plugin/plugin.json` 의 `version` == `marketplace.json` 의 동명 플러그인 `version`, 목록과 폴더가 같은지 (예외: `workstyle` 은 두 곳 모두 `version` 을 두지 않는다 — 아래 경계)
 - 스킬 내부 링크 실재: 각 `skills/*/` 아래 마크다운의 상대 링크가 실재하는지
+- 임시 폴더 지우기 보호: `mktemp` 로 만든 경로를 `rm -r` 하는 셸 파일이 `mktemp` 실패를 막는지 (빈 값이면 저장소를 지운다)
 - 플러그인 시험: `plugins/*/tests/run.sh`
 
 ## 경계
@@ -36,6 +37,8 @@ socoolbear 의 개인용 Claude Code 플러그인 마켓플레이스. 플러그�
 ## 진화
 
 플러그인 개선·deprecate·정기 점검은 repo 전용 스킬 `/evolve` (`.claude/skills/evolve/`) 로 한다. 판정 이력은 `docs/evolution/<플러그인>.md` — 플러그인을 고치기 전에 읽는다.
+
+저장소 상태 점검은 `bash scripts/health.sh` (최근 CI · 지워진 이름 참조, 읽기 전용) 이고 `--verify` 를 주면 검증 명령도 돈다. 출력은 `[FAIL]`·`[WARN]`·`[INFO]` 줄과 마지막 `FAIL n건` 이다 — 다른 저장소의 점검이 이 형식으로 불러 쓰므로 형식을 바꾸면 그쪽도 함께 본다.
 
 ## 문서 유지 규칙
 

@@ -73,6 +73,8 @@ description: "이 마켓플레이스의 플러그인을 외부 신호 (공식 �
 
 플러그인마다 아래를 훑고 **후보만** 보고한다. 파일은 쓰지 않는다. 얕은 clone (`git rev-parse --is-shallow-repository` 가 `true`) 이면 먼저 `git fetch --unshallow` 하고, 안 되면 커밋 날짜를 쓰는 점검은 확인 불가로 적는다.
 
+먼저 `bash scripts/health.sh --verify` 를 돌린다 — 검증 명령 · 최근 CI · 지워진 이름 참조를 한 번에 내고, 그 `[FAIL]`·`[WARN]` 줄이 아래 표 마지막 두 행의 근거다 (같은 스크립트를 개인 설정 저장소의 점검이 옵션 없이 불러 쓴다).
+
 | 점검 | 후보 판정 |
 |---|---|
 | 공식 기능과 겹치는가 ([`references/sources.md`](references/sources.md) 공식 기능). 결정 기록에 같은 항목이 기각·보류로 있으면 제외 | deprecate |
@@ -80,9 +82,10 @@ description: "이 마켓플레이스의 플러그인을 외부 신호 (공식 �
 | 결정 기록의 보류 건 중 재검토 조건이 충족됐는가 | 그 보류 건 |
 | 결정 기록이 있는 플러그인에서, 마지막 회차 이후 동작을 바꾼 커밋이 있는데 eval 이 없고 기록에 생략 사유도 없는가 (기록이 없으면 이 점검은 건너뛴다) | 반영 (eval) |
 | 마지막 커밋 (`git log -1 --format=%cs -- plugins/<n> docs/evolution/<n>.md` — 기각만 하고 끝난 회차도 기준이 되도록 기록 파일 포함) 이후 Claude Code CHANGELOG 에 추가된 줄 중 플러그인·스킬·명령 이름이 들어간 줄이 있는가. CHANGELOG 에는 날짜가 없으므로 기간은 git 이력으로 구한다: `git clone --filter=blob:none --no-checkout --shallow-since=<가장 이른 기준일 - 30일> https://github.com/anthropics/claude-code` (기준일 당일로 자르면 기준 커밋이 빠진다) 후 `git log -1 --format=%H --until=<날짜> -- CHANGELOG.md` 로 기준 커밋을 찾아 `git diff <커밋> HEAD -- CHANGELOG.md` 의 추가 줄을 본다 (GitHub API 는 클라우드 루틴에서 막힌다). 이름이 일반 단어 (`resume`·`extract`·`sessions` 등) 면 줄을 읽고 실제로 관련 있을 때만 올린다 | evolve 권장 |
-| repo 검증 명령 실패 (JSON·버전 일치·링크) | 모순 해결 |
+| `hooks/`·`bin/`·`skills/*/scripts/` 에 코드가 있는데 `tests/run.sh` 가 없는가. 결정 기록에 시험을 두지 않는 이유가 있으면 제외 | 반영 (시험) |
+| `health.sh` 의 검증 명령 · CI 실패 (JSON·버전 일치·링크·임시 폴더 보호·시험), 지워진 플러그인이나 없는 스킬을 가리키는 참조 | 모순 해결 |
 
-보고는 위 표의 순서 (deprecate → 미사용 제거 → 보류 재검토 → eval → CHANGELOG → 검증 실패) 로 상위 5건을 표로: `플러그인 | 후보 판정 | 근거 | 다음 행동 (evolve <n>)`. 후보가 없으면 "후보 없음" 한 줄.
+보고는 위 표의 순서 (deprecate → 미사용 제거 → 보류 재검토 → eval → CHANGELOG → 시험 없음 → 검증 실패 · 참조) 로 상위 5건을 표로: `플러그인 | 후보 판정 | 근거 | 다음 행동 (evolve <n>)`. 후보가 없으면 "후보 없음" 한 줄.
 
 **무인 실행** (정기 루틴) 이면 질문하지 않는다. 실행 프롬프트가 보고 채널을 지정하면 그곳으로, 지정이 없으면 최종 응답 본문이 보고다. "후보 없음" 도 반드시 보고한다 (루틴이 돌았다는 확인). 세션 도구 목록·auto-memory·대화 기록 (사용 세션 수) 처럼 그 환경에서 볼 수 없는 신호는 "확인 불가" 로 적는다.
 
