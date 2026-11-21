@@ -15,7 +15,9 @@ readonly HOOK_NAMES=(enforce-plan-review ask-precheck ask-classify stop-gate con
 LEGACY_DIR=""
 [[ "${1:-}" == "--legacy" ]] && LEGACY_DIR="${2:?--legacy 뒤에 옮기기 전 스크립트 폴더}"
 
-readonly WORK="$(cd "$(mktemp -d)" && pwd -P)"
+# mktemp 이 실패하면 cd "" 가 지금 폴더에 남아 정리 단계가 저장소를 지운다 — 빈 값이면 바로 멈춘다
+readonly WORK="$(tmpDir="$(mktemp -d)" && [[ -n "${tmpDir}" ]] && cd "${tmpDir}" && pwd -P)"
+[[ -n "${WORK}" ]] || { echo "임시 폴더를 만들지 못했다 (mktemp)" >&2; exit 1; }
 trap 'rm -rf "${WORK}"' EXIT
 
 passed=0

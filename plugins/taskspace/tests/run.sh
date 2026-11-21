@@ -8,7 +8,9 @@ set -uo pipefail
 
 readonly PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 readonly TS="${PLUGIN_ROOT}/skills/taskspace/scripts/taskspace.sh"
-readonly SANDBOX="$(cd "$(mktemp -d)" && pwd -P)"
+# mktemp 이 실패하면 cd "" 가 지금 폴더에 남아 정리 단계가 저장소를 지운다 — 빈 값이면 바로 멈춘다
+readonly SANDBOX="$(tmpDir="$(mktemp -d)" && [[ -n "${tmpDir}" ]] && cd "${tmpDir}" && pwd -P)"
+[[ -n "${SANDBOX}" ]] || { echo "임시 폴더를 만들지 못했다 (mktemp)" >&2; exit 1; }
 readonly FAKE_HOME="${SANDBOX}/home"
 readonly FAKE_CONFIG="${SANDBOX}/config"
 readonly FAKE_BIN="${SANDBOX}/fakebin"
