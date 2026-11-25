@@ -131,13 +131,14 @@ build_herdr_name() {
     printf '%s' "${herdr_name}"
 }
 
-# Herdr 터미널은 이 세션이 아니라 herdr-core 서버의 환경을 물려받으므로 넘길 변수를 env 로 명령에 싣는다
+# Herdr 터미널은 이 세션이 아니라 herdr-core 서버의 환경을 물려받으므로 넘길 변수를 env 로 명령에 싣는다.
+# PATH 는 늘 싣는다 — 서버의 PATH 는 시스템 경로뿐이라 node 등으로 도는 사용자 훅이 command not found 로 실패하고 그대로 통과된다
 open_herdr_terminal() {
-    local env_pairs=()
+    local env_pairs=("PATH=${PATH}")
     local env_name
 
     for env_name in ${env_names[@]+"${env_names[@]}"}; do
-        if [[ -n "${!env_name:-}" ]]; then
+        if [[ "${env_name}" != "PATH" && -n "${!env_name:-}" ]]; then
             env_pairs+=("${env_name}=${!env_name}")
         fi
     done
