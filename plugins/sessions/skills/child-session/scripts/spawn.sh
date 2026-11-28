@@ -4,16 +4,19 @@
 # 부모 pane 말고 다른 pane 이 그 window 에 이미 MAX_SIDE_PANES 개면 현재 tmux 세션의 새 window 로 띄운다.
 # 첫 지시는 이 스크립트가 만든다 (자식 규약 child.md 와 브리프의 절대 경로, 부모 주소).
 # 사용: spawn.sh --parent <부모 이름> [--parent-ref <ref>] --suffix <접미사> --brief <브리프 파일> [--cwd <디렉토리>]
-#                [--resume <세션 ID>] [--window] [--env NAME]... [--flag <claude 인자>]... [-- <덧붙일 지시>]
+#                [--resume <세션 ID>] [--window] [--dry-run] [--env NAME]... [--flag <claude 인자>]... [-- <덧붙일 지시>]
 #   --resume: 새로 띄우지 않고 닫아 둔 자식 세션을 그 세션 ID 로 다시 연다 (--cwd 는 그 세션이 떴던 디렉토리)
 #   --window: pane 수와 상관없이 새 window 로 띄운다 (Herdr 에서는 쓰이지 않는다)
+#   --dry-run: 띄우지 않고 실행할 claude 명령만 출력한다
+# 권한 플래그 (--dangerously-skip-permissions · --allow-dangerously-skip-permissions · --permission-mode) 는
+# 부모 claude 프로세스의 실행 인자에서 읽어 붙이고, --flag 로 들어온 권한 플래그는 버린다 (부모를 못 찾으면 --flag 그대로).
 # 출력: place=<pane|window> window=<@N> pane=<%N> name=<세션 이름> cwd=<경로>
 #       Herdr 면 place=herdr terminal=<터미널 주소> name=<세션 이름> cwd=<경로>
 # 종료코드: 2 인자 오류 · 3 tmux·Herdr 터미널 밖 · 4 재개할 대화 기록 없음 · 5 pane·window·터미널 생성 실패
 set -euo pipefail
 
 usage() {
-    echo "사용: spawn.sh --parent <부모 이름> [--parent-ref <ref>] --suffix <접미사> --brief <브리프 파일> [--cwd <디렉토리>] [--resume <세션 ID>] [--window] [--env NAME]... [--flag <claude 인자>]... [-- <덧붙일 지시>]" >&2
+    echo "사용: spawn.sh --parent <부모 이름> [--parent-ref <ref>] --suffix <접미사> --brief <브리프 파일> [--cwd <디렉토리>] [--resume <세션 ID>] [--window] [--dry-run] [--env NAME]... [--flag <claude 인자>]... [-- <덧붙일 지시>]" >&2
     exit 2
 }
 
@@ -24,6 +27,7 @@ brief=""
 cwd=""
 resume_id=""
 force_window=""
+dry_run=""
 env_names=()
 flags=()
 
@@ -35,6 +39,12 @@ while [[ $# -gt 0 ]]; do
 
     if [[ "$1" == "--window" ]]; then
         force_window="yes"
+        shift
+        continue
+    fi
+
+    if [[ "$1" == "--dry-run" ]]; then
+        dry_run="yes"
         shift
         continue
     fi
@@ -107,16 +117,102 @@ child_rules="$(cd "$(dirname "${BASH_SOURCE[0]}")/../references" && pwd)/child.m
 name="${parent}-${suffix}"
 parent_address="${parent}${parent_ref:+ [${parent_ref}]}"
 
+# 부모 claude 프로세스 PID — Claude Code 가 도구 셸에 주는 $CLAUDE_PID, 없으면 조상 프로세스에서 이름이 claude 인 것
+find_parent_claude_pid() {
+    local pid="${CLAUDE_PID:-}"
+    local depth=0
+
+    if [[ -n "${pid}" ]] && ps -p "${pid}" >/dev/null 2>&1; then
+        printf '%s' "${pid}"
+        return
+    fi
+
+    pid="${PPID}"
+
+    while [[ -n "${pid}" && "${pid}" -gt 1 && "${depth}" -lt 20 ]]; do
+        if [[ "$(basename "$(ps -o comm= -p "${pid}" 2>/dev/null)")" == "claude" ]]; then
+            printf '%s' "${pid}"
+            return
+        fi
+
+        pid="$(ps -o ppid= -p "${pid}" 2>/dev/null | tr -d ' ')"
+        depth=$((depth + 1))
+    done
+}
+
+# 부모 claude 의 실행 인자에서 권한 플래그만 골라 permission_args 에 담는다. 첫 지시 앞의 -- 에서 멈춘다 (지시 본문의 글자를 플래그로 읽지 않게)
+read_parent_permission_args() {
+    local parent_args=()
+    local token
+    local want_value=""
+
+    read -r -a parent_args <<< "$(ps -ww -o args= -p "$1" 2>/dev/null)" || true
+
+    for token in ${parent_args[@]+"${parent_args[@]}"}; do
+        if [[ -n "${want_value}" ]]; then
+            permission_args+=(--permission-mode "${token}")
+            want_value=""
+            continue
+        fi
+
+        case "${token}" in
+            --) break ;;
+            --dangerously-skip-permissions | --allow-dangerously-skip-permissions | --permission-mode=*) permission_args+=("${token}") ;;
+            --permission-mode) want_value="yes" ;;
+        esac
+    done
+}
+
+# --flag 로 들어온 권한 플래그를 버린다 — 부모 대화에 남은 낡은 값이 부모의 실제 모드를 덮지 않게
+drop_permission_flags() {
+    local kept=()
+    local flag
+    local skip_value=""
+
+    for flag in ${flags[@]+"${flags[@]}"}; do
+        if [[ -n "${skip_value}" ]]; then
+            skip_value=""
+            continue
+        fi
+
+        case "${flag}" in
+            --dangerously-skip-permissions | --allow-dangerously-skip-permissions | --permission-mode=*) continue ;;
+            --permission-mode) skip_value="yes"; continue ;;
+        esac
+
+        kept+=("${flag}")
+    done
+
+    flags=(${kept[@]+"${kept[@]}"})
+}
+
+permission_args=()
+parent_claude_pid="$(find_parent_claude_pid)"
+
+if [[ -n "${parent_claude_pid}" ]]; then
+    read_parent_permission_args "${parent_claude_pid}"
+    drop_permission_flags
+    echo "권한 플래그: ${permission_args[*]:-없음 (settings 기본값)} — 부모 claude (PID ${parent_claude_pid}) 실행 인자에서 읽음" >&2
+else
+    echo "부모 claude 프로세스를 찾지 못해 --flag 의 권한 플래그를 그대로 씁니다" >&2
+fi
+
 # --add-dir 처럼 값을 여러 개 받는 플래그가 첫 지시를 먹지 않도록 -- 로 끊는다
 if [[ -n "${resume_id}" ]]; then
     prompt="child-session 자식 세션 ${name} 을 후속 문의로 다시 열었습니다. 부모는 ${parent_address} 입니다 (보고할 때 이 주소 그대로). ${child_rules} 와 브리프 ${brief_path} 를 다시 읽고 따르세요.${extra:+ ${extra}}"
-    claude_args=(claude --resume "${resume_id}" -n "${name}" ${flags[@]+"${flags[@]}"} -- "${prompt}")
+    claude_args=(claude --resume "${resume_id}" -n "${name}" ${flags[@]+"${flags[@]}"} ${permission_args[@]+"${permission_args[@]}"} -- "${prompt}")
 else
     prompt="child-session 자식 세션 ${name} 입니다. 부모는 ${parent_address} 입니다 (보고할 때 이 주소 그대로). 먼저 ${child_rules} 와 브리프 ${brief_path} 를 읽고 따르세요.${extra:+ ${extra}}"
-    claude_args=(claude -n "${name}" ${flags[@]+"${flags[@]}"} -- "${prompt}")
+    claude_args=(claude -n "${name}" ${flags[@]+"${flags[@]}"} ${permission_args[@]+"${permission_args[@]}"} -- "${prompt}")
 fi
 
 cmd="$(printf '%q ' "${claude_args[@]}"); exec ${SHELL:-/bin/sh}"
+
+if [[ -n "${dry_run}" ]]; then
+    printf '%q ' "${claude_args[@]}"
+    printf '\n'
+    exit 0
+fi
 
 # Herdr 터미널 이름: 소문자·숫자·-·_ 32자까지. 넘으면 앞을 남기고 전체 이름의 해시를 붙인다
 build_herdr_name() {

@@ -1,5 +1,5 @@
 {
   "name": "sessions",
-  "version": "1.8.0",
+  "version": "1.9.0",
   "description": "Claude Code 세션 관련 도구 묶음. child-session: 태스크를 흐름별로 나눠 브리프 파일을 받아 일하는 새 세션을 부모 tmux window 의 pane 으로 (다른 pane 이 이미 3개면 새 window 로, tmux 밖의 Herdr 터미널에서는 부모 터미널에 딸린 Herdr 터미널로) 띄우고, 보고·규칙 전파·닫기를 부모가 관리 (완료는 결과 한 줄과 상세 위치만 전하고 상세 확인은 하위 세션에서). side-task: 지금 대화를 이어받은 분기 세션을 같은 자리 규칙으로 띄워 곁가지 작업을 맡기고, 시작·공유·질문·완료를 SendMessage 로 보고받은 뒤 부모가 닫기를 판단. 둘 다 닫기 전에 세션 기록을 남기고 후속 문의 때 그 기록으로 다시 연다."
 }

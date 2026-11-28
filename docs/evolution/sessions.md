@@ -2,6 +2,16 @@
 
 최신이 위. 형식은 `.claude/skills/evolve/SKILL.md` 의 "결정 기록" 절.
 
+## 2026-11-28 — 하위 세션 권한 모드를 스크립트가 부모에서 읽음 (1.9.0)
+
+자료: 사용 사고 — bypass 로 다시 뜬 부모가 사흘 전 `ps` 로 읽은 `--permission-mode auto` 를 자기 대화에서 옮겨 `--flag` 로 계속 넘겨, 하위 세션이 auto 로 떴다. 모드가 갈려 하위 세션의 보고 세 건이 승인 대기로 만료됐다.
+
+| 판정 | 항목 | 근거 | 재검토 조건 |
+|---|---|---|---|
+| 반영 | spawn.sh (child-session·side-task) 가 띄우는 순간 부모 claude 실행 인자에서 권한 플래그를 읽고 `--flag` 의 권한 플래그는 버림 | 모델이 고르게 두면 낡은 값이 남는다. 부모 PID 는 `$CLAUDE_PID`, 없으면 조상 중 이름이 claude 인 프로세스. 첫 지시 앞 `--` 에서 멈춰 본문 글자를 읽지 않는다. 부모를 못 찾으면 `--flag` 그대로 | Claude Code 가 세션의 현재 권한 모드를 환경변수 등으로 알려 주면 그 값으로 (Shift+Tab 변경까지 따라감) |
+| 기록 | 한계: 부모가 켜진 뒤 Shift+Tab·plan mode 로 바꾼 모드는 넘어가지 않음 | 실행 인자는 켜질 때 고정. SKILL.md 에 "띄운 뒤 권한 표시 확인" 으로 적음 | 위와 같음 |
+| 반영 | `--dry-run` 과 `tests/run.sh` | 가짜 부모 (이름이 claude 인 bash 심링크) 로 권한 읽기를 시험. tmux·Herdr 없이 돈다 | — |
+
 ## 2026-11-21 — crosstalk 스킬 삭제 (1.7.0)
 
 자료: 사용 흔적 — 최근 30일 대화 기록에서 crosstalk 스킬 호출 · 슬래시 명령 모두 0. 2026-10-06 회차에서 deprecate 한 뒤 공식 `SendMessage` · `ListAgents` 로 옮겨 탔다.
